@@ -17,6 +17,7 @@ def find_video_url(channel_url, expected_date):
         'quiet': True,
         'extract_flat': 'in_playlist',
         'force_generic_extractor': True,
+        'nocheckcertificate': True,
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
