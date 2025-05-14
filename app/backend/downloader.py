@@ -12,7 +12,10 @@ def get_next_saturday():
     return (today + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
 
 
-def find_video_url(channel_url, expected_date):
+def find_video_url(channel_url, expected_date, date_format="%Y-%m-%d"):
+    import re
+    from datetime import datetime
+
     ydl_opts = {
         'quiet': True,
         'extract_flat': 'in_playlist',
@@ -20,13 +23,42 @@ def find_video_url(channel_url, expected_date):
         'nocheckcertificate': True,
     }
 
+    def parse_date_from_title(title):
+        # Try to find a date in the title matching the date_format
+        try:
+            # Extract date string based on format
+            if date_format == "%Y-%m-%d":
+                # Look for YYYY-MM-DD pattern
+                match = re.search(r"\d{4}-\d{2}-\d{2}", title)
+            elif date_format == "%d.%m.%Y":
+                # Look for DD.MM.YYYY pattern
+                match = re.search(r"\d{2}\.\d{2}\.\d{4}", title)
+            else:
+                match = None
+
+            if match:
+                date_str = match.group(0)
+                return datetime.strptime(date_str, date_format).date()
+        except Exception as e:
+            logging.error(f"Date parsing error: {e}")
+        return None
+
+    expected_date_obj = None
+    try:
+        expected_date_obj = datetime.strptime(expected_date, date_format).date()
+    except Exception as e:
+        logging.error(f"Expected date parsing error: {e}")
+        return None
+
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
             info = ydl.extract_info(channel_url + "/videos", download=False)
             entries = info.get("entries", [])
 
             for entry in entries:
-                if expected_date in entry.get("title", ""):
+                title = entry.get("title", "")
+                video_date = parse_date_from_title(title)
+                if video_date == expected_date_obj:
                     return f"https://www.youtube.com/watch?v={entry['id']}"
         except Exception as e:
             logging.error(f"Failed to fetch video list: {e}")
@@ -44,6 +76,18 @@ def delete_old_videos(video_folder, keep_old):
 
 
 def download_video(video_url, video_folder):
+    if not video_folder:
+        logging.error("Video folder path is empty or invalid.")
+        return
+
+    # Check if video already exists in folder by title (simplified check)
+    video_title = video_url.split("v=")[-1]
+    existing_files = os.listdir(video_folder) if os.path.exists(video_folder) else []
+    for file in existing_files:
+        if video_title in file:
+            logging.info(f"Video already exists: {file}")
+            return
+
     os.makedirs(video_folder, exist_ok=True)
 
     ydl_opts = {
