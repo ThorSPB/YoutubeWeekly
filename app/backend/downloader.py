@@ -4,12 +4,12 @@ import yt_dlp
 import logging
 from datetime import datetime, timedelta
 
-def get_next_saturday():
+def get_next_saturday(date_format="%Y-%m-%d"):
     today = datetime.today()
     days_ahead = 5 - today.weekday()  # 5 = Saturday
     if days_ahead <= 0:
         days_ahead += 7
-    return (today + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
+    return (today + timedelta(days=days_ahead)).strftime(date_format)
 
 
 def find_video_url(channel_url, expected_date, date_format="%Y-%m-%d"):
