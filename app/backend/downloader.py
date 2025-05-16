@@ -4,7 +4,7 @@ import yt_dlp
 import logging
 from datetime import datetime, timedelta
 
-def get_next_saturday(date_format="%Y-%m-%d"):
+def get_next_saturday(date_format="%d.%m.%Y"):
     today = datetime.today()
     days_ahead = 5 - today.weekday()  # 5 = Saturday
     if days_ahead <= 0:
@@ -12,7 +12,7 @@ def get_next_saturday(date_format="%Y-%m-%d"):
     return (today + timedelta(days=days_ahead)).strftime(date_format)
 
 
-def find_video_url(channel_url, expected_date, date_format="%Y-%m-%d"):
+def find_video_url(channel_url, expected_date, date_format="%d.%m.%Y"):
     import re
     from datetime import datetime
 
@@ -27,10 +27,7 @@ def find_video_url(channel_url, expected_date, date_format="%Y-%m-%d"):
         # Try to find a date in the title matching the date_format
         try:
             # Extract date string based on format
-            if date_format == "%Y-%m-%d":
-                # Look for YYYY-MM-DD pattern
-                match = re.search(r"\d{4}-\d{2}-\d{2}", title)
-            elif date_format == "%d.%m.%Y":
+            if date_format == "%d.%m.%Y":
                 # Look for DD.MM.YYYY pattern
                 match = re.search(r"\d{2}\.\d{2}\.\d{4}", title)
             else:

@@ -12,7 +12,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             {
                 "name": "DepartamentulIsprăvnicie",
                 "url": "https://www.youtube.com/c/DepartamentulIsprăvnicie",
-                "date_format": "%Y-%m-%d"
+                "date_format": "%d.%m.%Y"
             },
             {
                 "name": "ScoalaDeSabat",
