@@ -23,10 +23,7 @@ class YoutubeWeeklyGUI(tk.Tk):
 
         ttk.Label(self, text="Download next Saturday's video for each channel").pack(pady=10)
 
-        self.folder_var = tk.StringVar(value="downloads")
-        ttk.Label(self, text="Download Folder:").pack()
-        self.folder_entry = ttk.Entry(self, textvariable=self.folder_var, width=40)
-        self.folder_entry.pack(pady=5)
+        self.folder_path = "data/videos"
 
         self.status_var = tk.StringVar()
         self.status_label = ttk.Label(self, textvariable=self.status_var, foreground="white")
@@ -36,11 +33,10 @@ class YoutubeWeeklyGUI(tk.Tk):
             btn = ttk.Button(self, text=f"Download for {channel['name']}", command=lambda ch=channel: self.download_for_channel(ch))
             btn.pack(pady=5)
 
+        ttk.Button(self, text="Quit", command=self.quit).pack(pady=10)
+
     def download_for_channel(self, channel):
-        folder = self.folder_var.get().strip()
-        if not folder:
-            messagebox.showerror("Error", "Please enter a download folder.")
-            return
+        folder = self.folder_path
 
         self.status_var.set(f"Finding video for {channel['name']}...")
         self.update_idletasks()

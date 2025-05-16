@@ -172,3 +172,10 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Allow video files to be tracked
+!data/videos/
+data/videos/**
+
+# macOS metadata
+.DS_Store

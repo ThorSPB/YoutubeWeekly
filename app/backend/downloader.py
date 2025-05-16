@@ -12,8 +12,16 @@ def get_next_saturday(date_format="%d.%m.%Y"):
     return (today + timedelta(days=days_ahead)).strftime(date_format)
 
 
+
+def format_romanian_date(date_obj):
+    months = {
+        1: "ianuarie", 2: "februarie", 3: "martie", 4: "aprilie", 5: "mai", 6: "iunie",
+        7: "iulie", 8: "august", 9: "septembrie", 10: "octombrie", 11: "noiembrie", 12: "decembrie"
+    }
+    return f"{date_obj.day} {months[date_obj.month]} {date_obj.year}"
+
+
 def find_video_url(channel_url, expected_date, date_format="%d.%m.%Y"):
-    import re
     from datetime import datetime
 
     ydl_opts = {
@@ -23,29 +31,13 @@ def find_video_url(channel_url, expected_date, date_format="%d.%m.%Y"):
         'nocheckcertificate': True,
     }
 
-    def parse_date_from_title(title):
-        # Try to find a date in the title matching the date_format
-        try:
-            # Extract date string based on format
-            if date_format == "%d.%m.%Y":
-                # Look for DD.MM.YYYY pattern
-                match = re.search(r"\d{2}\.\d{2}\.\d{4}", title)
-            else:
-                match = None
-
-            if match:
-                date_str = match.group(0)
-                return datetime.strptime(date_str, date_format).date()
-        except Exception as e:
-            logging.error(f"Date parsing error: {e}")
-        return None
-
-    expected_date_obj = None
     try:
         expected_date_obj = datetime.strptime(expected_date, date_format).date()
     except Exception as e:
         logging.error(f"Expected date parsing error: {e}")
         return None
+
+    expected_title_part = format_romanian_date(expected_date_obj).lower()
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
@@ -53,9 +45,8 @@ def find_video_url(channel_url, expected_date, date_format="%d.%m.%Y"):
             entries = info.get("entries", [])
 
             for entry in entries:
-                title = entry.get("title", "")
-                video_date = parse_date_from_title(title)
-                if video_date == expected_date_obj:
+                title = entry.get("title", "").lower()
+                if expected_title_part in title and "diaspora" not in title:
                     return f"https://www.youtube.com/watch?v={entry['id']}"
         except Exception as e:
             logging.error(f"Failed to fetch video list: {e}")
