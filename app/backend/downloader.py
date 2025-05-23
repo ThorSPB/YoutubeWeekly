@@ -37,7 +37,10 @@ def find_video_url(channel_url, expected_date, date_format="%d.%m.%Y"):
         logging.error(f"Expected date parsing error: {e}")
         return None
 
-    expected_title_part = format_romanian_date(expected_date_obj).lower()
+    # Build both possible matches
+    formatted_numeric  = expected_date_obj.strftime(date_format).lower()
+    formatted_romanian = format_romanian_date(expected_date_obj).lower()
+    expected_title_parts = {formatted_numeric, formatted_romanian}
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
@@ -46,14 +49,12 @@ def find_video_url(channel_url, expected_date, date_format="%d.%m.%Y"):
 
             for entry in entries:
                 title = entry.get("title", "").lower()
-                if expected_title_part in title and "diaspora" not in title:
+                # match if either format appears, and skip diaspora
+                if any(part in title for part in expected_title_parts) and "diaspora" not in title:
                     return f"https://www.youtube.com/watch?v={entry['id']}"
         except Exception as e:
             logging.error(f"Failed to fetch video list: {e}")
             return None
-
-    return None
-
 
 def delete_old_videos(video_folder, keep_old):
     if not keep_old:

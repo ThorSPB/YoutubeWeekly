@@ -26,7 +26,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.folder_path = "data/videos"
 
         self.status_var = tk.StringVar()
-        self.status_label = ttk.Label(self, textvariable=self.status_var, foreground="white")
+        self.status_label = ttk.Label(self, textvariable=self.status_var, foreground="black")
         self.status_label.pack(pady=5)
 
         for channel in self.channels:
