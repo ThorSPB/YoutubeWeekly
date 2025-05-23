@@ -2,11 +2,13 @@
   "channel_1": {
     "name": "Departamentul Isprăvnicie",
     "url": "https://www.youtube.com/c/DepartamentulIsprăvnicie",
-    "date_format": "%d %B %Y"
+    "date_format": "%d %B %Y",
+    "folder": "colecta"
   },
   "channel_2": {
     "name": "ScoalaDeSabat",
     "url": "https://www.youtube.com/@ScoalaDeSabat",
-    "date_format": "%d.%m.%Y"
+    "date_format": "%d.%m.%Y",
+    "folder": "scoala_de_sabat"
   }
 }
