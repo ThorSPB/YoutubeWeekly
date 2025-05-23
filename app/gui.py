@@ -10,9 +10,17 @@ from datetime import datetime
 class YoutubeWeeklyGUI(tk.Tk):
     def __init__(self):
         super().__init__()
+        self.configure(bg="#2b2b2b")  # unified dark gray
+
+        style = ttk.Style()
+        style.theme_use("default")
+        style.configure("TButton", background="#444444", foreground="white")
+        style.map("TButton", background=[("active", "#555555")])
+        style.configure("Dark.TFrame", background="#2b2b2b")
+
         self.title("YoutubeWeekly Downloader")
         # Compact initial size, but allow vertical expansion for wrapped text
-        self.geometry("450x250")
+        self.geometry("450x300")
         # Fixed download base folder
         self.base_path = "data/videos"
 
@@ -29,25 +37,30 @@ class YoutubeWeeklyGUI(tk.Tk):
         ]
 
         # Header label
-        ttk.Label(
+        tk.Label(
             self,
             text="Download next Saturday's video for each channel",
-            font=(None, 12, 'bold')
+            font=(None, 12, 'bold'),
+            fg="white",
+            bg="#2b2b2b"
         ).pack(pady=(15, 10))
 
         # Status label with wrapping
         self.status_var = tk.StringVar()
-        self.status_label = ttk.Label(
+        self.status_label = tk.Label(
             self,
             textvariable=self.status_var,
-            foreground="blue",
-            wraplength=400,
-            justify="left"
+            fg="#ffffff",
+            bg="#2b2b2b",
+            anchor="w",
+            justify="left",
+            wraplength=self.winfo_width()
         )
         self.status_label.pack(pady=(5, 15), padx=20, fill="x")
 
         # Buttons frame
         btn_frame = ttk.Frame(self)
+        btn_frame.configure(style="Dark.TFrame")
         btn_frame.pack(pady=(0, 15), padx=20, fill="x")
 
         # One download button per channel
@@ -56,17 +69,51 @@ class YoutubeWeeklyGUI(tk.Tk):
                 btn_frame,
                 text=f"Download for {channel['name']}",
                 command=lambda ch=channel: self.download_for_channel(ch),
-                width=40             
+                width=30           
             )
             btn.pack(pady=5)
 
+        # Others link entry and button frame
+        others_frame = ttk.Frame(self)
+        others_frame.configure(style="Dark.TFrame")
+        others_frame.pack(pady=(0, 15), padx=20, fill="x")
+
+        self.others_link_var = tk.StringVar()
+        others_entry = ttk.Entry(others_frame, textvariable=self.others_link_var, width=30)
+        others_entry.pack(side="left", padx=(0, 10), fill="x", expand=True)
+
+        others_btn = ttk.Button(
+            others_frame,
+            text="Others",
+            command=self.download_others,
+            width=10
+        )
+        others_btn.pack(side="left")
+
         # Quit button
-        ttk.Button(self, text="Quit", command=self.quit, width=30).pack(pady=(0, 15))
+        ttk.Button(self, text="Quit", command=self.quit, width=15).pack(pady=(0, 15))
 
         self.resizable(True, True)
 
+        self.bind("<Configure>", self._on_resize)
+
+    def _on_resize(self, event):
+        if event.widget == self:
+            new_wrap = max(300, event.width - 40)
+            self.status_label.config(wraplength=new_wrap)
+
     def _set_status(self, text):
-        """Thread-safe status update."""
+        if "already exists" in text.lower():
+            color = "yellow"
+        elif "no video found" in text.lower():
+            color = "red"
+        elif "download complete" in text.lower():
+            color = "green"
+        elif "error" in text.lower():
+            color = "red"
+        else:
+            color = "#ffffff"
+        self.status_label.config(fg=color)
         self.status_var.set(text)
         self.update_idletasks()
 
@@ -77,6 +124,32 @@ class YoutubeWeeklyGUI(tk.Tk):
             args=(channel,),
             daemon=True
         ).start()
+
+    def download_others(self):
+        """Download video from the link in the others entry to data/videos/other."""
+        link = self.others_link_var.get().strip()
+        if not link:
+            self._set_status("Please enter a YouTube link.")
+            return
+
+        self._set_status("Starting download for Others...")
+        threading.Thread(
+            target=self._worker_download_others,
+            args=(link,),
+            daemon=True
+        ).start()
+
+    def _worker_download_others(self, link):
+        folder = os.path.join(self.base_path, "other")
+        try:
+            download_video(link, folder)
+            self._set_status("Download complete for Others.")
+        except Exception as e:
+            self._set_status("Error downloading Others.")
+            messagebox.showerror(
+                "Download Error",
+                f"Failed to download video:\n{e}"
+            )
 
     def _worker_download(self, channel):
         """Worker function that runs off the main UI thread."""
