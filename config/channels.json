@@ -1,6 +1,12 @@
 {
   "channel_1": {
     "name": "Departamentul Isprăvnicie",
-    "url": "https://www.youtube.com/c/DepartamentulIspr%C4%83vnicie"
+    "url": "https://www.youtube.com/c/DepartamentulIsprăvnicie",
+    "date_format": "%d %B %Y"
+  },
+  "channel_2": {
+    "name": "ScoalaDeSabat",
+    "url": "https://www.youtube.com/@ScoalaDeSabat",
+    "date_format": "%d.%m.%Y"
   }
 }
