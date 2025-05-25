@@ -12,10 +12,9 @@ class YoutubeWeeklyGUI(tk.Tk):
         super().__init__()
         self.configure(bg="#2b2b2b")
 
-        self.quality_options = ["1080p mp4", "720p mp4", "480p mp4", "Audio only (mp3)"]
+        self.quality_options = ["1080p", "720p", "480p", "mp3"]
         self.channel_quality_vars = {}
         self.channel_date_vars = {}
-        self.recent_sabbaths = [""] + get_recent_sabbaths()
 
         style = ttk.Style()
         style.theme_use("default")
@@ -24,7 +23,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         style.configure("Dark.TFrame", background="#2b2b2b")
 
         self.title("YoutubeWeekly Downloader")
-        self.geometry("450x300")
+        self.geometry("455x260")
         self.base_path = "data/videos"
 
         # Load channels configuration
@@ -39,14 +38,19 @@ class YoutubeWeeklyGUI(tk.Tk):
             for key, ch_data in raw.items()
         ]
 
+        self.recent_sabbaths_per_channel = {
+            ch["name"]: ["automat"] + get_recent_sabbaths(date_format="%d.%m.%Y")
+            for ch in self.channels
+        }
+
         # Header label
         tk.Label(
             self,
             text="Download next Saturday's video for each channel",
-            font=(None, 12, 'bold'),
+            font=(None, 16, 'bold'),
             fg="white",
             bg="#2b2b2b"
-        ).pack(pady=(15, 10))
+        ).pack(pady=(5, 10))
 
         # Status label with wrapping
         self.status_var = tk.StringVar()
@@ -69,22 +73,23 @@ class YoutubeWeeklyGUI(tk.Tk):
         # One download button + quality selector per channel
         for channel in self.channels:
             row = ttk.Frame(btn_frame)
-            row.pack(pady=3, fill="x")
+            row.pack(pady=3, anchor="w")
 
-            var = tk.StringVar(value="1080p mp4")
+            var = tk.StringVar(value="1080p")
             self.channel_quality_vars[channel["name"]] = var
 
-            combo = ttk.Combobox(row, textvariable=var, values=self.quality_options, width=18, state="readonly")
+            combo = ttk.Combobox(row, textvariable=var, values=self.quality_options, width=6, state="readonly", justify="center")
             combo.pack(side="left", padx=(0, 5))
 
-            self.channel_date_vars[channel["name"]] = tk.StringVar(value="")
+            self.channel_date_vars[channel["name"]] = tk.StringVar(value="automat")
 
             date_combo = ttk.Combobox(
                 row,
                 textvariable=self.channel_date_vars[channel["name"]],
-                values=self.recent_sabbaths,
-                width=12,
-                state="readonly"
+                values=self.recent_sabbaths_per_channel[channel["name"]],
+                width=8,
+                state="readonly",
+                justify="center"
             )
             date_combo.pack(side="left", padx=(0, 5))
 
@@ -92,35 +97,48 @@ class YoutubeWeeklyGUI(tk.Tk):
                 row,
                 text=f"Download {channel['name']}",
                 command=lambda ch=channel: self.download_for_channel(ch),
-                width=25
+                width=26
             )
             btn.pack(side="left")
 
         # Others link entry and button frame
         others_frame = ttk.Frame(self)
         others_frame.configure(style="Dark.TFrame")
-        others_frame.pack(pady=(0, 15), padx=20, fill="x")
+        others_frame.pack(pady=(0, 15), padx=20, anchor="w")
+
+        self.others_quality_var = tk.StringVar(value="1080p")
+        others_combo = ttk.Combobox(
+            others_frame,
+            textvariable=self.others_quality_var,
+            values=self.quality_options,
+            width=6,
+            state="readonly",
+            justify="center"
+        )
+        others_combo.pack(side="left", padx=(0, 5))
 
         self.others_link_var = tk.StringVar()
-        others_entry = ttk.Entry(others_frame, textvariable=self.others_link_var, width=30)
-        others_entry.pack(side="left", padx=(0, 10), fill="x", expand=True)
-
-        self.others_quality_var = tk.StringVar(value="1080p mp4")
-        others_combo = ttk.Combobox(others_frame, textvariable=self.others_quality_var, values=self.quality_options, width=18, state="readonly")
-        others_combo.pack(side="left", padx=(10, 5))
+        others_entry = ttk.Entry(
+            others_frame,
+            textvariable=self.others_link_var,
+            width=24,
+        )
+        others_entry.insert(0, "Paste YouTube link...")
+        others_entry.bind("<FocusIn>", lambda e: others_entry.delete(0, "end") if others_entry.get() == "Paste YouTube link..." else None)
+        others_entry.pack(side="left", padx=(0, 9))
 
         others_btn = ttk.Button(
             others_frame,
-            text="Others",
+            text="Download",
             command=self.download_others,
-            width=10
+            width=11
         )
         others_btn.pack(side="left")
 
         # Quit button
-        ttk.Button(self, text="Quit", command=self.quit, width=15).pack(pady=(0, 15))
+        ttk.Button(self, text="Quit", command=self.quit, width=10).pack(pady=(0, 15))
 
-        self.resizable(True, True)
+        self.resizable(False, False)
 
         self.bind("<Configure>", self._on_resize)
 
@@ -186,7 +204,15 @@ class YoutubeWeeklyGUI(tk.Tk):
         # Step 1: Find next Saturday's date or use selected date
         self._set_status(f"Finding video for {name}...")
         selected_date = self.channel_date_vars.get(name, tk.StringVar()).get()
-        next_sat = selected_date if selected_date else get_next_saturday(date_format=fmt)
+        if selected_date and selected_date != "automat":
+            try:
+                date_obj = datetime.strptime(selected_date, "%d.%m.%Y").date()
+                next_sat = date_obj.strftime(fmt)
+            except Exception as e:
+                self._set_status(f"Date parse error: {e}")
+                return
+        else:
+            next_sat = get_next_saturday(date_format=fmt)
 
         # Step 2: Locate the video URL
         url = find_video_url(channel["url"], next_sat, date_format=fmt)
@@ -215,14 +241,14 @@ class YoutubeWeeklyGUI(tk.Tk):
             return
 
         # Step 4: Delete previous (in channel folder) only if no custom date selected
-        if not selected_date:
+        if not selected_date or selected_date == "automat":
             delete_old_videos(channel_folder, keep_old=False)
 
         # Step 5: Download into channel folder
         quality_pref = self.channel_quality_vars.get(name, tk.StringVar()).get()
         self._set_status(f"Downloading from {name} ({quality_pref})...")
         try:
-            download_video(url, channel_folder, quality_pref, protect=bool(selected_date))
+            download_video(url, channel_folder, quality_pref, protect=bool(selected_date and selected_date != "automat"))
             self._set_status(f"Download complete for {name}.")
         except Exception as e:
             self._set_status(f"Error downloading {name}.")
