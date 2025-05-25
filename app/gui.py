@@ -10,7 +10,7 @@ from datetime import datetime
 class YoutubeWeeklyGUI(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.configure(bg="#2b2b2b")  # unified dark gray
+        self.configure(bg="#2b2b2b")
 
         style = ttk.Style()
         style.theme_use("default")
@@ -19,9 +19,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         style.configure("Dark.TFrame", background="#2b2b2b")
 
         self.title("YoutubeWeekly Downloader")
-        # Compact initial size, but allow vertical expansion for wrapped text
         self.geometry("450x300")
-        # Fixed download base folder
         self.base_path = "data/videos"
 
         # Load channels configuration
@@ -132,7 +130,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             self._set_status("Please enter a YouTube link.")
             return
 
-        self._set_status("Starting download for Others...")
+        self._set_status("Starting download...")
         threading.Thread(
             target=self._worker_download_others,
             args=(link,),
@@ -143,9 +141,9 @@ class YoutubeWeeklyGUI(tk.Tk):
         folder = os.path.join(self.base_path, "other")
         try:
             download_video(link, folder)
-            self._set_status("Download complete for Others.")
+            self._set_status("Download complete.")
         except Exception as e:
-            self._set_status("Error downloading Others.")
+            self._set_status("Error downloading.")
             messagebox.showerror(
                 "Download Error",
                 f"Failed to download video:\n{e}"

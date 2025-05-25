@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import yt_dlp
 import logging
 from datetime import datetime, timedelta
@@ -29,6 +30,7 @@ def find_video_url(channel_url, expected_date, date_format="%d.%m.%Y"):
         'extract_flat': 'in_playlist',
         'force_generic_extractor': True,
         'nocheckcertificate': True,
+        'flat': True,
     }
 
     try:
@@ -44,10 +46,12 @@ def find_video_url(channel_url, expected_date, date_format="%d.%m.%Y"):
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
+            start_time = time.time()
             info = ydl.extract_info(channel_url + "/videos", download=False)
+            print(f"[DEBUG] yt-dlp took {time.time() - start_time:.2f} seconds to extract info.")
             entries = info.get("entries", [])
 
-            for entry in entries:
+            for entry in entries[:5]:
                 title = entry.get("title", "").lower()
                 # match if either format appears, and skip diaspora
                 if any(part in title for part in expected_title_parts) and "diaspora" not in title:
