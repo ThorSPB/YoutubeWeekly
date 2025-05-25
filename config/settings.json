@@ -1,4 +1,9 @@
 {
   "keep_old_videos": false,
-  "video_folder": "data/videos"
+  "video_folder": "data/videos",
+  "protected_videos": {
+    "colecta": [],
+    "scoala_de_sabat": [],
+    "other": []
+  }
 }
