@@ -47,7 +47,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         tk.Label(
             self,
             text="Download next Saturday's video for each channel",
-            font=(None, 16, 'bold'),
+            font=(None, 14, 'bold'),
             fg="white",
             bg="#2b2b2b"
         ).pack(pady=(5, 10))
