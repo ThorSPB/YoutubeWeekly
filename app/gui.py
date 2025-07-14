@@ -2,6 +2,7 @@ import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
 import os
+from plyer import notification
 
 from app.backend.config import load_channels
 from app.backend.downloader import find_video_url, download_video, get_next_saturday, delete_old_videos, format_romanian_date, get_recent_sabbaths
@@ -162,6 +163,17 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.status_var.set(text)
         self.update_idletasks()
 
+    def _send_notification(self, title, message):
+        try:
+            notification.notify(
+                title=title,
+                message=message,
+                app_name="YoutubeWeekly Downloader",
+                timeout=10
+            )
+        except Exception as e:
+            print(f"Error sending notification: {e}")
+
     def download_for_channel(self, channel):
         """Launch the download check in a background thread."""
         threading.Thread(
@@ -189,8 +201,10 @@ class YoutubeWeeklyGUI(tk.Tk):
         try:
             download_video(link, folder, self.others_quality_var.get())
             self._set_status("Download complete.")
+            self._send_notification("Download Complete", f"Finished downloading video from link: {link}")
         except Exception as e:
             self._set_status("Error downloading.")
+            self._send_notification("Download Error", f"Failed to download video from link: {link}")
             messagebox.showerror(
                 "Download Error",
                 f"Failed to download video:\n{e}"
@@ -218,6 +232,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         url = find_video_url(channel["url"], next_sat, date_format=fmt)
         if not url:
             self._set_status(f"No video found for {name} on {next_sat}.")
+            self._send_notification("Video Not Found", f"No video found for {name} on {next_sat}.")
             return
 
         # Prepare channel-specific folder
@@ -250,8 +265,10 @@ class YoutubeWeeklyGUI(tk.Tk):
         try:
             download_video(url, channel_folder, quality_pref, protect=bool(selected_date and selected_date != "automat"))
             self._set_status(f"Download complete for {name}.")
+            self._send_notification("Download Complete", f"Finished downloading video for {name}.")
         except Exception as e:
             self._set_status(f"Error downloading {name}.")
+            self._send_notification("Download Error", f"Failed to download video for {name}.")
             messagebox.showerror(
                 "Download Error",
                 f"Failed to download {name}:\n{e}"
