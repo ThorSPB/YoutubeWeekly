@@ -47,6 +47,16 @@ class SettingsWindow(tk.Toplevel):
         quality_combo = ttk.Combobox(quality_frame, textvariable=self.quality_var, values=["1080p", "720p", "480p", "mp3"], width=10, state="readonly")
         quality_combo.pack(side="left", padx=5)
 
+        # Automatic Downloads setting
+        self.enable_auto_download_var = tk.BooleanVar(value=self.settings.get("enable_auto_download", False))
+        auto_download_check = ttk.Checkbutton(main_frame, text="Enable Automatic Downloads", variable=self.enable_auto_download_var)
+        auto_download_check.pack(anchor="w", pady=5)
+
+        # Notifications setting
+        self.enable_notifications_var = tk.BooleanVar(value=self.settings.get("enable_notifications", True))
+        notifications_check = ttk.Checkbutton(main_frame, text="Enable Notifications", variable=self.enable_notifications_var)
+        notifications_check.pack(anchor="w", pady=5)
+
         # Buttons
         button_frame = ttk.Frame(main_frame, style="Dark.TFrame")
         button_frame.pack(side="bottom", fill="x", pady=10)
@@ -54,7 +64,7 @@ class SettingsWindow(tk.Toplevel):
         save_button = ttk.Button(button_frame, text="Save", command=self.save_settings)
         save_button.pack(side="right", padx=5)
 
-        cancel_button = ttk.Button(button_frame, text="Cancel", command=self.destroy)
+        cancel_button = ttk.Button(button_frame, text="Cancel", command=self.on_closing)
         cancel_button.pack(side="right")
 
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -85,6 +95,8 @@ class SettingsWindow(tk.Toplevel):
         self.settings["keep_old_videos"] = self.keep_old_videos_var.get()
         self.settings["video_folder"] = self.video_folder_var.get()
         self.settings["default_quality"] = self.quality_var.get()
+        self.settings["enable_auto_download"] = self.enable_auto_download_var.get()
+        self.settings["enable_notifications"] = self.enable_notifications_var.get()
         self.settings["settings_window_geometry"] = self.geometry()
 
         save_settings(self.settings)

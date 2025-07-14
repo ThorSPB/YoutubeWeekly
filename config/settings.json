@@ -8,5 +8,7 @@
   },
   "default_quality": "1080p",
   "main_window_geometry": "455x260+561+349",
-  "settings_window_geometry": "400x300+476+142"
+  "settings_window_geometry": "400x300+650+530",
+  "enable_auto_download": false,
+  "enable_notifications": true
 }

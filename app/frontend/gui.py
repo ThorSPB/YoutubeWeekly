@@ -201,15 +201,16 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.update_idletasks()
 
     def _send_notification(self, title, message):
-        try:
-            notification.notify(
-                title=title,
-                message=message,
-                app_name="YoutubeWeekly Downloader",
-                timeout=10
-            )
-        except Exception as e:
-            print(f"Error sending notification: {e}")
+        if self.settings.get("enable_notifications", True):
+            try:
+                notification.notify(
+                    title=title,
+                    message=message,
+                    app_name="YoutubeWeekly Downloader",
+                    timeout=10
+                )
+            except Exception as e:
+                print(f"Error sending notification: {e}")
 
     def download_for_channel(self, channel):
         """Launch the download check in a background thread."""
