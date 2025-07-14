@@ -89,7 +89,7 @@ def delete_old_videos(video_folder, keep_old):
                 logging.info(f"Deleted old video: {filename}")
 
 
-def download_video(video_url, video_folder, quality_pref="1080p mp4", protect=False):
+def download_video(video_url, video_folder, quality_pref="1080p", protect=False):
     if not video_folder:
         logging.error("Video folder path is empty or invalid.")
         return
@@ -105,16 +105,16 @@ def download_video(video_url, video_folder, quality_pref="1080p mp4", protect=Fa
     os.makedirs(video_folder, exist_ok=True)
 
     # Determine format options based on quality_pref
-    if quality_pref == "1080p mp4":
+    if quality_pref == "1080p":
         ydl_format = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]'
         merge_format = 'mp4'
-    elif quality_pref == "720p mp4":
+    elif quality_pref == "720p":
         ydl_format = 'bestvideo[height<=720]+bestaudio/best[height<=720]'
         merge_format = 'mp4'
-    elif quality_pref == "480p mp4":
+    elif quality_pref == "480p":
         ydl_format = 'bestvideo[height<=480]+bestaudio/best[height<=480]'
         merge_format = 'mp4'
-    elif quality_pref == "Audio only (mp3)":
+    elif quality_pref == "mp3":
         ydl_format = 'bestaudio/best'
         merge_format = 'mp3'
     else:
@@ -129,7 +129,7 @@ def download_video(video_url, video_folder, quality_pref="1080p mp4", protect=Fa
         'postprocessors': []
     }
 
-    if quality_pref == "Audio only (mp3)":
+    if quality_pref == "mp3":
         ydl_opts['postprocessors'].append({
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
