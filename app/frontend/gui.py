@@ -3,15 +3,19 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import os
 from plyer import notification
+import json
 
-from app.backend.config import load_channels
+from app.backend.config import load_channels, load_settings, save_settings
 from app.backend.downloader import find_video_url, download_video, get_next_saturday, delete_old_videos, format_romanian_date, get_recent_sabbaths
 from datetime import datetime
+from app.frontend.settings_window import SettingsWindow
 
 class YoutubeWeeklyGUI(tk.Tk):
     def __init__(self):
         super().__init__()
         self.configure(bg="#2b2b2b")
+
+        self.settings = load_settings()
 
         self.quality_options = ["1080p", "720p", "480p", "mp3"]
         self.channel_quality_vars = {}
@@ -25,7 +29,9 @@ class YoutubeWeeklyGUI(tk.Tk):
 
         self.title("YoutubeWeekly Downloader")
         self.geometry("455x260")
-        self.base_path = "data/videos"
+        self.load_window_position()
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+        self.base_path = self.settings.get("video_folder", "data/videos")
 
         # Load channels configuration
         raw = load_channels()
@@ -44,14 +50,19 @@ class YoutubeWeeklyGUI(tk.Tk):
             for ch in self.channels
         }
 
-        # Header label
+        # Header with settings button
+        header_frame = ttk.Frame(self, style="Dark.TFrame")
+        header_frame.pack(fill="x", padx=10, pady=(5, 0))
+
         tk.Label(
-            self,
-            text="Download next Saturday's video for each channel",
+            header_frame,
+            text="YoutubeWeekly Downloader",
             font=(None, 14, 'bold'),
             fg="white",
             bg="#2b2b2b"
-        ).pack(pady=(5, 10))
+        ).pack(side="left")
+
+        ttk.Button(header_frame, text="⚙", command=self.open_settings, width=3).pack(side="right")
 
         # Status label with wrapping
         self.status_var = tk.StringVar()
@@ -76,7 +87,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             row = ttk.Frame(btn_frame)
             row.pack(pady=3, anchor="w")
 
-            var = tk.StringVar(value="1080p")
+            var = tk.StringVar(value=self.settings.get("default_quality", "1080p"))
             self.channel_quality_vars[channel["name"]] = var
 
             combo = ttk.Combobox(row, textvariable=var, values=self.quality_options, width=6, state="readonly", justify="center")
@@ -107,7 +118,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         others_frame.configure(style="Dark.TFrame")
         others_frame.pack(pady=(0, 15), padx=20, anchor="w")
 
-        self.others_quality_var = tk.StringVar(value="1080p")
+        self.others_quality_var = tk.StringVar(value=self.settings.get("default_quality", "1080p"))
         others_combo = ttk.Combobox(
             others_frame,
             textvariable=self.others_quality_var,
@@ -137,11 +148,37 @@ class YoutubeWeeklyGUI(tk.Tk):
         others_btn.pack(side="left")
 
         # Quit button
-        ttk.Button(self, text="Quit", command=self.quit, width=10).pack(pady=(0, 15))
+        ttk.Button(self, text="Quit", command=self.on_closing, width=10).pack(pady=(0, 15))
+
 
         self.resizable(False, False)
 
         self.bind("<Configure>", self._on_resize)
+
+    def load_window_position(self):
+        geometry = self.settings.get("main_window_geometry")
+        if geometry:
+            self.geometry(geometry)
+
+    def on_closing(self):
+        self.settings["main_window_geometry"] = self.geometry()
+        save_settings(self.settings)
+        self.destroy()
+
+    def open_settings(self):
+        settings_win = SettingsWindow(self)
+        settings_win.transient(self)
+        settings_win.grab_set()
+        settings_win.focus_set()
+        self.wait_window(settings_win)
+        self.settings = load_settings() # Reload settings
+        self.base_path = self.settings.get("video_folder", "data/videos")
+        # Update quality dropdowns with new default
+        default_quality = self.settings.get("default_quality", "1080p")
+        for var in self.channel_quality_vars.values():
+            var.set(default_quality)
+        self.others_quality_var.set(default_quality)
+
 
     def _on_resize(self, event):
         if event.widget == self:
@@ -257,7 +294,7 @@ class YoutubeWeeklyGUI(tk.Tk):
 
         # Step 4: Delete previous (in channel folder) only if no custom date selected
         if not selected_date or selected_date == "automat":
-            delete_old_videos(channel_folder, keep_old=False)
+            delete_old_videos(channel_folder, keep_old=self.settings.get("keep_old_videos", False))
 
         # Step 5: Download into channel folder
         quality_pref = self.channel_quality_vars.get(name, tk.StringVar()).get()

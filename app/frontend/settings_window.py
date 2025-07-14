@@ -1,0 +1,92 @@
+import tkinter as tk
+from tkinter import ttk, filedialog
+import json
+from app.backend.config import save_settings
+
+class SettingsWindow(tk.Toplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Settings")
+        self.geometry("400x300")
+        self.configure(bg="#2b2b2b")
+
+        self.settings = self.load_settings()
+        self.load_window_position()
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+        self.create_widgets()
+
+    def create_widgets(self):
+        # Frame for better organization
+        main_frame = ttk.Frame(self, style="Dark.TFrame")
+        main_frame.pack(padx=10, pady=10, fill="both", expand=True)
+
+        # Keep old videos
+        self.keep_old_videos_var = tk.BooleanVar(value=self.settings.get("keep_old_videos", False))
+        keep_videos_check = ttk.Checkbutton(main_frame, text="Keep old videos", variable=self.keep_old_videos_var)
+        keep_videos_check.pack(anchor="w", pady=5)
+
+        # Video folder
+        folder_frame = ttk.Frame(main_frame, style="Dark.TFrame")
+        folder_frame.pack(fill="x", pady=5)
+        
+        ttk.Label(folder_frame, text="Video folder:").pack(side="left")
+        self.video_folder_var = tk.StringVar(value=self.settings.get("video_folder", "data/videos"))
+        folder_entry = ttk.Entry(folder_frame, textvariable=self.video_folder_var, width=30)
+        folder_entry.pack(side="left", expand=True, fill="x", padx=5)
+        
+        browse_button = ttk.Button(folder_frame, text="Browse", command=self.browse_folder)
+        browse_button.pack(side="left")
+
+        # Default quality
+        quality_frame = ttk.Frame(main_frame, style="Dark.TFrame")
+        quality_frame.pack(fill="x", pady=5)
+
+        ttk.Label(quality_frame, text="Default quality:").pack(side="left")
+        self.quality_var = tk.StringVar(value=self.settings.get("default_quality", "1080p"))
+        quality_combo = ttk.Combobox(quality_frame, textvariable=self.quality_var, values=["1080p", "720p", "480p", "mp3"], width=10, state="readonly")
+        quality_combo.pack(side="left", padx=5)
+
+        # Buttons
+        button_frame = ttk.Frame(main_frame, style="Dark.TFrame")
+        button_frame.pack(side="bottom", fill="x", pady=10)
+
+        save_button = ttk.Button(button_frame, text="Save", command=self.save_settings)
+        save_button.pack(side="right", padx=5)
+
+        cancel_button = ttk.Button(button_frame, text="Cancel", command=self.destroy)
+        cancel_button.pack(side="right")
+
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+    def browse_folder(self):
+        folder_selected = filedialog.askdirectory()
+        if folder_selected:
+            self.video_folder_var.set(folder_selected)
+
+    def load_settings(self):
+        try:
+            with open("config/settings.json", "r") as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
+
+    def load_window_position(self):
+        geometry = self.settings.get("settings_window_geometry")
+        if geometry:
+            self.geometry(geometry)
+
+    def on_closing(self):
+        self.settings["settings_window_geometry"] = self.geometry()
+        save_settings(self.settings)
+        self.destroy()
+
+    def save_settings(self):
+        self.settings["keep_old_videos"] = self.keep_old_videos_var.get()
+        self.settings["video_folder"] = self.video_folder_var.get()
+        self.settings["default_quality"] = self.quality_var.get()
+        self.settings["settings_window_geometry"] = self.geometry()
+
+        save_settings(self.settings)
+        
+        self.destroy()

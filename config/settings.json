@@ -5,5 +5,8 @@
     "colecta": [],
     "scoala_de_sabat": [],
     "other": []
-  }
+  },
+  "default_quality": "1080p",
+  "main_window_geometry": "455x260+561+349",
+  "settings_window_geometry": "400x300+476+142"
 }
