@@ -9,6 +9,7 @@ from app.backend.config import load_channels, load_settings, save_settings
 from app.backend.downloader import find_video_url, download_video, get_next_saturday, delete_old_videos, format_romanian_date, get_recent_sabbaths
 from datetime import datetime
 from app.frontend.settings_window import SettingsWindow
+from app.backend.auto_downloader import run_automatic_checks
 
 class YoutubeWeeklyGUI(tk.Tk):
     def __init__(self):
@@ -32,6 +33,13 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.load_window_position()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.base_path = self.settings.get("video_folder", "data/videos")
+
+        # Run automatic checks in a separate thread
+        threading.Thread(
+            target=run_automatic_checks,
+            args=(self.settings, self.channels, self._send_notification),
+            daemon=True
+        ).start()
 
         # Load channels configuration
         raw = load_channels()
