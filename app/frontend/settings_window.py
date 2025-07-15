@@ -1,3 +1,4 @@
+import os
 import tkinter as tk
 from tkinter import ttk, filedialog
 import json
@@ -31,8 +32,9 @@ class SettingsWindow(tk.Toplevel):
         folder_frame.pack(fill="x", pady=5)
         
         ttk.Label(folder_frame, text="Video folder:").pack(side="left")
+        entry_width = 26 if os.name == "posix" else 30  # Adjust for macOS (posix)
         self.video_folder_var = tk.StringVar(value=self.settings.get("video_folder", "data/videos"))
-        folder_entry = ttk.Entry(folder_frame, textvariable=self.video_folder_var, width=30)
+        folder_entry = ttk.Entry(folder_frame, textvariable=self.video_folder_var, width=entry_width)
         folder_entry.pack(side="left", expand=True, fill="x", padx=5)
         
         browse_button = ttk.Button(folder_frame, text="Browse", command=self.browse_folder)
