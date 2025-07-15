@@ -177,6 +177,8 @@ cython_debug/
 !data/videos/
 data/videos/**
 bugs.txt
+app/tools/**
+app/player/**
 
 # macOS metadata
 .DS_Store

@@ -5,13 +5,19 @@ from tkinter import ttk, messagebox
 from app.backend.config import save_settings
 import subprocess
 import shlex
+import time
 
 class FileViewer(tk.Toplevel):
-    def __init__(self, parent, settings, channel_name, channel_folder):
+    def __init__(self, parent, settings, channel_name, channel_folder, on_close_callback):
         super().__init__(parent)
         self.settings = settings
         self.channel_name = channel_name
+        self.channel_folder = channel_folder # Store channel_folder
+        self.on_close_callback = on_close_callback # Store callback
         self.geometry_key = f"file_viewer_{channel_name}_geometry"
+
+        self.root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        self.script_path = os.path.join(self.root_dir, "app", "player", "scripts", "delayed-fullscreen.lua")
 
         self.title(f"Files for {channel_name}")
         self.load_window_position()
@@ -49,6 +55,8 @@ class FileViewer(tk.Toplevel):
     def on_closing(self):
         self.settings[self.geometry_key] = self.geometry()
         save_settings(self.settings)
+        if self.on_close_callback:
+            self.on_close_callback(self.channel_folder)
         self.destroy()
 
     def populate_files(self):
@@ -85,7 +93,7 @@ class FileViewer(tk.Toplevel):
                 mpv_path = self.settings.get("mpv_path")
                 mpv_args = [mpv_path, self.selected_file_path]
                 if self.settings.get("mpv_fullscreen", False):
-                    mpv_args.append("--fullscreen")
+                    mpv_args.append(f"--script={self.script_path}")
                 if self.settings.get("mpv_volume") is not None:
                     mpv_args.append(f"--volume={self.settings.get("mpv_volume")}")
                 if self.settings.get("mpv_screen") != "Default":
@@ -95,9 +103,14 @@ class FileViewer(tk.Toplevel):
                     mpv_args.extend(shlex.split(custom_args))
 
                 if os.name == 'nt':
-                    subprocess.Popen(mpv_args, shell=True)
+                    process = subprocess.Popen(mpv_args, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
                 else:
-                    subprocess.Popen(mpv_args)
+                    process = subprocess.Popen(mpv_args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+                
+                stdout, stderr = process.communicate()
+                if process.returncode != 0:
+                    error_message = stderr.decode().strip() if stderr else "Unknown MPV error."
+                    messagebox.showerror("MPV Playback Error", f"MPV exited with an error:\n{error_message}")
             else:
                 if os.name == 'nt':
                     os.startfile(self.selected_file_path)

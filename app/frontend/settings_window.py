@@ -89,7 +89,8 @@ class SettingsWindow(tk.Toplevel):
         volume_frame.pack(fill="x", pady=5)
         ttk.Label(volume_frame, text="MPV Volume (0-200):").pack(side="left")
         self.mpv_volume_var = tk.IntVar(value=self.settings.get("mpv_volume", 100))
-        mpv_volume_slider = ttk.Scale(volume_frame, from_=0, to=200, orient="horizontal", variable=self.mpv_volume_var)
+        self.mpv_volume_var.trace_add("write", self._validate_mpv_volume)
+        mpv_volume_slider = ttk.Scale(volume_frame, from_=0, to=130, orient="horizontal", variable=self.mpv_volume_var)
         mpv_volume_slider.pack(side="left", expand=True, fill="x", padx=5)
         mpv_volume_entry = ttk.Entry(volume_frame, textvariable=self.mpv_volume_var, width=5)
         mpv_volume_entry.pack(side="left")
@@ -171,3 +172,11 @@ class SettingsWindow(tk.Toplevel):
         save_settings(self.settings)
         
         self.destroy()
+
+    def _validate_mpv_volume(self, *args):
+        try:
+            current_volume = self.mpv_volume_var.get()
+            if current_volume > 130:
+                self.mpv_volume_var.set(130)
+        except tk.TclError: # Handle cases where input is not an integer
+            pass

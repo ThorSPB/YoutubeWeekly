@@ -5,6 +5,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import subprocess
 import shlex
+import time
+import sys
 from plyer import notification
 import json
 
@@ -20,11 +22,15 @@ class YoutubeWeeklyGUI(tk.Tk):
         super().__init__()
         self.configure(bg="#2b2b2b")
 
-        self.settings = load_settings()
+        self.settings, self.startup_warnings = load_settings()
+
+        if self.startup_warnings:
+            messagebox.showwarning("Configuration Warnings", "\n".join(self.startup_warnings))
 
         self.quality_options = ["1080p", "720p", "480p", "mp3"]
         self.channel_quality_vars = {}
         self.channel_date_vars = {}
+        self.open_file_viewers = {}
 
         style = ttk.Style()
         style.theme_use("default")
@@ -219,7 +225,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         settings_win.grab_set()
         settings_win.focus_set()
         self.wait_window(settings_win)
-        self.settings = load_settings() # Reload settings
+        self.settings, _ = load_settings() # Reload settings
         self.base_path = self.settings.get("video_folder", "data/videos")
         # Update quality dropdowns with new default
         default_quality = self.settings.get("default_quality", "1080p")
@@ -291,9 +297,14 @@ class YoutubeWeeklyGUI(tk.Tk):
 
     def open_others_folder(self):
         other_folder = os.path.join(self.base_path, "other")
-        file_viewer_win = FileViewer(self, self.settings, "Others", other_folder)
-        file_viewer_win.transient(self)
-        file_viewer_win.focus_set()
+        if other_folder in self.open_file_viewers and self.open_file_viewers[other_folder].winfo_exists():
+            self.open_file_viewers[other_folder].lift()
+            self.open_file_viewers[other_folder].focus_set()
+        else:
+            file_viewer_win = FileViewer(self, self.settings, "Others", other_folder, self._on_file_viewer_close)
+            file_viewer_win.transient(self)
+            file_viewer_win.focus_set()
+            self.open_file_viewers[other_folder] = file_viewer_win
 
     def _worker_download_others(self, link):
         folder = os.path.join(self.base_path, "other")
@@ -331,7 +342,8 @@ class YoutubeWeeklyGUI(tk.Tk):
                 mpv_path = self.settings.get("mpv_path")
                 mpv_args = [mpv_path, latest_file]
                 if self.settings.get("mpv_fullscreen", False):
-                    mpv_args.append("--fullscreen")
+                    script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "player", "scripts", "delayed-fullscreen.lua"))
+                    mpv_args.append(f"--script={script_path}")
                 if self.settings.get("mpv_volume") is not None:
                     mpv_args.append(f"--volume={self.settings.get("mpv_volume")}")
                 if self.settings.get("mpv_screen") != "Default":
@@ -341,9 +353,14 @@ class YoutubeWeeklyGUI(tk.Tk):
                     mpv_args.extend(shlex.split(custom_args))
 
                 if os.name == 'nt': # Windows
-                    subprocess.Popen(mpv_args, shell=True)
+                    process = subprocess.Popen(mpv_args, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
                 else: # macOS, Linux
-                    subprocess.Popen(mpv_args)
+                    process = subprocess.Popen(mpv_args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+                
+                stdout, stderr = process.communicate()
+                if process.returncode != 0:
+                    error_message = stderr.decode().strip() if stderr else "Unknown MPV error."
+                    messagebox.showerror("MPV Playback Error", f"MPV exited with an error:\n{error_message}")
             else: # Fallback to default system player
                 if os.name == 'nt': # Windows
                     os.startfile(latest_file)
@@ -428,9 +445,18 @@ class YoutubeWeeklyGUI(tk.Tk):
 
     def open_channel_folder(self, channel):
         channel_folder = os.path.join(self.base_path, channel["folder"])
-        file_viewer_win = FileViewer(self, self.settings, channel["name"], channel_folder)
-        file_viewer_win.transient(self)
-        file_viewer_win.focus_set()
+        if channel_folder in self.open_file_viewers and self.open_file_viewers[channel_folder].winfo_exists():
+            self.open_file_viewers[channel_folder].lift()
+            self.open_file_viewers[channel_folder].focus_set()
+        else:
+            file_viewer_win = FileViewer(self, self.settings, channel["name"], channel_folder, self._on_file_viewer_close)
+            file_viewer_win.transient(self)
+            file_viewer_win.focus_set()
+            self.open_file_viewers[channel_folder] = file_viewer_win
+
+    def _on_file_viewer_close(self, folder_path):
+        if folder_path in self.open_file_viewers:
+            del self.open_file_viewers[folder_path]
 
     def _worker_play(self, channel):
         """Worker function to find and play the latest video."""
@@ -454,7 +480,8 @@ class YoutubeWeeklyGUI(tk.Tk):
                 mpv_path = self.settings.get("mpv_path")
                 mpv_args = [mpv_path, latest_file]
                 if self.settings.get("mpv_fullscreen", False):
-                    mpv_args.append("--fullscreen")
+                    script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "player", "scripts", "delayed-fullscreen.lua"))
+                    mpv_args.append(f"--script={script_path}")
                 if self.settings.get("mpv_volume") is not None:
                     mpv_args.append(f"--volume={self.settings.get("mpv_volume")}")
                 if self.settings.get("mpv_screen") != "Default":
@@ -464,9 +491,14 @@ class YoutubeWeeklyGUI(tk.Tk):
                     mpv_args.extend(shlex.split(custom_args))
 
                 if os.name == 'nt': # Windows
-                    subprocess.Popen(mpv_args, shell=True)
+                    process = subprocess.Popen(mpv_args, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
                 else: # macOS, Linux
-                    subprocess.Popen(mpv_args)
+                    process = subprocess.Popen(mpv_args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+                
+                stdout, stderr = process.communicate()
+                if process.returncode != 0:
+                    error_message = stderr.decode().strip() if stderr else "Unknown MPV error."
+                    messagebox.showerror("MPV Playback Error", f"MPV exited with an error:\n{error_message}")
             else: # Fallback to default system player
                 if os.name == 'nt': # Windows
                     os.startfile(latest_file)
@@ -480,3 +512,10 @@ class YoutubeWeeklyGUI(tk.Tk):
 if __name__ == "__main__":
     app = YoutubeWeeklyGUI()
     app.mainloop()
+    input("Press Enter to exit...") # Keep console open for debugging
+    input("Press Enter to exit...") # Keep console open for debugging
+    input("Press Enter to exit...") # Keep console open for debugging
+    input("Press Enter to exit...") # Keep console open for debugging
+    input("Press Enter to exit...") # Keep console open for debugging
+    input("Press Enter to exit...") # Keep console open for debugging
+    input("Press Enter to exit...") # Keep console open for debugging

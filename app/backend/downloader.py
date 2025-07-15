@@ -19,6 +19,8 @@ import time
 import yt_dlp
 import logging
 from datetime import datetime, timedelta
+from app.backend.config import load_settings
+from tkinter import messagebox
 
 def get_next_saturday(date_format="%d.%m.%Y"):
     today = datetime.today()
@@ -121,12 +123,16 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False)
         ydl_format = 'bestvideo+bestaudio/best'
         merge_format = 'mp4'
 
+    settings = load_settings()
+    ffmpeg_path = settings.get("ffmpeg_path")
+
     ydl_opts = {
         'outtmpl': os.path.join(video_folder, '%(title)s.%(ext)s'),
         'quiet': False,
         'format': ydl_format,
         'merge_output_format': merge_format,
-        'postprocessors': []
+        'postprocessors': [],
+        'ffmpeg_location': ffmpeg_path
     }
 
     if quality_pref == "mp3":
@@ -148,6 +154,7 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False)
                         add_protected_video(os.path.basename(video_folder), file)
         except Exception as e:
             logging.error(f"Download failed: {e}")
+            messagebox.showerror("Download Error", f"Failed to download video:\n{e}")
 
 def get_recent_sabbaths(n=30, date_format="%d.%m.%Y"):
     """Return the last `n` Sabbath (Saturday) dates formatted."""

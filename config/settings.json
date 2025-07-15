@@ -1,10 +1,20 @@
 {
   "video_folder": "data/videos",
-  "use_mpv": false,
-  "mpv_path": "/usr/bin/mpv",
-  "mpv_fullscreen": false,
-  "mpv_volume": 100,
+  "use_mpv": true,
+  "mpv_path": "D:\\Coding\\YoutubeAppColecta\\YoutubeWeekly\\app\\player\\win64\\mpv-x86_64-20250715-git-fdbea0f\\mpv.exe",
+  "mpv_fullscreen": true,
+  "mpv_volume": 130,
   "mpv_custom_args": "",
-  "mpv_screen": "Default",
-  "file_viewer_Test Channel_geometry": "800x600+100+100"
+  "mpv_screen": "1",
+  "file_viewer_Test Channel_geometry": "800x600+100+100",
+  "settings_window_geometry": "480x500+746+329",
+  "main_window_geometry": "515x260+288+217",
+  "ffmpeg_path": "D:\\Coding\\YoutubeAppColecta\\YoutubeWeekly\\app\\tools\\ffmpeg_win64\\ffmpeg-7.1.1-essentials_build\\bin\\ffmpeg.exe",
+  "file_viewer_ScoalaDeSabat_geometry": "252x329+176+321",
+  "keep_old_videos": false,
+  "default_quality": "1080p",
+  "enable_auto_download": false,
+  "enable_notifications": true,
+  "file_viewer_Others_geometry": "252x329+972+286",
+  "file_viewer_Departamentul Ispr\u0103vnicie_geometry": "252x329+579+503"
 }
