@@ -34,13 +34,6 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.base_path = self.settings.get("video_folder", "data/videos")
 
-        # Run automatic checks in a separate thread
-        threading.Thread(
-            target=run_automatic_checks,
-            args=(self.settings, self.channels, self._send_notification),
-            daemon=True
-        ).start()
-
         # Load channels configuration
         raw = load_channels()
         self.channels = [
@@ -52,6 +45,13 @@ class YoutubeWeeklyGUI(tk.Tk):
             }
             for key, ch_data in raw.items()
         ]
+
+        # Run automatic checks in a separate thread
+        threading.Thread(
+            target=run_automatic_checks,
+            args=(self.settings, self.channels, self._send_notification),
+            daemon=True
+        ).start()
 
         self.recent_sabbaths_per_channel = {
             ch["name"]: ["automat"] + get_recent_sabbaths(date_format="%d.%m.%Y")
