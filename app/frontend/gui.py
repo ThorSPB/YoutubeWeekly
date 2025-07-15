@@ -24,6 +24,9 @@ class YoutubeWeeklyGUI(tk.Tk):
 
         style = ttk.Style()
         style.theme_use("default")
+        # Standardize font across OS
+        default_font = ("Segoe UI", 10) if os.name == "nt" else ("Helvetica Neue", 11)
+        style.configure(".", font=default_font)
         style.configure("TButton", background="#444444", foreground="white")
         style.map("TButton", background=[("active", "#555555")])
         style.configure("Dark.TFrame", background="#2b2b2b")
@@ -65,7 +68,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         tk.Label(
             header_frame,
             text="YoutubeWeekly Downloader",
-            font=(None, 14, 'bold'),
+            font=(default_font[0], 14, 'bold'),
             fg="white",
             bg="#2b2b2b"
         ).pack(side="left")
@@ -81,7 +84,8 @@ class YoutubeWeeklyGUI(tk.Tk):
             bg="#2b2b2b",
             anchor="w",
             justify="left",
-            wraplength=self.winfo_width()
+            wraplength=self.winfo_width(),
+            font=default_font
         )
         self.status_label.pack(pady=(5, 15), padx=20, fill="x")
 
