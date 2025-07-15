@@ -8,7 +8,7 @@
   },
   "default_quality": "1080p",
   "main_window_geometry": "455x260+486+283",
-  "settings_window_geometry": "400x300+940+397",
+  "settings_window_geometry": "400x429+1199+154",
   "enable_auto_download": true,
   "enable_notifications": true,
   "last_sabbath_checked": "2025-07-19",
@@ -16,5 +16,9 @@
   "file_viewer_ScoalaDeSabat_geometry": "395x329+1236+306",
   "file_viewer_Others_geometry": "462x329+962+425",
   "use_mpv": true,
-  "mpv_path": "D:/mpv-x86_64-20250327-git-38439dd/mpv.exe"
+  "mpv_path": "D:/mpv-x86_64-20250327-git-38439dd/mpv.exe",
+  "mpv_fullscreen": false,
+  "mpv_volume": 200,
+  "mpv_custom_args": "",
+  "mpv_screen": "1"
 }

@@ -18,7 +18,13 @@ def mock_settings_file(tmp_path):
         "enable_notifications": True,
         "main_window_geometry": None,
         "settings_window_geometry": None,
-        "last_sabbath_checked": None
+        "last_sabbath_checked": None,
+        "use_mpv": False,
+        "mpv_path": "",
+        "mpv_fullscreen": False,
+        "mpv_volume": 100,
+        "mpv_custom_args": "",
+        "mpv_screen": "Default"
     }
     with open(test_settings_path, "w") as f:
         json.dump(initial_settings, f)
@@ -43,6 +49,24 @@ def test_load_settings(mock_settings_file, monkeypatch):
     assert settings["settings_window_geometry"] is None or isinstance(settings["settings_window_geometry"], str), "'settings_window_geometry' is not a string or None"
     assert "last_sabbath_checked" in settings, "Missing 'last_sabbath_checked' in settings"
     assert settings["last_sabbath_checked"] is None or isinstance(settings["last_sabbath_checked"], str), "'last_sabbath_checked' is not a string or None"
+    assert "use_mpv" in settings, "Missing 'use_mpv' in settings"
+    assert isinstance(settings["use_mpv"], bool), "'use_mpv' is not a boolean"
+    assert settings["use_mpv"] == False, "Default for 'use_mpv' should be False"
+    assert "mpv_path" in settings, "Missing 'mpv_path' in settings"
+    assert isinstance(settings["mpv_path"], str), "'mpv_path' is not a string"
+    assert settings["mpv_path"] == "", "Default for 'mpv_path' should be empty string"
+    assert "mpv_fullscreen" in settings, "Missing 'mpv_fullscreen' in settings"
+    assert isinstance(settings["mpv_fullscreen"], bool), "'mpv_fullscreen' is not a boolean"
+    assert settings["mpv_fullscreen"] == False, "Default for 'mpv_fullscreen' should be False"
+    assert "mpv_volume" in settings, "Missing 'mpv_volume' in settings"
+    assert isinstance(settings["mpv_volume"], int), "'mpv_volume' is not an integer"
+    assert settings["mpv_volume"] == 100, "Default for 'mpv_volume' should be 100"
+    assert "mpv_custom_args" in settings, "Missing 'mpv_custom_args' in settings"
+    assert isinstance(settings["mpv_custom_args"], str), "'mpv_custom_args' is not a string"
+    assert settings["mpv_custom_args"] == "", "Default for 'mpv_custom_args' should be empty string"
+    assert "mpv_screen" in settings, "Missing 'mpv_screen' in settings"
+    assert isinstance(settings["mpv_screen"], str), "'mpv_screen' is not a string"
+    assert settings["mpv_screen"] == "Default", "Default for 'mpv_screen' should be 'Default'"
 
 def test_save_settings(mock_settings_file, monkeypatch):
     monkeypatch.setattr("app.backend.config.SETTINGS_FILE", str(mock_settings_file))
@@ -54,6 +78,12 @@ def test_save_settings(mock_settings_file, monkeypatch):
     settings["main_window_geometry"] = "500x400+100+100"
     settings["settings_window_geometry"] = "300x200+50+50"
     settings["last_sabbath_checked"] = "2025-07-19"
+    settings["use_mpv"] = True
+    settings["mpv_path"] = "/usr/local/bin/mpv"
+    settings["mpv_fullscreen"] = True
+    settings["mpv_volume"] = 150
+    settings["mpv_custom_args"] = "--no-border --ontop"
+    settings["mpv_screen"] = "1"
 
     save_settings(settings)
 
@@ -64,6 +94,12 @@ def test_save_settings(mock_settings_file, monkeypatch):
     assert loaded_settings["main_window_geometry"] == "500x400+100+100"
     assert loaded_settings["settings_window_geometry"] == "300x200+50+50"
     assert loaded_settings["last_sabbath_checked"] == "2025-07-19"
+    assert loaded_settings["use_mpv"] == True
+    assert loaded_settings["mpv_path"] == "/usr/local/bin/mpv"
+    assert loaded_settings["mpv_fullscreen"] == True
+    assert loaded_settings["mpv_volume"] == 150
+    assert loaded_settings["mpv_custom_args"] == "--no-border --ontop"
+    assert loaded_settings["mpv_screen"] == "1"
 
 def test_load_channels():
     channels = load_channels()

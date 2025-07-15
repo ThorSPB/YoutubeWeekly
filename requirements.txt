@@ -1,3 +1,4 @@
 pytest
 plyer
 pyobjus; sys_platform == "darwin"
+screeninfo

@@ -329,10 +329,21 @@ class YoutubeWeeklyGUI(tk.Tk):
             self._set_status(f"Playing {os.path.basename(latest_file)}...")
             if self.settings.get("use_mpv", False) and self.settings.get("mpv_path"): # Use MPV if enabled
                 mpv_path = self.settings.get("mpv_path")
+                mpv_args = [mpv_path, latest_file]
+                if self.settings.get("mpv_fullscreen", False):
+                    mpv_args.append("--fullscreen")
+                if self.settings.get("mpv_volume") is not None:
+                    mpv_args.append(f"--volume={self.settings.get("mpv_volume")}")
+                if self.settings.get("mpv_screen") != "Default":
+                    mpv_args.append(f"--screen={self.settings.get("mpv_screen")}")
+                custom_args = self.settings.get("mpv_custom_args", "").strip()
+                if custom_args:
+                    mpv_args.extend(shlex.split(custom_args))
+
                 if os.name == 'nt': # Windows
-                    subprocess.Popen([mpv_path, latest_file], shell=True)
+                    subprocess.Popen(mpv_args, shell=True)
                 else: # macOS, Linux
-                    subprocess.Popen([mpv_path, latest_file])
+                    subprocess.Popen(mpv_args)
             else: # Fallback to default system player
                 if os.name == 'nt': # Windows
                     os.startfile(latest_file)
@@ -441,10 +452,21 @@ class YoutubeWeeklyGUI(tk.Tk):
             self._set_status(f"Playing {os.path.basename(latest_file)}...")
             if self.settings.get("use_mpv", False) and self.settings.get("mpv_path"): # Use MPV if enabled
                 mpv_path = self.settings.get("mpv_path")
+                mpv_args = [mpv_path, latest_file]
+                if self.settings.get("mpv_fullscreen", False):
+                    mpv_args.append("--fullscreen")
+                if self.settings.get("mpv_volume") is not None:
+                    mpv_args.append(f"--volume={self.settings.get("mpv_volume")}")
+                if self.settings.get("mpv_screen") != "Default":
+                    mpv_args.append(f"--screen={self.settings.get("mpv_screen")}")
+                custom_args = self.settings.get("mpv_custom_args", "").strip()
+                if custom_args:
+                    mpv_args.extend(shlex.split(custom_args))
+
                 if os.name == 'nt': # Windows
-                    subprocess.Popen([mpv_path, latest_file], shell=True)
+                    subprocess.Popen(mpv_args, shell=True)
                 else: # macOS, Linux
-                    subprocess.Popen([mpv_path, latest_file])
+                    subprocess.Popen(mpv_args)
             else: # Fallback to default system player
                 if os.name == 'nt': # Windows
                     os.startfile(latest_file)

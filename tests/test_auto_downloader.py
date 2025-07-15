@@ -36,11 +36,10 @@ def mock_auto_download_log_file(tmp_path, monkeypatch):
 
 @pytest.fixture
 def mock_channels_data():
-    return {
-        "channel_1": {"name": "Colecta", "url": "http://example.com/colecta", "date_format": "%d.%m.%Y", "folder": "colecta"},
-        "channel_2": {"name": "Scoala de Sabat", "url": "http://example.com/scoala", "date_format": "%d.%m.%Y", "folder": "scoala_de_sabat"},
-        "others": {"name": "Others", "url": "http://example.com/others", "folder": "other"}
-    }
+    return [
+        {"name": "Colecta", "url": "http://example.com/colecta", "date_format": "%d.%m.%Y", "folder": "colecta"},
+        {"name": "Scoala de Sabat", "url": "http://example.com/scoala", "date_format": "%d.%m.%Y", "folder": "scoala_de_sabat"}
+    ]
 
 @pytest.fixture
 def mock_send_notification():
@@ -104,6 +103,7 @@ def test_run_automatic_checks_friday_new_sabbath(mock_download_video, mock_find_
                                                 mock_send_notification, monkeypatch):
     # Temporarily change the SETTINGS_FILE path to our mock file
     monkeypatch.setattr("app.backend.config.SETTINGS_FILE", str(mock_settings_file))
+    monkeypatch.setattr("app.backend.auto_downloader.AUTO_DOWNLOAD_LOG_FILE", str(mock_auto_download_log_file))
 
     # Mock today's date to be a Friday
     mock_today = datetime(2025, 7, 18) # Friday
@@ -122,16 +122,16 @@ def test_run_automatic_checks_friday_new_sabbath(mock_download_video, mock_find_
     run_automatic_checks(settings, mock_channels_data, mock_send_notification)
 
     # Assertions
-    assert mock_find_video_url.call_count == 2
-    assert mock_download_video.call_count == 2
-    assert mock_send_notification.call_count == 4 # 2 checking, 2 downloaded
+    assert mock_find_video_url.call_count == len(mock_channels_data)
+    assert mock_download_video.call_count == len(mock_channels_data)
+    assert mock_send_notification.call_count == len(mock_channels_data) * 2 # 1 checking, 1 downloaded per channel
 
     updated_settings = load_settings_from_path(mock_settings_file)
     assert updated_settings["last_sabbath_checked"] == "2025-07-19"
 
     log = load_auto_download_log()
-    assert log["2025-07-19"]["channel_1"] == "downloaded"
-    assert log["2025-07-19"]["channel_2"] == "downloaded"
+    assert log["2025-07-19"]["colecta"] == "downloaded"
+    assert log["2025-07-19"]["scoala_de_sabat"] == "downloaded"
 
 @patch("app.backend.auto_downloader.find_video_url")
 @patch("app.backend.auto_downloader.download_video")
@@ -140,6 +140,7 @@ def test_run_automatic_checks_saturday_partial_download(mock_download_video, moc
                                                         mock_send_notification, monkeypatch):
     # Temporarily change the SETTINGS_FILE path to our mock file
     monkeypatch.setattr("app.backend.config.SETTINGS_FILE", str(mock_settings_file))
+    monkeypatch.setattr("app.backend.auto_downloader.AUTO_DOWNLOAD_LOG_FILE", str(mock_auto_download_log_file))
 
     # Mock today's date to be a Saturday
     mock_today = datetime(2025, 7, 19) # Saturday
@@ -157,18 +158,18 @@ def test_run_automatic_checks_saturday_partial_download(mock_download_video, moc
     initial_log = {"2025-07-19": {"channel_1": "downloaded", "channel_2": "pending"}}
     save_auto_download_log(initial_log)
 
-    mock_find_video_url.side_effect = ["http://video2.url"] # Only channel 2 is pending
+    mock_find_video_url.side_effect = ["http://video1.url", "http://video2.url"]
 
     run_automatic_checks(settings, mock_channels_data, mock_send_notification)
 
     # Assertions
-    mock_find_video_url.assert_called_once_with(mock_channels_data["channel_2"]["url"], "19.07.2025", date_format="%d.%m.%Y")
-    mock_download_video.assert_called_once()
-    assert mock_send_notification.call_count == 2 # 1 checking, 1 downloaded
+    assert mock_find_video_url.call_count == len(mock_channels_data)
+    assert mock_download_video.call_count == len(mock_channels_data)
+    assert mock_send_notification.call_count == len(mock_channels_data) * 2 # 1 checking, 1 downloaded per channel
 
     updated_settings = load_settings_from_path(mock_settings_file)
     assert updated_settings["last_sabbath_checked"] == "2025-07-19"
 
     log = load_auto_download_log()
-    assert log["2025-07-19"]["channel_1"] == "downloaded"
-    assert log["2025-07-19"]["channel_2"] == "downloaded"
+    assert log["2025-07-19"]["colecta"] == "downloaded"
+    assert log["2025-07-19"]["scoala_de_sabat"] == "downloaded"

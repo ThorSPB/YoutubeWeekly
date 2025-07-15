@@ -83,10 +83,21 @@ class FileViewer(tk.Toplevel):
         try:
             if self.settings.get("use_mpv", False) and self.settings.get("mpv_path"):
                 mpv_path = self.settings.get("mpv_path")
+                mpv_args = [mpv_path, self.selected_file_path]
+                if self.settings.get("mpv_fullscreen", False):
+                    mpv_args.append("--fullscreen")
+                if self.settings.get("mpv_volume") is not None:
+                    mpv_args.append(f"--volume={self.settings.get("mpv_volume")}")
+                if self.settings.get("mpv_screen") != "Default":
+                    mpv_args.append(f"--screen={self.settings.get("mpv_screen")}")
+                custom_args = self.settings.get("mpv_custom_args", "").strip()
+                if custom_args:
+                    mpv_args.extend(shlex.split(custom_args))
+
                 if os.name == 'nt':
-                    subprocess.Popen([mpv_path, self.selected_file_path], shell=True)
+                    subprocess.Popen(mpv_args, shell=True)
                 else:
-                    subprocess.Popen([mpv_path, self.selected_file_path])
+                    subprocess.Popen(mpv_args)
             else:
                 if os.name == 'nt':
                     os.startfile(self.selected_file_path)
