@@ -1,6 +1,6 @@
 import pytest
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 from app.frontend.gui import YoutubeWeeklyGUI
 from app.frontend.file_viewer import FileViewer
 import tkinter as tk
@@ -56,6 +56,7 @@ def mock_file_viewer_instance(monkeypatch):
                 # Manually set the attributes that would normally be set by __init__
                 viewer.settings = mock_load_settings.return_value
                 viewer.channel_name = "Test Channel"
+                viewer.geometry_key = f"file_viewer_{viewer.channel_name}_geometry"
                 viewer.channel_folder = "data/videos/test_channel"
                 viewer.selected_file_path = None
                 
@@ -161,3 +162,73 @@ def test_file_viewer_play_selected_mpv(mock_file_viewer_instance, tmp_path, monk
         assert "--volume=75" in args
         assert "--no-osc" in args
         assert "--screen=0" in args
+
+# New tests for FileViewer
+def test_file_viewer_load_window_position_exists(mock_file_viewer_instance):
+    mock_file_viewer_instance.settings["file_viewer_Test Channel_geometry"] = "100x200+10+20"
+    mock_file_viewer_instance.load_window_position()
+    mock_file_viewer_instance.geometry.assert_called_once_with("100x200+10+20")
+
+def test_file_viewer_load_window_position_not_exists(mock_file_viewer_instance):
+    if "file_viewer_Test Channel_geometry" in mock_file_viewer_instance.settings:
+        del mock_file_viewer_instance.settings["file_viewer_Test Channel_geometry"]
+    mock_file_viewer_instance.load_window_position()
+    mock_file_viewer_instance.geometry.assert_not_called()
+
+def test_file_viewer_on_closing(mock_file_viewer_instance):
+    with patch('app.frontend.file_viewer.save_settings') as mock_save_settings:
+        mock_file_viewer_instance.on_closing()
+        mock_save_settings.assert_called_once_with(mock_file_viewer_instance.settings)
+        mock_file_viewer_instance.destroy.assert_called_once()
+
+def test_file_viewer_populate_files_empty_folder(mock_file_viewer_instance, monkeypatch, tmp_path):
+    empty_folder = tmp_path / "empty_channel"
+    empty_folder.mkdir()
+    mock_file_viewer_instance.channel_folder = str(empty_folder)
+    monkeypatch.setattr(os, "listdir", MagicMock(return_value=[]))
+    mock_file_viewer_instance.populate_files()
+    mock_file_viewer_instance.file_tree.get_children.assert_called_once()
+    mock_file_viewer_instance.file_tree.delete.assert_not_called()
+    mock_file_viewer_instance.file_tree.insert.assert_not_called()
+
+def test_file_viewer_populate_files_with_files(mock_file_viewer_instance, monkeypatch, tmp_path):
+    folder_with_files = tmp_path / "channel_with_files"
+    folder_with_files.mkdir()
+    (folder_with_files / "video1.mp4").write_text("content")
+    (folder_with_files / "video2.mp4").write_text("content")
+    mock_file_viewer_instance.channel_folder = str(folder_with_files)
+    monkeypatch.setattr(os, "listdir", MagicMock(return_value=["video1.mp4", "video2.mp4"]))
+    monkeypatch.setattr(os.path, "isfile", MagicMock(return_value=True))
+    mock_file_viewer_instance.file_tree.get_children.return_value = ["item1", "item2"]
+    mock_file_viewer_instance.populate_files()
+    mock_file_viewer_instance.file_tree.get_children.assert_called_once()
+    mock_file_viewer_instance.file_tree.delete.assert_has_calls([
+        call("item1"),
+        call("item2")
+    ])
+    assert mock_file_viewer_instance.file_tree.insert.call_count == 2
+    mock_file_viewer_instance.file_tree.insert.assert_any_call("", tk.END, values=("video1.mp4", ""))
+    mock_file_viewer_instance.file_tree.insert.assert_any_call("", tk.END, values=("video2.mp4", ""))
+
+def test_file_viewer_populate_files_folder_not_exists(mock_file_viewer_instance, monkeypatch):
+    mock_file_viewer_instance.channel_folder = "/nonexistent/folder"
+    monkeypatch.setattr(os.path, "exists", MagicMock(return_value=False))
+    mock_file_viewer_instance.populate_files()
+    mock_file_viewer_instance.file_tree.get_children.assert_not_called()
+
+def test_file_viewer_on_file_select(mock_file_viewer_instance):
+    # Simulate a file selection
+    mock_file_viewer_instance.file_tree.focus.return_value = "I001"
+    mock_file_viewer_instance.file_tree.item.return_value = {"values": ["selected_video.mp4", ""]}
+    mock_file_viewer_instance.channel_folder = "/path/to/channel"
+
+    mock_file_viewer_instance.on_file_select(None) # Event is not used
+
+    mock_file_viewer_instance.file_tree.set.assert_called_with("I001", "selected", "✓")
+    assert mock_file_viewer_instance.selected_file_path == os.path.join("/path/to/channel", "selected_video.mp4")
+
+def test_file_viewer_on_file_select_no_selection(mock_file_viewer_instance):
+    mock_file_viewer_instance.file_tree.focus.return_value = ""
+    mock_file_viewer_instance.on_file_select(None)
+    assert mock_file_viewer_instance.selected_file_path is None
+    mock_file_viewer_instance.file_tree.set.assert_not_called()
