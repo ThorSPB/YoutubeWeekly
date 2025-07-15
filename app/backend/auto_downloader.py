@@ -45,7 +45,8 @@ def run_automatic_checks(settings, channels, send_notification_callback):
         auto_download_log = temp_log
 
     # Initialize channels for the current Sabbath if they are not present
-    for channel_key, channel_data in channels.items():
+    for channel_data in channels:
+        channel_key = channel_data.get("folder", channel_data["name"])
         if channel_key != "others" and channel_key not in auto_download_log[current_sabbath_date]:
             auto_download_log[current_sabbath_date][channel_key] = "pending"
 
@@ -54,7 +55,8 @@ def run_automatic_checks(settings, channels, send_notification_callback):
 
     # Perform checks only on Friday (4) and Saturday (5)
     if day_of_week == 4 or day_of_week == 5:
-        for channel_key, channel_data in channels.items():
+        for channel_data in channels:
+            channel_key = channel_data.get("folder", channel_data["name"])
             if channel_key == "others":
                 continue
 

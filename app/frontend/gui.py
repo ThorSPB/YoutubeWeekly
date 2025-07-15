@@ -1,8 +1,10 @@
 import os
+import sys
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
-import os
+import subprocess
+import shlex
 from plyer import notification
 import json
 
@@ -10,6 +12,7 @@ from app.backend.config import load_channels, load_settings, save_settings
 from app.backend.downloader import find_video_url, download_video, get_next_saturday, delete_old_videos, format_romanian_date, get_recent_sabbaths
 from datetime import datetime
 from app.frontend.settings_window import SettingsWindow
+from app.frontend.file_viewer import FileViewer
 from app.backend.auto_downloader import run_automatic_checks
 
 class YoutubeWeeklyGUI(tk.Tk):
@@ -33,7 +36,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         style.configure("Dark.TFrame", background="#2b2b2b")
 
         self.title("YoutubeWeekly Downloader")
-        self.geometry("455x260")
+        self.geometry("515x260")
         self.load_window_position()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.base_path = self.settings.get("video_folder", "data/videos")
@@ -97,7 +100,7 @@ class YoutubeWeeklyGUI(tk.Tk):
 
         # One download button + quality selector per channel
         for channel in self.channels:
-            row = ttk.Frame(btn_frame)
+            row = ttk.Frame(btn_frame, style="Dark.TFrame")
             row.pack(pady=3, anchor="w")
 
             var = tk.StringVar(value=self.settings.get("default_quality", "1080p"))
@@ -125,6 +128,22 @@ class YoutubeWeeklyGUI(tk.Tk):
                 width=26
             )
             btn.pack(side="left")
+
+            play_btn = ttk.Button(
+                row,
+                text="▶",
+                command=lambda ch=channel: self.play_latest(ch),
+                width=3
+            )
+            play_btn.pack(side="left", padx=(5, 0))
+
+            folder_btn = ttk.Button(
+                row,
+                text="📂",
+                command=lambda ch=channel: self.open_channel_folder(ch),
+                width=3
+            )
+            folder_btn.pack(side="left", padx=(5, 0))
 
         # Others link entry and button frame
         others_frame = ttk.Frame(self)
@@ -159,6 +178,22 @@ class YoutubeWeeklyGUI(tk.Tk):
             width=11
         )
         others_btn.pack(side="left")
+
+        play_others_btn = ttk.Button(
+            others_frame,
+            text="▶",
+            command=self.play_others,
+            width=3
+        )
+        play_others_btn.pack(side="left", padx=(5, 0))
+
+        folder_others_btn = ttk.Button(
+            others_frame,
+            text="📂",
+            command=self.open_others_folder,
+            width=3
+        )
+        folder_others_btn.pack(side="left", padx=(5, 0))
 
         # Quit button
         ttk.Button(self, text="Quit", command=self.on_closing, width=10).pack(pady=(0, 15))
@@ -247,6 +282,19 @@ class YoutubeWeeklyGUI(tk.Tk):
             daemon=True
         ).start()
 
+    def play_others(self):
+        """Play the latest video in the 'other' folder."""
+        threading.Thread(
+            target=self._worker_play_others,
+            daemon=True
+        ).start()
+
+    def open_others_folder(self):
+        other_folder = os.path.join(self.base_path, "other")
+        file_viewer_win = FileViewer(self, self.settings, "Others", other_folder)
+        file_viewer_win.transient(self)
+        file_viewer_win.focus_set()
+
     def _worker_download_others(self, link):
         folder = os.path.join(self.base_path, "other")
         try:
@@ -260,6 +308,40 @@ class YoutubeWeeklyGUI(tk.Tk):
                 "Download Error",
                 f"Failed to download video:\n{e}"
             )
+
+    def _worker_play_others(self):
+        """Worker function to find and play the latest video in the 'other' folder."""
+        other_folder = os.path.join(self.base_path, "other")
+        self._set_status("Searching for latest video in Others...")
+
+        if not os.path.exists(other_folder):
+            self._set_status("No videos downloaded for Others yet.")
+            return
+
+        files = [os.path.join(other_folder, f) for f in os.listdir(other_folder)]
+        if not files:
+            self._set_status("No videos found for Others.")
+            return
+
+        latest_file = max(files, key=os.path.getctime)
+
+        try:
+            self._set_status(f"Playing {os.path.basename(latest_file)}...")
+            if self.settings.get("use_mpv", False) and self.settings.get("mpv_path"): # Use MPV if enabled
+                mpv_path = self.settings.get("mpv_path")
+                if os.name == 'nt': # Windows
+                    subprocess.Popen([mpv_path, latest_file], shell=True)
+                else: # macOS, Linux
+                    subprocess.Popen([mpv_path, latest_file])
+            else: # Fallback to default system player
+                if os.name == 'nt': # Windows
+                    os.startfile(latest_file)
+                elif os.name == 'posix': # macOS, Linux
+                    subprocess.call(['open', latest_file] if sys.platform == 'darwin' else ['xdg-open', latest_file])
+            self._set_status("Launched video player for Others.")
+        except Exception as e:
+            self._set_status(f"Error playing video: {e}")
+            messagebox.showerror("Playback Error", f"Could not play video:\n{e}")
 
     def _worker_download(self, channel):
         """Worker function that runs off the main UI thread."""
@@ -324,6 +406,54 @@ class YoutubeWeeklyGUI(tk.Tk):
                 "Download Error",
                 f"Failed to download {name}:\n{e}"
             )
+
+    def play_latest(self, channel):
+        """Play the latest video for a given channel."""
+        threading.Thread(
+            target=self._worker_play,
+            args=(channel,),
+            daemon=True
+        ).start()
+
+    def open_channel_folder(self, channel):
+        channel_folder = os.path.join(self.base_path, channel["folder"])
+        file_viewer_win = FileViewer(self, self.settings, channel["name"], channel_folder)
+        file_viewer_win.transient(self)
+        file_viewer_win.focus_set()
+
+    def _worker_play(self, channel):
+        """Worker function to find and play the latest video."""
+        channel_folder = os.path.join(self.base_path, channel["folder"])
+        self._set_status(f"Searching for latest video in {channel['name']}...")
+
+        if not os.path.exists(channel_folder):
+            self._set_status(f"No videos downloaded for {channel['name']} yet.")
+            return
+
+        files = [os.path.join(channel_folder, f) for f in os.listdir(channel_folder)]
+        if not files:
+            self._set_status(f"No videos found for {channel['name']}.")
+            return
+
+        latest_file = max(files, key=os.path.getctime)
+
+        try:
+            self._set_status(f"Playing {os.path.basename(latest_file)}...")
+            if self.settings.get("use_mpv", False) and self.settings.get("mpv_path"): # Use MPV if enabled
+                mpv_path = self.settings.get("mpv_path")
+                if os.name == 'nt': # Windows
+                    subprocess.Popen([mpv_path, latest_file], shell=True)
+                else: # macOS, Linux
+                    subprocess.Popen([mpv_path, latest_file])
+            else: # Fallback to default system player
+                if os.name == 'nt': # Windows
+                    os.startfile(latest_file)
+                elif os.name == 'posix': # macOS, Linux
+                    subprocess.call(['open', latest_file] if sys.platform == 'darwin' else ['xdg-open', latest_file])
+            self._set_status(f"Launched video player for {channel['name']}.")
+        except Exception as e:
+            self._set_status(f"Error playing video: {e}")
+            messagebox.showerror("Playback Error", f"Could not play video:\n{e}")
 
 if __name__ == "__main__":
     app = YoutubeWeeklyGUI()

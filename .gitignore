@@ -176,6 +176,7 @@ cython_debug/
 # Allow video files to be tracked
 !data/videos/
 data/videos/**
+bugs.txt
 
 # macOS metadata
 .DS_Store
