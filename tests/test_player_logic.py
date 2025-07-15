@@ -48,15 +48,26 @@ def mock_file_viewer_instance(monkeypatch):
                 "mpv_custom_args": "",
                 "mpv_screen": "Default"
             }
-            # Mock Tk and Toplevel to prevent GUI from opening during tests
-            monkeypatch.setattr(tk, "Tk", MagicMock())
-            monkeypatch.setattr(tk, "Toplevel", MagicMock())
-            root = tk.Tk()
-            root.withdraw()
-            viewer = FileViewer(root, mock_load_settings.return_value, "Test Channel", "data/videos/test_channel")
-            yield viewer
-            viewer.destroy()
-            root.destroy()
+            
+            # Create a more comprehensive mock for FileViewer
+            with patch('app.frontend.file_viewer.FileViewer.__init__', return_value=None):
+                viewer = FileViewer.__new__(FileViewer)  # Create instance without calling __init__
+                
+                # Manually set the attributes that would normally be set by __init__
+                viewer.settings = mock_load_settings.return_value
+                viewer.channel_name = "Test Channel"
+                viewer.channel_folder = "data/videos/test_channel"
+                viewer.selected_file_path = None
+                
+                # Mock GUI components to prevent Tkinter calls
+                viewer.file_tree = MagicMock()
+                viewer.geometry = MagicMock(return_value="800x600+100+100")
+                viewer.destroy = MagicMock()
+                
+                # Keep the original play_selected method for testing
+                viewer.play_selected = FileViewer.play_selected.__get__(viewer, FileViewer)
+                
+                yield viewer
 
 def test_play_latest_video_default_player(mock_gui_instance, tmp_path, monkeypatch):
     # Setup a dummy video file
@@ -108,7 +119,6 @@ def test_file_viewer_play_selected_default_player(mock_file_viewer_instance, tmp
     dummy_video.write_text("dummy video content")
 
     mock_file_viewer_instance.channel_folder = str(channel_folder)
-    mock_file_viewer_instance.populate_files()
     mock_file_viewer_instance.selected_file_path = str(dummy_video)
 
     monkeypatch.setattr(os, "startfile", MagicMock()) # Mock for Windows
@@ -131,7 +141,6 @@ def test_file_viewer_play_selected_mpv(mock_file_viewer_instance, tmp_path, monk
     dummy_video.write_text("dummy video content")
 
     mock_file_viewer_instance.channel_folder = str(channel_folder)
-    mock_file_viewer_instance.populate_files()
     mock_file_viewer_instance.selected_file_path = str(dummy_video)
 
     mock_file_viewer_instance.settings["use_mpv"] = True
