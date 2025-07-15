@@ -29,14 +29,24 @@ def mock_gui_instance_for_gui_tests(monkeypatch):
                 gui.base_path = gui.settings["video_folder"]
                 gui.status_var = MagicMock()
                 gui.status_label = MagicMock()
-                gui.channel_quality_vars = {"Test Channel": MagicMock(spec=tk.StringVar, get=lambda: "1080p")}
-                gui.others_quality_var = MagicMock(spec=tk.StringVar, get=lambda: "720p")
-                gui.others_link_var = MagicMock(spec=tk.StringVar, get=lambda: "http://youtube.com/watch?v=test")
+                
+                # Directly assign MagicMock instances for StringVar-like objects
+                gui.channel_quality_vars = {"Test Channel": MagicMock()}
+                gui.channel_quality_vars["Test Channel"].get.return_value = "1080p"
+                
+                gui.others_quality_var = MagicMock()
+                gui.others_quality_var.get.return_value = "720p"
+                
+                gui.others_link_var = MagicMock()
+                gui.others_link_var.get.return_value = "http://youtube.com/watch?v=test"
+                
+                gui.channel_date_vars = {"Test Channel": MagicMock()}
+                gui.channel_date_vars["Test Channel"].get.return_value = "automat"
+
                 gui.geometry = MagicMock(return_value="500x300+50+50")
                 gui.destroy = MagicMock()
                 gui.update_idletasks = MagicMock()
                 gui.recent_sabbaths_per_channel = {"Test Channel": ["automat", "15.07.2024"]}
-                gui.channel_date_vars = {"Test Channel": MagicMock(spec=tk.StringVar, get=lambda: "automat")}
                 yield gui
 
 def test_gui_load_window_position_exists(mock_gui_instance_for_gui_tests):
@@ -107,6 +117,7 @@ def test_gui_download_others_no_link(mock_gui_instance_for_gui_tests):
     mock_gui_instance_for_gui_tests.others_link_var.get.return_value = ""
     mock_gui_instance_for_gui_tests._set_status = MagicMock()
     mock_gui_instance_for_gui_tests.download_others()
+    # Check that the final status message is correct
     mock_gui_instance_for_gui_tests._set_status.assert_called_once_with("Please enter a YouTube link.")
 
 def test_gui_download_others_with_link(mock_gui_instance_for_gui_tests):
@@ -149,10 +160,10 @@ def test_gui_worker_download_others_success(mock_gui_instance_for_gui_tests):
     with patch('app.frontend.gui.download_video') as mock_download_video:
         mock_gui_instance_for_gui_tests._worker_download_others("http://youtube.com/watch?v=test")
         mock_download_video.assert_called_once_with(
-            "http://youtube.com/watch?v=test",
-            os.path.join(mock_gui_instance_for_gui_tests.base_path, "other"),
-            "720p"
-        )
+                "http://youtube.com/watch?v=test",
+                os.path.join(mock_gui_instance_for_gui_tests.base_path, "other"),
+                mock_gui_instance_for_gui_tests.others_quality_var.get()
+            )
         mock_gui_instance_for_gui_tests._set_status.assert_called_once_with("Download complete.")
         mock_gui_instance_for_gui_tests._send_notification.assert_called_once_with(
             "Download Complete",
@@ -177,7 +188,9 @@ def test_gui_worker_play_others_no_folder(mock_gui_instance_for_gui_tests, monke
     mock_gui_instance_for_gui_tests._set_status = MagicMock()
     monkeypatch.setattr(os.path, "exists", MagicMock(return_value=False))
     mock_gui_instance_for_gui_tests._worker_play_others()
-    mock_gui_instance_for_gui_tests._set_status.assert_called_once_with("No videos downloaded for Others yet.")
+    # Check that both status calls are made
+    expected_calls = [call("Searching for latest video in Others..."), call("No videos downloaded for Others yet.")]
+    mock_gui_instance_for_gui_tests._set_status.assert_has_calls(expected_calls)
 
 def test_gui_worker_play_others_no_files(mock_gui_instance_for_gui_tests, monkeypatch, tmp_path):
     other_folder = tmp_path / "other"
@@ -187,7 +200,9 @@ def test_gui_worker_play_others_no_files(mock_gui_instance_for_gui_tests, monkey
     monkeypatch.setattr(os.path, "exists", MagicMock(return_value=True))
     monkeypatch.setattr(os, "listdir", MagicMock(return_value=[]))
     mock_gui_instance_for_gui_tests._worker_play_others()
-    mock_gui_instance_for_gui_tests._set_status.assert_called_once_with("No videos found for Others.")
+    # Check that both status calls are made
+    expected_calls = [call("Searching for latest video in Others..."), call("No videos found for Others.")]
+    mock_gui_instance_for_gui_tests._set_status.assert_has_calls(expected_calls)
 
 def test_gui_worker_play_others_mpv(mock_gui_instance_for_gui_tests, monkeypatch, tmp_path):
     other_folder = tmp_path / "other"
@@ -216,7 +231,9 @@ def test_gui_worker_play_others_mpv(mock_gui_instance_for_gui_tests, monkeypatch
         assert "--volume=50" in args[0]
         assert "--no-config" in args[0]
         assert "--screen=1" in args[0]
-        mock_gui_instance_for_gui_tests._set_status.assert_called_with("Launched video player for Others.")
+        # Check that the final status message is correct
+        expected_calls = [call("Searching for latest video in Others..."), call(f"Playing {dummy_video.name}...",), call("Launched video player for Others.")]
+        mock_gui_instance_for_gui_tests._set_status.assert_has_calls(expected_calls)
 
 def test_gui_worker_play_others_default_player(mock_gui_instance_for_gui_tests, monkeypatch, tmp_path):
     other_folder = tmp_path / "other"
@@ -240,7 +257,9 @@ def test_gui_worker_play_others_default_player(mock_gui_instance_for_gui_tests, 
             mock_call.assert_called_once()
             args, kwargs = mock_call.call_args
             assert str(dummy_video) in args[0]
-    mock_gui_instance_for_gui_tests._set_status.assert_called_with("Launched video player for Others.")
+    # Check that the final status message is correct
+    expected_calls = [call("Searching for latest video in Others..."), call(f"Playing {dummy_video.name}..."), call("Launched video player for Others.")]
+    mock_gui_instance_for_gui_tests._set_status.assert_has_calls(expected_calls)
 
 def test_gui_worker_play_others_error(mock_gui_instance_for_gui_tests, monkeypatch, tmp_path):
     other_folder = tmp_path / "other"
@@ -248,15 +267,24 @@ def test_gui_worker_play_others_error(mock_gui_instance_for_gui_tests, monkeypat
     dummy_video = other_folder / "video.mp4"
     dummy_video.write_text("content")
     mock_gui_instance_for_gui_tests.base_path = str(tmp_path)
+    # Ensure use_mpv is False to match the code path we are testing
+    mock_gui_instance_for_gui_tests.settings["use_mpv"] = False 
     mock_gui_instance_for_gui_tests._set_status = MagicMock()
     monkeypatch.setattr(os.path, "exists", MagicMock(return_value=True))
     monkeypatch.setattr(os, "listdir", MagicMock(return_value=["video.mp4"]))
     monkeypatch.setattr(os.path, "getctime", lambda x: 100 if "video.mp4" in str(x) else 0)
 
-    with patch('app.frontend.gui.subprocess.Popen', side_effect=Exception("Playback error")):
+    # Patch the correct function (os.startfile for Windows default player)
+    with patch('app.frontend.gui.os.startfile', side_effect=Exception("Playback error")):
         with patch('app.frontend.gui.messagebox.showerror') as mock_messagebox:
             mock_gui_instance_for_gui_tests._worker_play_others()
-            mock_gui_instance_for_gui_tests._set_status.assert_called_with("Error playing video: Playback error")
+            # Check that the error status message is called
+            expected_calls = [
+                call("Searching for latest video in Others..."), 
+                call(f"Playing {dummy_video.name}..."), 
+                call("Error playing video: Playback error")
+            ]
+            mock_gui_instance_for_gui_tests._set_status.assert_has_calls(expected_calls)
             mock_messagebox.assert_called_once()
 
 def test_gui_worker_download_channel_success(mock_gui_instance_for_gui_tests, monkeypatch):
@@ -271,22 +299,31 @@ def test_gui_worker_download_channel_success(mock_gui_instance_for_gui_tests, mo
                 with patch('app.frontend.gui.os.listdir', return_value=[]) as mock_listdir:
                     with patch('app.frontend.gui.delete_old_videos') as mock_delete_old_videos:
                         with patch('app.frontend.gui.download_video') as mock_download_video:
+                            # Mock tk.StringVar to prevent Tkinter initialization
+                            with patch('tkinter.StringVar') as mock_string_var:
+                                mock_string_var_instance = MagicMock()
+                                mock_string_var_instance.get.return_value = "automat"
+                                mock_string_var.return_value = mock_string_var_instance
 
-        mock_gui_instance_for_gui_tests._worker_download(channel)
+                                mock_gui_instance_for_gui_tests._worker_download(channel)
 
-        mock_get_next_saturday.assert_called_once()
-        mock_find_video_url.assert_called_once_with("http://example.com", "15.07.2024", date_format="%d.%m.%Y")
-        mock_makedirs.assert_called_once_with(os.path.join(mock_gui_instance_for_gui_tests.base_path, "test_channel"), exist_ok=True)
-        mock_listdir.assert_called_once_with(os.path.join(mock_gui_instance_for_gui_tests.base_path, "test_channel"))
-        mock_delete_old_videos.assert_called_once_with(os.path.join(mock_gui_instance_for_gui_tests.base_path, "test_channel"), keep_old=False)
-        mock_download_video.assert_called_once_with(
-            "http://youtube.com/watch?v=found",
-            os.path.join(mock_gui_instance_for_gui_tests.base_path, "test_channel"),
-            "1080p",
-            protect=False
-        )
-        mock_gui_instance_for_gui_tests._set_status.assert_called_with("Download complete for Test Channel.")
-        mock_gui_instance_for_gui_tests._send_notification.assert_called_with("Download Complete", "Finished downloading video for Test Channel.")
+                                mock_get_next_saturday.assert_called_once()
+                                mock_find_video_url.assert_called_once_with("http://example.com", "15.07.2024", date_format="%d.%m.%Y")
+                                mock_makedirs.assert_called_once_with(os.path.join(mock_gui_instance_for_gui_tests.base_path, "test_channel"), exist_ok=True)
+                                mock_listdir.assert_called_once_with(os.path.join(mock_gui_instance_for_gui_tests.base_path, "test_channel"))
+                                mock_delete_old_videos.assert_called_once_with(os.path.join(mock_gui_instance_for_gui_tests.base_path, "test_channel"), keep_old=False)
+                                mock_download_video.assert_called_once_with(
+                                    "http://youtube.com/watch?v=found",
+                                    os.path.join(mock_gui_instance_for_gui_tests.base_path, "test_channel"),
+                                    "1080p",
+                                    protect=False
+                                )
+                                mock_gui_instance_for_gui_tests._set_status.assert_has_calls([
+                                    call(f"Finding video for {channel['name']}..."),
+                                    call(f"Downloading from {channel['name']} ({mock_gui_instance_for_gui_tests.channel_quality_vars["Test Channel"].get()})..."),
+                                    call(f"Download complete for {channel['name']}.")
+                                ])
+                                mock_gui_instance_for_gui_tests._send_notification.assert_called_with("Download Complete", "Finished downloading video for Test Channel.")
 
 def test_gui_worker_download_channel_no_video(mock_gui_instance_for_gui_tests, monkeypatch):
     channel = {"name": "Test Channel", "url": "http://example.com", "folder": "test_channel", "date_format": "%d.%m.%Y"}
@@ -296,12 +333,18 @@ def test_gui_worker_download_channel_no_video(mock_gui_instance_for_gui_tests, m
 
     with patch('app.frontend.gui.get_next_saturday', return_value="15.07.2024"):
         with patch('app.frontend.gui.find_video_url', return_value=None) as mock_find_video_url:
+            # Mock tk.StringVar to prevent Tkinter initialization
+            with patch('tkinter.StringVar') as mock_string_var:
+                mock_string_var_instance = MagicMock()
+                mock_string_var_instance.get.return_value = "automat"
+                mock_string_var.return_value = mock_string_var_instance
 
-        mock_gui_instance_for_gui_tests._worker_download(channel)
+                mock_gui_instance_for_gui_tests._worker_download(channel)
 
-        mock_find_video_url.assert_called_once()
-        mock_gui_instance_for_gui_tests._set_status.assert_called_once_with("No video found for Test Channel on 15.07.2024.")
-        mock_gui_instance_for_gui_tests._send_notification.assert_called_once_with("Video Not Found", "No video found for Test Channel on 15.07.2024.")
+                mock_find_video_url.assert_called_once()
+                expected_calls = [call(f"Finding video for {channel['name']}..."), call(f"No video found for {channel['name']} on 15.07.2024.")]
+                mock_gui_instance_for_gui_tests._set_status.assert_has_calls(expected_calls)
+                mock_gui_instance_for_gui_tests._send_notification.assert_called_once_with("Video Not Found", "No video found for Test Channel on 15.07.2024.")
 
 def test_gui_worker_download_channel_already_exists(mock_gui_instance_for_gui_tests, monkeypatch):
     channel = {"name": "Test Channel", "url": "http://example.com", "folder": "test_channel", "date_format": "%d.%m.%Y"}
@@ -309,13 +352,19 @@ def test_gui_worker_download_channel_already_exists(mock_gui_instance_for_gui_te
     mock_gui_instance_for_gui_tests.channel_date_vars["Test Channel"].get.return_value = "automat"
 
     with patch('app.frontend.gui.get_next_saturday', return_value="15.07.2024"):
-        with patch('app.frontend.gui.find_video_url', return_value="http://youtube.com/watch?v=found'):
+        with patch('app.frontend.gui.find_video_url', return_value="http://youtube.com/watch?v=found"):
             with patch('app.frontend.gui.os.listdir', return_value=["video_15.07.2024.mp4"]) as mock_listdir:
+                # Mock tk.StringVar to prevent Tkinter initialization
+                with patch('tkinter.StringVar') as mock_string_var:
+                    mock_string_var_instance = MagicMock()
+                    mock_string_var_instance.get.return_value = "automat"
+                    mock_string_var.return_value = mock_string_var_instance
 
-        mock_gui_instance_for_gui_tests._worker_download(channel)
+                    mock_gui_instance_for_gui_tests._worker_download(channel)
 
-        mock_listdir.assert_called_once()
-        mock_gui_instance_for_gui_tests._set_status.assert_called_once_with("Video for Test Channel already exists: video_15.07.2024.mp4")
+                    mock_listdir.assert_called_once()
+                    expected_calls = [call(f"Finding video for {channel['name']}..."), call(f"Video for {channel['name']} already exists: video_15.07.2024.mp4")]
+                    mock_gui_instance_for_gui_tests._set_status.assert_has_calls(expected_calls)
 
 def test_gui_worker_download_channel_download_failure(mock_gui_instance_for_gui_tests, monkeypatch):
     channel = {"name": "Test Channel", "url": "http://example.com", "folder": "test_channel", "date_format": "%d.%m.%Y"}
@@ -330,13 +379,23 @@ def test_gui_worker_download_channel_download_failure(mock_gui_instance_for_gui_
                     with patch('app.frontend.gui.delete_old_videos'):
                         with patch('app.frontend.gui.download_video', side_effect=Exception("Download error")) as mock_download_video:
                             with patch('app.frontend.gui.messagebox.showerror') as mock_messagebox:
+                                # Mock tk.StringVar to prevent Tkinter initialization
+                                with patch('tkinter.StringVar') as mock_string_var:
+                                    mock_string_var_instance = MagicMock()
+                                    mock_string_var_instance.get.return_value = "automat"
+                                    mock_string_var.return_value = mock_string_var_instance
 
-        mock_gui_instance_for_gui_tests._worker_download(channel)
+                                    mock_gui_instance_for_gui_tests._worker_download(channel)
 
-        mock_download_video.assert_called_once()
-        mock_gui_instance_for_gui_tests._set_status.assert_called_once_with("Error downloading Test Channel.")
-        mock_gui_instance_for_gui_tests._send_notification.assert_called_once_with("Download Error", "Failed to download video for Test Channel.")
-        mock_messagebox.assert_called_once()
+                                    mock_download_video.assert_called_once()
+                                    expected_calls = [
+                                        call(f"Finding video for {channel['name']}..."),
+                                        call(f"Downloading from {channel['name']} ({mock_gui_instance_for_gui_tests.channel_quality_vars["Test Channel"].get()})..."),
+                                        call(f"Error downloading {channel['name']}.")
+                                    ]
+                                    mock_gui_instance_for_gui_tests._set_status.assert_has_calls(expected_calls)
+                                    mock_gui_instance_for_gui_tests._send_notification.assert_called_once_with("Download Error", "Failed to download video for Test Channel.")
+                                    mock_messagebox.assert_called_once()
 
 def test_gui_play_latest(mock_gui_instance_for_gui_tests):
     channel = {"name": "Test Channel", "url": "http://example.com", "folder": "test_channel"}
