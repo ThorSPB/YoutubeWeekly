@@ -512,10 +512,3 @@ class YoutubeWeeklyGUI(tk.Tk):
 if __name__ == "__main__":
     app = YoutubeWeeklyGUI()
     app.mainloop()
-    input("Press Enter to exit...") # Keep console open for debugging
-    input("Press Enter to exit...") # Keep console open for debugging
-    input("Press Enter to exit...") # Keep console open for debugging
-    input("Press Enter to exit...") # Keep console open for debugging
-    input("Press Enter to exit...") # Keep console open for debugging
-    input("Press Enter to exit...") # Keep console open for debugging
-    input("Press Enter to exit...") # Keep console open for debugging

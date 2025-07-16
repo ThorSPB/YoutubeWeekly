@@ -1,6 +1,7 @@
 import json
 import os
 import platform
+import sys
 
 if getattr(sys, 'frozen', False):
     # Running in a PyInstaller bundle
