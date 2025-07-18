@@ -8,13 +8,14 @@
   "mpv_screen": "1",
   "file_viewer_Test Channel_geometry": "800x600+100+100",
   "settings_window_geometry": "480x500+746+329",
-  "main_window_geometry": "515x260+288+217",
+  "main_window_geometry": "515x260+-976+429",
   "ffmpeg_path": "app/tools/ffmpeg_win64/ffmpeg-7.1.1-essentials_build/bin/ffmpeg.exe",
   "file_viewer_ScoalaDeSabat_geometry": "252x329+176+321",
   "keep_old_videos": false,
   "default_quality": "1080p",
-  "enable_auto_download": false,
+  "enable_auto_download": true,
   "enable_notifications": true,
   "file_viewer_Others_geometry": "252x329+972+286",
-  "file_viewer_Departamentul Ispr\u0103vnicie_geometry": "252x329+579+503"
+  "file_viewer_Departamentul Ispr\u0103vnicie_geometry": "252x329+579+503",
+  "last_sabbath_checked": "2025-07-19"
 }

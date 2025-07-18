@@ -83,13 +83,12 @@ def find_video_url(channel_url, expected_date, date_format="%d.%m.%Y"):
 
 def delete_old_videos(video_folder, keep_old):
     if not keep_old:
-        folder_name = os.path.basename(video_folder)
-        protected = load_protected_videos().get(folder_name, [])
+        # If keep_old is False, delete all .mp4 files regardless of protection status
         for filename in os.listdir(video_folder):
-            if filename.endswith(".mp4") and filename not in protected:
+            if filename.endswith(".mp4"):
                 os.remove(os.path.join(video_folder, filename))
                 logging.info(f"Deleted old video: {filename}")
-
+        # If keep_old is True, do nothing (i.e., keep all videos)
 
 def download_video(video_url, video_folder, quality_pref="1080p", protect=False):
     if not video_folder:
@@ -123,13 +122,14 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False)
         ydl_format = 'bestvideo+bestaudio/best'
         merge_format = 'mp4'
 
-    settings = load_settings()
+    settings, _ = load_settings()
     ffmpeg_path = settings.get("ffmpeg_path")
 
     ydl_opts = {
         'outtmpl': os.path.join(video_folder, '%(title)s.%(ext)s'),
         'quiet': False,
         'format': ydl_format,
+        'noplaylist': True,
         'merge_output_format': merge_format,
         'postprocessors': [],
         'ffmpeg_location': ffmpeg_path
@@ -148,10 +148,13 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False)
             ydl.download([video_url])
             logging.info("Download complete.")
             if protect:
-                downloaded_files = os.listdir(video_folder)
-                for file in downloaded_files:
-                    if video_url.split("v=")[-1] in file:
-                        add_protected_video(os.path.basename(video_folder), file)
+                # Get video info to accurately identify the downloaded file
+                info = ydl.extract_info(video_url, download=False)
+                if info:
+                    # Construct the expected filename based on yt-dlp's output template
+                    # This assumes the default outtmpl: '%(title)s.%(ext)s'
+                    video_filename = f"{info.get('title')}.{info.get('ext')}"
+                    add_protected_video(os.path.basename(video_folder), video_filename)
         except Exception as e:
             logging.error(f"Download failed: {e}")
             messagebox.showerror("Download Error", f"Failed to download video:\n{e}")

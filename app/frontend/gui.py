@@ -424,7 +424,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         quality_pref = self.channel_quality_vars.get(name, tk.StringVar()).get()
         self._set_status(f"Downloading from {name} ({quality_pref})...")
         try:
-            download_video(url, channel_folder, quality_pref, protect=bool(selected_date and selected_date != "automat"))
+            download_video(url, channel_folder, quality_pref, protect=self.settings.get("keep_old_videos", False))
             self._set_status(f"Download complete for {name}.")
             self._send_notification("Download Complete", f"Finished downloading video for {name}.")
         except Exception as e:

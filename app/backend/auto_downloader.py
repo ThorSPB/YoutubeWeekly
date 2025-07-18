@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timedelta
 
 from app.backend.config import load_settings, save_settings, load_channels
-from app.backend.downloader import find_video_url, download_video, get_next_saturday, format_romanian_date
+from app.backend.downloader import find_video_url, download_video, get_next_saturday, format_romanian_date, delete_old_videos
 
 AUTO_DOWNLOAD_LOG_FILE = "config/auto_download_log.json"
 
@@ -29,7 +29,8 @@ def get_current_sabbath_date():
         upcoming_saturday = today + timedelta(days=days_until_saturday)
         return upcoming_saturday.strftime("%Y-%m-%d")
 
-def run_automatic_checks(settings, channels, send_notification_callback):
+def run_automatic_checks(initial_settings, channels, send_notification_callback):
+    settings, _ = load_settings() # Reload settings to get the latest values
     if not settings.get("enable_auto_download", False):
         return
 
@@ -77,7 +78,9 @@ def run_automatic_checks(settings, channels, send_notification_callback):
                     try:
                         # Ensure folder exists before downloading
                         os.makedirs(folder, exist_ok=True)
-                        download_video(video_url, folder, settings.get("default_quality", "1080p"))
+                        # Delete old videos before downloading, based on the setting
+                        delete_old_videos(folder, settings.get("keep_old_videos", False))
+                        download_video(video_url, folder, settings.get("default_quality", "1080p"), protect=settings.get("keep_old_videos", False))
                         auto_download_log[current_sabbath_date][channel_key] = "downloaded"
                         send_notification_callback("Auto Download", f"Downloaded {channel_name} video.")
                     except Exception as e:
