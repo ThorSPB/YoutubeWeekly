@@ -302,8 +302,6 @@ class YoutubeWeeklyGUI(tk.Tk):
             self.open_file_viewers[other_folder].focus_set()
         else:
             file_viewer_win = FileViewer(self, self.settings, "Others", other_folder, self._on_file_viewer_close)
-            file_viewer_win.transient(self)
-            file_viewer_win.focus_set()
             self.open_file_viewers[other_folder] = file_viewer_win
 
     def _worker_download_others(self, link):
@@ -340,7 +338,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             self._set_status(f"Playing {os.path.basename(latest_file)}...")
             if self.settings.get("use_mpv", False) and self.settings.get("mpv_path"): # Use MPV if enabled
                 mpv_path = self.settings.get("mpv_path")
-                mpv_args = [mpv_path, latest_file]
+                mpv_args = [f'"{mpv_path}"', f'"{latest_file}"']
                 if self.settings.get("mpv_fullscreen", False):
                     script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "player", "scripts", "delayed-fullscreen.lua"))
                     mpv_args.append(f"--script={script_path}")
@@ -353,7 +351,8 @@ class YoutubeWeeklyGUI(tk.Tk):
                     mpv_args.extend(shlex.split(custom_args))
 
                 if os.name == 'nt': # Windows
-                    process = subprocess.Popen(mpv_args, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+                    command = ' '.join(mpv_args)
+                    process = subprocess.Popen(command, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
                 else: # macOS, Linux
                     process = subprocess.Popen(mpv_args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
                 
@@ -450,8 +449,6 @@ class YoutubeWeeklyGUI(tk.Tk):
             self.open_file_viewers[channel_folder].focus_set()
         else:
             file_viewer_win = FileViewer(self, self.settings, channel["name"], channel_folder, self._on_file_viewer_close)
-            file_viewer_win.transient(self)
-            file_viewer_win.focus_set()
             self.open_file_viewers[channel_folder] = file_viewer_win
 
     def _on_file_viewer_close(self, folder_path):
@@ -478,7 +475,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             self._set_status(f"Playing {os.path.basename(latest_file)}...")
             if self.settings.get("use_mpv", False) and self.settings.get("mpv_path"): # Use MPV if enabled
                 mpv_path = self.settings.get("mpv_path")
-                mpv_args = [mpv_path, latest_file]
+                mpv_args = [f'"{mpv_path}"', f'"{latest_file}"']
                 if self.settings.get("mpv_fullscreen", False):
                     script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "player", "scripts", "delayed-fullscreen.lua"))
                     mpv_args.append(f"--script={script_path}")
@@ -491,7 +488,8 @@ class YoutubeWeeklyGUI(tk.Tk):
                     mpv_args.extend(shlex.split(custom_args))
 
                 if os.name == 'nt': # Windows
-                    process = subprocess.Popen(mpv_args, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+                    command = ' '.join(mpv_args)
+                    process = subprocess.Popen(command, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
                 else: # macOS, Linux
                     process = subprocess.Popen(mpv_args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
                 
