@@ -2,10 +2,10 @@ import json
 import os
 from datetime import datetime, timedelta
 
-from app.backend.config import load_settings, save_settings, load_channels
+from app.backend.config import load_settings, save_settings, load_channels, CONFIG_DIR
 from app.backend.downloader import find_video_url, download_video, get_next_saturday, format_romanian_date, delete_old_videos
 
-AUTO_DOWNLOAD_LOG_FILE = "config/auto_download_log.json"
+AUTO_DOWNLOAD_LOG_FILE = os.path.join(CONFIG_DIR, "auto_download_log.json")
 
 def load_auto_download_log():
     try:

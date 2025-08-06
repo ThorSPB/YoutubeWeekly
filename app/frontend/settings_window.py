@@ -6,13 +6,13 @@ from app.backend.config import save_settings
 from screeninfo import get_monitors
 
 class SettingsWindow(tk.Toplevel):
-    def __init__(self, parent):
+    def __init__(self, parent, settings):
         super().__init__(parent)
         self.title("Settings")
         self.geometry("480x500")
         self.configure(bg="#2b2b2b")
 
-        self.settings = self.load_settings()
+        self.settings = settings
         self.load_window_position()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
@@ -138,12 +138,7 @@ class SettingsWindow(tk.Toplevel):
         state = "normal" if self.use_mpv_var.get() else "disabled"
         self.mpv_path_entry.config(state=state)
 
-    def load_settings(self):
-        try:
-            with open("config/settings.json", "r") as f:
-                return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return {}
+    
 
     def load_window_position(self):
         geometry = self.settings.get("settings_window_geometry")

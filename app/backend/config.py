@@ -2,18 +2,52 @@ import json
 import os
 import platform
 import sys
+import shutil
+
+def get_app_data_dir():
+    if platform.system() == "Windows":
+        return os.path.join(os.environ["APPDATA"], "YoutubeWeekly")
+    elif platform.system() == "Darwin":
+        return os.path.join(os.path.expanduser("~"), "Library", "Application Support", "YoutubeWeekly")
+    else:
+        return os.path.join(os.path.expanduser("~"), ".config", "YoutubeWeekly")
+
+APP_DATA_DIR = get_app_data_dir()
+CONFIG_DIR = os.path.join(APP_DATA_DIR, 'config')
+
+if not os.path.exists(CONFIG_DIR):
+    os.makedirs(CONFIG_DIR)
 
 if getattr(sys, 'frozen', False):
     # Running in a PyInstaller bundle
-    CONFIG_DIR = os.path.join(sys._MEIPASS, 'config')
+    default_config_src = os.path.join(sys._MEIPASS, 'config')
 else:
     # Running in a normal Python environment
-    CONFIG_DIR = os.path.join(os.path.dirname(__file__), '../../config')
+    default_config_src = os.path.join(os.path.dirname(__file__), '../../config')
+
+# Ensure all default config files exist in the app data directory
+for item in os.listdir(default_config_src):
+    s = os.path.join(default_config_src, item)
+    d = os.path.join(CONFIG_DIR, item)
+    if os.path.isfile(s) and not os.path.exists(d):
+        shutil.copy2(s, d)
+
 SETTINGS_FILE = os.path.join(CONFIG_DIR, 'settings.json')
 CHANNELS_FILE = os.path.join(CONFIG_DIR, 'channels.json')
+AUTO_DOWNLOAD_LOG_FILE = os.path.join(CONFIG_DIR, "auto_download_log.json")
+
+# Create an empty auto_download_log.json if it doesn't exist
+if not os.path.exists(AUTO_DOWNLOAD_LOG_FILE):
+    with open(AUTO_DOWNLOAD_LOG_FILE, 'w', encoding='utf-8') as f:
+        json.dump({}, f)
 
 def get_default_executable_paths():
-    base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) # This should be YoutubeWeekly/app
+    if getattr(sys, 'frozen', False):
+        # Running in a PyInstaller bundle
+        base_path = os.path.join(sys._MEIPASS, 'app')
+    else:
+        # Running in a normal Python environment
+        base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) # This should be YoutubeWeekly/app
     mpv_path = ""
     ffmpeg_path = ""
     warnings = []
@@ -57,11 +91,9 @@ def load_settings():
 
     default_paths, warnings = get_default_executable_paths()
 
-    if not settings.get("mpv_path"):
-        settings["mpv_path"] = default_paths["mpv_path"]
-    
-    if not settings.get("ffmpeg_path"):
-        settings["ffmpeg_path"] = default_paths["ffmpeg_path"]
+    # Always use the bundled executables
+    settings["mpv_path"] = default_paths["mpv_path"]
+    settings["ffmpeg_path"] = default_paths["ffmpeg_path"]
 
     return settings, warnings
 

@@ -42,8 +42,12 @@ class YoutubeWeeklyGUI(tk.Tk):
         style.configure("Dark.TFrame", background="#2b2b2b")
 
         self.title("YoutubeWeekly Downloader")
-        self.geometry("515x260")
-        self.load_window_position()
+        saved_geometry = self.settings.get("main_window_geometry")
+        if saved_geometry:
+            self.geometry(saved_geometry)
+        else:
+            self.geometry("515x260")  # Default size
+            self.center_window()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.base_path = self.settings.get("video_folder", "data/videos")
 
@@ -209,6 +213,14 @@ class YoutubeWeeklyGUI(tk.Tk):
 
         self.bind("<Configure>", self._on_resize)
 
+    def center_window(self):
+        self.update_idletasks()
+        width = self.winfo_width()
+        height = self.winfo_height()
+        x = (self.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.winfo_screenheight() // 2) - (height // 2)
+        self.geometry(f'{width}x{height}+{x}+{y}')
+
     def load_window_position(self):
         geometry = self.settings.get("main_window_geometry")
         if geometry:
@@ -220,7 +232,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.destroy()
 
     def open_settings(self):
-        settings_win = SettingsWindow(self)
+        settings_win = SettingsWindow(self, self.settings)
         settings_win.transient(self)
         settings_win.grab_set()
         settings_win.focus_set()
