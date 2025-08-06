@@ -524,6 +524,17 @@ class YoutubeWeeklyGUI(tk.Tk):
             self._set_status(f"Error playing video: {e}")
             messagebox.showerror("Playback Error", f"Could not play video:\n{e}")
 
+    def open_folder_in_explorer(self, folder_path):
+        try:
+            if sys.platform == "win32":
+                os.startfile(folder_path)
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", folder_path])
+            else:
+                subprocess.Popen(["xdg-open", folder_path])
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not open folder: {e}")
+
     def progress_hook(self, d):
         if d['status'] == 'downloading':
             self.progress_bar.pack(pady=(0, 10), padx=20, fill="x")

@@ -46,7 +46,8 @@ class FileViewer(tk.Toplevel):
         self.populate_files()
 
         # --- Button Frame ---
-        button_frame = ttk.Frame(self, style="Dark.TFrame")
+        button_frame = ttk.Frame(self)
+        button_frame.configure(style="Dark.TFrame")
         button_frame.pack(pady=5, padx=10, fill="x")
 
         play_button = ttk.Button(button_frame, text="Play Selected", command=self.play_selected)
@@ -58,10 +59,15 @@ class FileViewer(tk.Toplevel):
         delete_all_button = ttk.Button(button_frame, text="Delete All", command=self.delete_all)
         delete_all_button.pack(side="left", expand=True, fill="x", padx=(5, 0))
 
+        open_folder_btn = ttk.Button(button_frame, text="📂", command=lambda: parent.open_folder_in_explorer(self.channel_folder))
+        open_folder_btn.pack(side="left", expand=True, fill="x", padx=(5, 0))
+
     def load_window_position(self):
         geometry = self.settings.get(self.geometry_key)
         if geometry:
             self.geometry(geometry)
+        else:
+            self.geometry("362x329+1223+406") # Default size and position for file viewer
 
     def on_closing(self):
         self.settings[self.geometry_key] = self.geometry()
