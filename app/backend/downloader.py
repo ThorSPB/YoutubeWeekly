@@ -156,9 +156,15 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False,
                     # This assumes the default outtmpl: '%(title)s.%(ext)s'
                     video_filename = f"{info.get('title')}.{info.get('ext')}"
                     add_protected_video(os.path.basename(video_folder), video_filename)
+        except yt_dlp.utils.DownloadError as e:
+            error_message = str(e)
+            logging.error(f"Download failed: {error_message}")
+            return error_message
         except Exception as e:
-            logging.error(f"Download failed: {e}")
-            messagebox.showerror("Download Error", f"Failed to download video:\n{e}")
+            error_message = str(e)
+            logging.error(f"An unexpected error occurred during download: {error_message}")
+            return error_message
+    return None # Return None on successful download
 
 def get_recent_sabbaths(n=30, date_format="%d.%m.%Y"):
     """Return the last `n` Sabbath (Saturday) dates formatted."""

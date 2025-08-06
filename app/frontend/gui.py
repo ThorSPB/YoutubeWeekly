@@ -327,11 +327,20 @@ class YoutubeWeeklyGUI(tk.Tk):
     def _worker_download_others(self, link):
         folder = os.path.join(self.base_path, "other")
         try:
-            download_video(link, folder, self.others_quality_var.get(), progress_hook=self.progress_hook)
-            self._send_notification("Download Complete", f"Finished downloading video from link: {link}")
+            error = download_video(link, folder, self.others_quality_var.get(), progress_hook=self.progress_hook)
+            if error:
+                self._set_status(f"Error downloading: {error}")
+                self._send_notification("Download Error", f"Failed to download video from link: {link}\n{error}")
+                messagebox.showerror(
+                    "Download Error",
+                    f"Failed to download video:\n{error}"
+                )
+            else:
+                self._set_status("Download complete.")
+                self._send_notification("Download Complete", f"Finished downloading video from link: {link}")
         except Exception as e:
-            self._set_status("Error downloading.")
-            self._send_notification("Download Error", f"Failed to download video from link: {link}")
+            self._set_status(f"Error downloading: {e}")
+            self._send_notification("Download Error", f"Failed to download video from link: {link}\n{e}")
             messagebox.showerror(
                 "Download Error",
                 f"Failed to download video:\n{e}"
@@ -442,11 +451,19 @@ class YoutubeWeeklyGUI(tk.Tk):
         quality_pref = self.channel_quality_vars.get(name, tk.StringVar()).get()
         self._set_status(f"Downloading from {name} ({quality_pref})...")
         try:
-            download_video(url, channel_folder, quality_pref, protect=self.settings.get("keep_old_videos", False), progress_hook=self.progress_hook)
-            self._send_notification("Download Complete", f"Finished downloading video for {name}.")
+            error = download_video(url, channel_folder, quality_pref, protect=self.settings.get("keep_old_videos", False), progress_hook=self.progress_hook)
+            if error:
+                self._set_status(f"Error downloading {name}: {error}")
+                self._send_notification("Download Error", f"Failed to download video for {name}: {error}")
+                messagebox.showerror(
+                    "Download Error",
+                    f"Failed to download {name}:\n{error}"
+                )
+            else:
+                self._send_notification("Download Complete", f"Finished downloading video for {name}.")
         except Exception as e:
-            self._set_status(f"Error downloading {name}.")
-            self._send_notification("Download Error", f"Failed to download video for {name}.")
+            self._set_status(f"Error downloading {name}: {e}")
+            self._send_notification("Download Error", f"Failed to download video for {name}: {e}")
             messagebox.showerror(
                 "Download Error",
                 f"Failed to download {name}:\n{e}"
