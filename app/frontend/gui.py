@@ -31,6 +31,8 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.channel_quality_vars = {}
         self.channel_date_vars = {}
         self.open_file_viewers = {}
+        self.download_stage = 0 # 0: idle, 1: video, 2: audio
+        self.last_progress_value = 0
 
         style = ttk.Style()
         style.theme_use("default")
@@ -208,6 +210,9 @@ class YoutubeWeeklyGUI(tk.Tk):
         # Quit button
         ttk.Button(self, text="Quit", command=self.on_closing, width=10).pack(pady=(0, 15))
 
+        # Progress bar
+        self.progress_bar = ttk.Progressbar(self, orient="horizontal", length=300, mode="determinate")
+
 
         self.resizable(False, False)
 
@@ -280,6 +285,8 @@ class YoutubeWeeklyGUI(tk.Tk):
 
     def download_for_channel(self, channel):
         """Launch the download check in a background thread."""
+        self.download_stage = 1 # Reset for new download
+        self.last_progress_value = 0
         threading.Thread(
             target=self._worker_download,
             args=(channel,),
@@ -288,6 +295,8 @@ class YoutubeWeeklyGUI(tk.Tk):
 
     def download_others(self):
         """Download video from the link in the others entry to data/videos/other."""
+        self.download_stage = 1 # Reset for new download
+        self.last_progress_value = 0
         link = self.others_link_var.get().strip()
         if not link:
             self._set_status("Please enter a YouTube link.")
@@ -310,8 +319,7 @@ class YoutubeWeeklyGUI(tk.Tk):
     def open_others_folder(self):
         other_folder = os.path.join(self.base_path, "other")
         if other_folder in self.open_file_viewers and self.open_file_viewers[other_folder].winfo_exists():
-            self.open_file_viewers[other_folder].lift()
-            self.open_file_viewers[other_folder].focus_set()
+            self.open_file_viewers[other_folder].on_closing()
         else:
             file_viewer_win = FileViewer(self, self.settings, "Others", other_folder, self._on_file_viewer_close)
             self.open_file_viewers[other_folder] = file_viewer_win
@@ -319,8 +327,7 @@ class YoutubeWeeklyGUI(tk.Tk):
     def _worker_download_others(self, link):
         folder = os.path.join(self.base_path, "other")
         try:
-            download_video(link, folder, self.others_quality_var.get())
-            self._set_status("Download complete.")
+            download_video(link, folder, self.others_quality_var.get(), progress_hook=self.progress_hook)
             self._send_notification("Download Complete", f"Finished downloading video from link: {link}")
         except Exception as e:
             self._set_status("Error downloading.")
@@ -435,8 +442,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         quality_pref = self.channel_quality_vars.get(name, tk.StringVar()).get()
         self._set_status(f"Downloading from {name} ({quality_pref})...")
         try:
-            download_video(url, channel_folder, quality_pref, protect=self.settings.get("keep_old_videos", False))
-            self._set_status(f"Download complete for {name}.")
+            download_video(url, channel_folder, quality_pref, protect=self.settings.get("keep_old_videos", False), progress_hook=self.progress_hook)
             self._send_notification("Download Complete", f"Finished downloading video for {name}.")
         except Exception as e:
             self._set_status(f"Error downloading {name}.")
@@ -457,8 +463,7 @@ class YoutubeWeeklyGUI(tk.Tk):
     def open_channel_folder(self, channel):
         channel_folder = os.path.join(self.base_path, channel["folder"])
         if channel_folder in self.open_file_viewers and self.open_file_viewers[channel_folder].winfo_exists():
-            self.open_file_viewers[channel_folder].lift()
-            self.open_file_viewers[channel_folder].focus_set()
+            self.open_file_viewers[channel_folder].on_closing()
         else:
             file_viewer_win = FileViewer(self, self.settings, channel["name"], channel_folder, self._on_file_viewer_close)
             self.open_file_viewers[channel_folder] = file_viewer_win
@@ -518,6 +523,45 @@ class YoutubeWeeklyGUI(tk.Tk):
         except Exception as e:
             self._set_status(f"Error playing video: {e}")
             messagebox.showerror("Playback Error", f"Could not play video:\n{e}")
+
+    def progress_hook(self, d):
+        if d['status'] == 'downloading':
+            self.progress_bar.pack(pady=(0, 10), padx=20, fill="x")
+            total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate')
+            if total_bytes:
+                percent = (d['downloaded_bytes'] / total_bytes) * 100
+                unified_percent = 0
+                if self.download_stage == 1: # Video part (0-50%)
+                    unified_percent = percent / 2
+                elif self.download_stage == 2: # Audio part (50-100%)
+                    unified_percent = 50 + (percent / 2)
+                
+                # Ratchet logic: only update if progress has increased
+                if unified_percent > self.last_progress_value:
+                    self.last_progress_value = unified_percent
+                    self.progress_bar['value'] = unified_percent
+                    self._set_status(f"Downloading... {unified_percent:.1f}%")
+                    self.update_idletasks()
+                    time.sleep(0.1)
+
+        elif d['status'] == 'finished':
+            if self.download_stage == 1:
+                self.download_stage = 2 # Move to audio stage
+                # Ensure the bar hits 50% exactly
+                if self.last_progress_value < 50:
+                    self.last_progress_value = 50
+                    self.progress_bar['value'] = 50
+                    self._set_status(f"Downloading... 50.0%")
+                    self.update_idletasks()
+            else:
+                # Ensure the bar hits 100% exactly
+                self.progress_bar['value'] = 100
+                self._set_status("Download complete.")
+                self.update_idletasks()
+                time.sleep(0.5) # Give user a moment to see "complete"
+                self.progress_bar.pack_forget()
+                self.download_stage = 0 # Reset to idle
+                self.last_progress_value = 0
 
 if __name__ == "__main__":
     app = YoutubeWeeklyGUI()

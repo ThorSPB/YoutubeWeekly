@@ -24,3 +24,10 @@ It finds the correct video for the current or upcoming Sabbath and saves it into
 This app is written in **Python** using `tkinter`, `yt-dlp`, and is intended to be packaged into a standalone executable using `PyInstaller`.
 
 //this readme is as well a work in progress just like the project. It's only made by me and since it's unfinished some things make look slight (maybe more) messy!
+
+---
+
+## 💡 Future Ideas
+
+- **Subtitle Downloader:** An option to download available subtitles (e.g., Romanian) for videos.
+- **UI Revamp:** A visual overhaul to modernize the application's look and feel.

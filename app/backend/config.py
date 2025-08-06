@@ -105,3 +105,17 @@ def load_channels():
 def save_settings(settings):
     with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
         json.dump(settings, f, indent=2)
+
+def load_default_settings():
+    if getattr(sys, 'frozen', False):
+        # Running in a PyInstaller bundle
+        default_settings_path = os.path.join(sys._MEIPASS, 'config', 'settings.json')
+    else:
+        # Running in a normal Python environment
+        default_settings_path = os.path.join(os.path.dirname(__file__), '../../config', 'settings.json')
+    
+    try:
+        with open(default_settings_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}

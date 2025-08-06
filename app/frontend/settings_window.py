@@ -1,8 +1,8 @@
 import os
 import tkinter as tk
-from tkinter import ttk, filedialog
+from tkinter import ttk, filedialog, messagebox
 import json
-from app.backend.config import save_settings
+from app.backend.config import save_settings, load_default_settings
 from screeninfo import get_monitors
 
 class SettingsWindow(tk.Toplevel):
@@ -122,6 +122,9 @@ class SettingsWindow(tk.Toplevel):
         cancel_button = ttk.Button(button_frame, text="Cancel", command=self.on_closing)
         cancel_button.pack(side="right")
 
+        reset_button = ttk.Button(button_frame, text="Reset to Defaults", command=self.reset_to_defaults)
+        reset_button.pack(side="left", padx=5)
+
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def browse_folder(self):
@@ -175,3 +178,23 @@ class SettingsWindow(tk.Toplevel):
                 self.mpv_volume_var.set(130)
         except tk.TclError: # Handle cases where input is not an integer
             pass
+
+    def reset_to_defaults(self):
+        if messagebox.askyesno("Confirm Reset", "Are you sure you want to reset all settings to their default values? This cannot be undone."):
+            default_settings = load_default_settings()
+            self.settings = default_settings
+            self.update_ui_from_settings()
+            self.save_settings()
+
+    def update_ui_from_settings(self):
+        self.keep_old_videos_var.set(self.settings.get("keep_old_videos", False))
+        self.video_folder_var.set(self.settings.get("video_folder", "data/videos"))
+        self.quality_var.set(self.settings.get("default_quality", "1080p"))
+        self.enable_auto_download_var.set(self.settings.get("enable_auto_download", False))
+        self.enable_notifications_var.set(self.settings.get("enable_notifications", True))
+        self.use_mpv_var.set(self.settings.get("use_mpv", False))
+        self.mpv_path_var.set(self.settings.get("mpv_path", ""))
+        self.mpv_fullscreen_var.set(self.settings.get("mpv_fullscreen", False))
+        self.mpv_volume_var.set(self.settings.get("mpv_volume", 100))
+        self.mpv_screen_var.set(self.settings.get("mpv_screen", "Default"))
+        self.mpv_custom_args_var.set(self.settings.get("mpv_custom_args", ""))

@@ -90,7 +90,7 @@ def delete_old_videos(video_folder, keep_old):
                 logging.info(f"Deleted old video: {filename}")
         # If keep_old is True, do nothing (i.e., keep all videos)
 
-def download_video(video_url, video_folder, quality_pref="1080p", protect=False):
+def download_video(video_url, video_folder, quality_pref="1080p", protect=False, progress_hook=None):
     if not video_folder:
         logging.error("Video folder path is empty or invalid.")
         return
@@ -132,7 +132,8 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False)
         'noplaylist': True,
         'merge_output_format': merge_format,
         'postprocessors': [],
-        'ffmpeg_location': ffmpeg_path
+        'ffmpeg_location': ffmpeg_path,
+        'progress_hooks': [progress_hook] if progress_hook else []
     }
 
     if quality_pref == "mp3":

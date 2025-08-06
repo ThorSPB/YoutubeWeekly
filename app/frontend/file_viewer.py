@@ -32,6 +32,7 @@ class FileViewer(tk.Toplevel):
         style.configure("Treeview", background="#3c3c3c", foreground="white", fieldbackground="#3c3c3c", rowheight=25)
         style.map("Treeview", background=[("selected", "#0078D7")])
         style.configure("Treeview.Heading", background="#2b2b2b", foreground="white", font=('Segoe UI', 10, 'bold'))
+        style.configure("Dark.TFrame", background="#2b2b2b")
 
         self.file_tree = ttk.Treeview(self, columns=("name", "selected"), show="headings", selectmode="browse")
         self.file_tree.heading("name", text="File Name")
@@ -44,8 +45,18 @@ class FileViewer(tk.Toplevel):
 
         self.populate_files()
 
-        play_button = ttk.Button(self, text="Play Selected", command=self.play_selected)
-        play_button.pack(pady=5)
+        # --- Button Frame ---
+        button_frame = ttk.Frame(self, style="Dark.TFrame")
+        button_frame.pack(pady=5, padx=10, fill="x")
+
+        play_button = ttk.Button(button_frame, text="Play Selected", command=self.play_selected)
+        play_button.pack(side="left", expand=True, fill="x", padx=(0, 5))
+
+        delete_button = ttk.Button(button_frame, text="Delete Selected", command=self.delete_selected)
+        delete_button.pack(side="left", expand=True, fill="x", padx=5)
+
+        delete_all_button = ttk.Button(button_frame, text="Delete All", command=self.delete_all)
+        delete_all_button.pack(side="left", expand=True, fill="x", padx=(5, 0))
 
     def load_window_position(self):
         geometry = self.settings.get(self.geometry_key)
@@ -118,3 +129,33 @@ class FileViewer(tk.Toplevel):
                     subprocess.call(['open', self.selected_file_path] if sys.platform == 'darwin' else ['xdg-open', self.selected_file_path])
         except Exception as e:
             messagebox.showerror("Playback Error", f"Could not play video:\n{e}")
+
+    def delete_selected(self):
+        if not self.selected_file_path:
+            messagebox.showwarning("No Selection", "Please select a file to delete.")
+            return
+
+        file_name = os.path.basename(self.selected_file_path)
+        if messagebox.askyesno("Confirm Delete", f"Are you sure you want to permanently delete {file_name}?"):
+            try:
+                os.remove(self.selected_file_path)
+                self.selected_file_path = None
+                self.populate_files() # Refresh the list
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to delete file: {e}")
+
+    def delete_all(self):
+        if not os.listdir(self.channel_folder):
+            messagebox.showinfo("Empty", "The folder is already empty.")
+            return
+
+        if messagebox.askyesno("Confirm Delete All", f"Are you sure you want to permanently delete ALL files in the {self.channel_name} folder? This cannot be undone."):
+            try:
+                for file_name in os.listdir(self.channel_folder):
+                    file_path = os.path.join(self.channel_folder, file_name)
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                self.selected_file_path = None
+                self.populate_files() # Refresh the list
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to delete files: {e}")
