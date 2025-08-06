@@ -15,15 +15,12 @@ class FileViewer(tk.Toplevel):
         self.channel_folder = channel_folder # Store channel_folder
         self.on_close_callback = on_close_callback # Store callback
         self.geometry_key = f"file_viewer_{channel_name}_geometry"
-
         self.root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         self.script_path = os.path.join(self.root_dir, "app", "player", "scripts", "delayed-fullscreen.lua")
-
         self.title(f"Files for {channel_name}")
         self.load_window_position()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.configure(bg="#2b2b2b")
-
         self.channel_folder = channel_folder
         self.selected_file_path = None
 
@@ -37,12 +34,17 @@ class FileViewer(tk.Toplevel):
         self.file_tree = ttk.Treeview(self, columns=("name", "selected"), show="headings", selectmode="browse")
         self.file_tree.heading("name", text="File Name")
         self.file_tree.heading("selected", text="✓")
+        
+        # Configure columns
         self.file_tree.column("name", stretch=True)
         self.file_tree.column("selected", width=30, anchor="center", stretch=False)
         
+        # Disable column resizing by unbinding the resize events
+        self.file_tree.bind("<Button-1>", self._disable_column_resize)
+        self.file_tree.bind("<B1-Motion>", self._disable_column_resize)
+        
         self.file_tree.pack(pady=10, padx=10, fill="both", expand=True)
         self.file_tree.bind("<<TreeviewSelect>>", self.on_file_select)
-
         self.populate_files()
 
         # --- Button Frame ---
@@ -61,6 +63,13 @@ class FileViewer(tk.Toplevel):
 
         open_folder_btn = ttk.Button(button_frame, text="📂", command=lambda: parent.open_folder_in_explorer(self.channel_folder))
         open_folder_btn.pack(side="left", expand=True, fill="x", padx=(5, 0))
+
+    def _disable_column_resize(self, event):
+        """Prevent column resizing by checking if click is on column separator"""
+        # Get the region of the click
+        region = self.file_tree.identify_region(event.x, event.y)
+        if region == "separator":
+            return "break"  # Prevent the event from propagating
 
     def load_window_position(self):
         geometry = self.settings.get(self.geometry_key)
@@ -109,12 +118,16 @@ class FileViewer(tk.Toplevel):
             if self.settings.get("use_mpv", False) and self.settings.get("mpv_path"):
                 mpv_path = self.settings.get("mpv_path")
                 mpv_args = [mpv_path, self.selected_file_path]
+
                 if self.settings.get("mpv_fullscreen", False):
                     mpv_args.append(f"--script={self.script_path}")
+
                 if self.settings.get("mpv_volume") is not None:
-                    mpv_args.append(f"--volume={self.settings.get("mpv_volume")}")
+                    mpv_args.append(f"--volume={self.settings.get('mpv_volume')}")
+
                 if self.settings.get("mpv_screen") != "Default":
-                    mpv_args.append(f"--screen={self.settings.get("mpv_screen")}")
+                    mpv_args.append(f"--screen={self.settings.get('mpv_screen')}")
+
                 custom_args = self.settings.get("mpv_custom_args", "").strip()
                 if custom_args:
                     mpv_args.extend(shlex.split(custom_args))
@@ -133,6 +146,7 @@ class FileViewer(tk.Toplevel):
                     os.startfile(self.selected_file_path)
                 elif os.name == 'posix':
                     subprocess.call(['open', self.selected_file_path] if sys.platform == 'darwin' else ['xdg-open', self.selected_file_path])
+
         except Exception as e:
             messagebox.showerror("Playback Error", f"Could not play video:\n{e}")
 

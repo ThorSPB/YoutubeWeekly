@@ -10,6 +10,7 @@ class SettingsWindow(tk.Toplevel):
         super().__init__(parent)
         self.title("Settings")
         self.geometry("537x536+79+73")
+        self.resizable(False, False)
         self.configure(bg="#2b2b2b")
 
         self.settings = settings
