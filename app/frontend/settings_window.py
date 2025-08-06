@@ -9,7 +9,7 @@ class SettingsWindow(tk.Toplevel):
     def __init__(self, parent, settings):
         super().__init__(parent)
         self.title("Settings")
-        self.geometry("480x500")
+        self.geometry("537x536+79+73")
         self.configure(bg="#2b2b2b")
 
         self.settings = settings
@@ -79,6 +79,22 @@ class SettingsWindow(tk.Toplevel):
 
         self.toggle_mpv_path_entry() # Set initial state
 
+        # FFmpeg Path
+        self.ffmpeg_path_frame = ttk.Frame(main_frame, style="Dark.TFrame")
+        self.ffmpeg_path_frame.pack(fill="x", pady=5, padx=15)
+        
+        ttk.Label(self.ffmpeg_path_frame, text="FFmpeg Path:").pack(side="left")
+        self.ffmpeg_path_var = tk.StringVar(value=self.settings.get("ffmpeg_path", ""))
+        self.ffmpeg_path_entry = ttk.Entry(self.ffmpeg_path_frame, textvariable=self.ffmpeg_path_var, width=20)
+        self.ffmpeg_path_entry.pack(side="left", expand=True, fill="x", padx=5)
+        
+        ffmpeg_browse_button = ttk.Button(self.ffmpeg_path_frame, text="Browse", command=self.browse_ffmpeg_path)
+        ffmpeg_browse_button.pack(side="left")
+
+        # Warning for FFmpeg
+        ttk.Label(main_frame, text="Warning: Only change FFmpeg path if you know what you're doing. Incorrect path will break downloads. Clicking \"Reset to Defaults\" will restore the original path.",
+                  foreground="red", wraplength=400, justify="left").pack(anchor="w", pady=(0, 10))
+
         # MPV Fullscreen setting
         self.mpv_fullscreen_var = tk.BooleanVar(value=self.settings.get("mpv_fullscreen", False))
         mpv_fullscreen_check = ttk.Checkbutton(main_frame, text="MPV Fullscreen", variable=self.mpv_fullscreen_var)
@@ -137,6 +153,11 @@ class SettingsWindow(tk.Toplevel):
         if file_selected:
             self.mpv_path_var.set(file_selected)
 
+    def browse_ffmpeg_path(self):
+        file_selected = filedialog.askopenfilename()
+        if file_selected:
+            self.ffmpeg_path_var.set(file_selected)
+
     def toggle_mpv_path_entry(self):
         state = "normal" if self.use_mpv_var.get() else "disabled"
         self.mpv_path_entry.config(state=state)
@@ -161,6 +182,7 @@ class SettingsWindow(tk.Toplevel):
         self.settings["enable_notifications"] = self.enable_notifications_var.get()
         self.settings["use_mpv"] = self.use_mpv_var.get()
         self.settings["mpv_path"] = self.mpv_path_var.get()
+        self.settings["ffmpeg_path"] = self.ffmpeg_path_var.get()
         self.settings["mpv_fullscreen"] = self.mpv_fullscreen_var.get()
         self.settings["mpv_volume"] = self.mpv_volume_var.get()
         self.settings["mpv_screen"] = self.mpv_screen_var.get()
@@ -198,3 +220,4 @@ class SettingsWindow(tk.Toplevel):
         self.mpv_volume_var.set(self.settings.get("mpv_volume", 100))
         self.mpv_screen_var.set(self.settings.get("mpv_screen", "Default"))
         self.mpv_custom_args_var.set(self.settings.get("mpv_custom_args", ""))
+        self.ffmpeg_path_var.set(self.settings.get("ffmpeg_path", ""))
