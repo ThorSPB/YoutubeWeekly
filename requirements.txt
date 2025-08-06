@@ -4,3 +4,5 @@ pyobjus; sys_platform == "darwin"
 screeninfo
 pytest-cov
 requests
+pystray
+Pillow

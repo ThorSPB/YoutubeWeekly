@@ -109,15 +109,14 @@ class YoutubeWeeklyGUI(tk.Tk):
         )
         self.status_label.pack(pady=(5, 15), padx=20, fill="x")
 
-        # Buttons frame
-        btn_frame = ttk.Frame(self)
-        btn_frame.configure(style="Dark.TFrame")
-        btn_frame.pack(pady=(0, 15), padx=20, fill="x")
+        # Main content frame for channel buttons and others section
+        content_frame = ttk.Frame(self, style="Dark.TFrame")
+        content_frame.pack(pady=(0, 15), padx=20, fill="x", expand=True)
 
         # One download button + quality selector per channel
         for channel in self.channels:
-            row = ttk.Frame(btn_frame, style="Dark.TFrame")
-            row.pack(pady=3, anchor="w")
+            row = ttk.Frame(content_frame, style="Dark.TFrame")
+            row.pack(pady=3, anchor="w", fill="x")
 
             var = tk.StringVar(value=self.settings.get("default_quality", "1080p"))
             self.channel_quality_vars[channel["name"]] = var
@@ -162,9 +161,9 @@ class YoutubeWeeklyGUI(tk.Tk):
             folder_btn.pack(side="left", padx=(5, 0))
 
         # Others link entry and button frame
-        others_frame = ttk.Frame(self)
+        others_frame = ttk.Frame(content_frame)
         others_frame.configure(style="Dark.TFrame")
-        others_frame.pack(pady=(0, 15), padx=20, anchor="w")
+        others_frame.pack(pady=(10, 0), anchor="w", fill="x")
 
         self.others_quality_var = tk.StringVar(value=self.settings.get("default_quality", "1080p"))
         others_combo = ttk.Combobox(
@@ -181,7 +180,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         others_entry = ttk.Entry(
             others_frame,
             textvariable=self.others_link_var,
-            width=24,
+            width=27,
         )
         others_entry.insert(0, "Paste YouTube link...")
         others_entry.bind("<FocusIn>", lambda e: others_entry.delete(0, "end") if others_entry.get() == "Paste YouTube link..." else None)
@@ -212,7 +211,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         folder_others_btn.pack(side="left", padx=(5, 0))
 
         # Quit button
-        ttk.Button(self, text="Quit", command=self.on_closing, width=10).pack(pady=(0, 15))
+        ttk.Button(self, text="Quit", command=self.on_closing, width=10).pack(pady=(15, 15))
 
         # Progress bar
         self.progress_bar = ttk.Progressbar(self, orient="horizontal", length=300, mode="determinate")
