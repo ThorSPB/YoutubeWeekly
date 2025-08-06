@@ -16,6 +16,7 @@ from datetime import datetime
 from app.frontend.settings_window import SettingsWindow
 from app.frontend.file_viewer import FileViewer
 from app.backend.auto_downloader import run_automatic_checks
+from app.backend.updater import check_for_updates
 
 class YoutubeWeeklyGUI(tk.Tk):
     def __init__(self):
@@ -71,6 +72,9 @@ class YoutubeWeeklyGUI(tk.Tk):
             args=(self.settings, self.channels, self._send_notification),
             daemon=True
         ).start()
+
+        # Check for updates in a separate thread
+        threading.Thread(target=self._check_for_updates_thread, daemon=True).start()
 
         self.recent_sabbaths_per_channel = {
             ch["name"]: ["automat"] + get_recent_sabbaths(date_format="%d.%m.%Y")
@@ -590,6 +594,14 @@ class YoutubeWeeklyGUI(tk.Tk):
                 self.progress_bar.pack_forget()
                 self.download_stage = 0 # Reset to idle
                 self.last_progress_value = 0
+
+    def _check_for_updates_thread(self):
+        is_new_version, latest_version, download_url = check_for_updates()
+        if is_new_version:
+            messagebox.showinfo(
+                "Update Available",
+                f"A new version ({latest_version}) is available!\n\nDownload it from: {download_url}"
+            )
 
 if __name__ == "__main__":
     app = YoutubeWeeklyGUI()

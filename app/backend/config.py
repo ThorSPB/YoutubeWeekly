@@ -4,6 +4,8 @@ import platform
 import sys
 import shutil
 
+__version__ = "1.0.0"
+
 def get_app_data_dir():
     if platform.system() == "Windows":
         return os.path.join(os.environ["APPDATA"], "YoutubeWeekly")
