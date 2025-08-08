@@ -6,9 +6,10 @@ from tkinter import ttk, messagebox
 import subprocess
 import shlex
 import time
-import sys
 from plyer import notification
 import json
+from PIL import Image
+import pystray
 
 from app.backend.config import load_channels, load_settings, save_settings
 from app.backend.downloader import find_video_url, download_video, get_next_saturday, delete_old_videos, format_romanian_date, get_recent_sabbaths
@@ -60,9 +61,10 @@ class YoutubeWeeklyGUI(tk.Tk):
         if saved_geometry:
             self.geometry(saved_geometry)
         else:
-            self.geometry("515x260")  # Default size
+            self.geometry("515x275")  # Default size
             self.center_window()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
+        self.bind("<Unmap>", self.minimize_to_tray)
         self.base_path = self.settings.get("video_folder", "data/videos")
 
         # Load channels configuration
@@ -248,6 +250,38 @@ class YoutubeWeeklyGUI(tk.Tk):
     def on_closing(self):
         self.settings["main_window_geometry"] = self.geometry()
         save_settings(self.settings)
+        self.quit_application()
+
+    def minimize_to_tray(self, event):
+        if self.state() == 'iconic':
+            self.hide_to_tray()
+
+    def hide_to_tray(self):
+        for viewer in list(self.open_file_viewers.values()):
+            if viewer.winfo_exists():
+                viewer.on_closing()
+        self.withdraw()
+        image = Image.open(resource_path("assets/icon4.ico"))
+        menu = (pystray.MenuItem('Show', self.show_from_tray, default=True),
+                pystray.MenuItem('Quit', self.quit_application))
+        self.tray_icon = pystray.Icon("YoutubeWeekly", image, "YoutubeWeekly Downloader", menu)
+        self.tray_icon.run_detached()
+
+    def show_from_tray(self, icon, item):
+        self.tray_icon.stop()
+        self.deiconify()
+        self.lift()
+        self.attributes('-topmost', True)
+        self.after_idle(self.attributes, '-topmost', False)
+        self.focus_force()
+
+    def quit_application(self, icon=None, item=None):
+        # Ensure operations are performed on the main Tkinter thread
+        self.after(0, self._perform_quit)
+
+    def _perform_quit(self):
+        if hasattr(self, 'tray_icon') and self.tray_icon.visible:
+            self.tray_icon.stop()
         self.destroy()
 
     def open_settings(self):
@@ -407,7 +441,7 @@ class YoutubeWeeklyGUI(tk.Tk):
                     os.startfile(latest_file)
                 elif os.name == 'posix': # macOS, Linux
                     subprocess.call(['open', latest_file] if sys.platform == 'darwin' else ['xdg-open', latest_file])
-            self._set_status("Launched video player for Others.")
+            self._set_status(f"Launched video player for Others.")
         except Exception as e:
             self._set_status(f"Error playing video: {e}")
             messagebox.showerror("Playback Error", f"Could not play video:\n{e}")
@@ -614,5 +648,42 @@ class YoutubeWeeklyGUI(tk.Tk):
             )
 
 if __name__ == "__main__":
+    import socket
+
+    # Use a socket to ensure single instance
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # Bind to a specific port
+        s.bind(("127.0.0.1", 65432))
+    except OSError:
+        # If the port is already in use, another instance is running.
+        # Send a message to the running instance to show itself.
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
+                client_socket.connect(("127.0.0.1", 65432))
+                client_socket.sendall(b'show')
+        except ConnectionRefusedError:
+            # This can happen if the lock file is stale and the server is not running
+            messagebox.showerror("Error", "Could not connect to the running instance.")
+        sys.exit()
+
+
     app = YoutubeWeeklyGUI()
+
+    def ipc_server():
+        with s:
+            s.listen()
+            while True:
+                conn, addr = s.accept()
+                with conn:
+                    data = conn.recv(1024)
+                    if data == b'show':
+                        app.show_from_tray(None, None)
+
+    threading.Thread(target=ipc_server, daemon=True).start()
+
+    # Start minimized if --start-minimized is passed
+    if "--start-minimized" in sys.argv:
+        app.hide_to_tray()
+
     app.mainloop()
