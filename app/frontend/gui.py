@@ -82,7 +82,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         # Run automatic checks in a separate thread
         threading.Thread(
             target=run_automatic_checks,
-            args=(self.settings, self.channels, self._send_notification),
+            args=(self.settings, self.channels, self._send_notification, self.progress_hook),
             daemon=True
         ).start()
 

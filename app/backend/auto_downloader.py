@@ -29,7 +29,7 @@ def get_current_sabbath_date():
         upcoming_saturday = today + timedelta(days=days_until_saturday)
         return upcoming_saturday.strftime("%Y-%m-%d")
 
-def run_automatic_checks(initial_settings, channels, send_notification_callback):
+def run_automatic_checks(initial_settings, channels, send_notification_callback, progress_hook=None):
     settings, _ = load_settings() # Reload settings to get the latest values
     if not settings.get("enable_auto_download", False):
         return
@@ -86,7 +86,7 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback)
                         os.makedirs(folder, exist_ok=True)
                         # Delete old videos before downloading, based on the setting
                         delete_old_videos(folder, settings.get("keep_old_videos", False))
-                        download_video(video_url, folder, settings.get("default_quality", "1080p"), protect=settings.get("keep_old_videos", False))
+                        download_video(video_url, folder, settings.get("default_quality", "1080p"), protect=settings.get("keep_old_videos", False), progress_hook=progress_hook)
                         auto_download_log[current_sabbath_date][channel_key] = "downloaded"
                         download_results[channel_name] = "Downloaded"
                         send_notification_callback("Auto Download Success", f"Downloaded {channel_name} video.")
