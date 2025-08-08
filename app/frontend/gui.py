@@ -18,9 +18,20 @@ from app.frontend.file_viewer import FileViewer
 from app.backend.auto_downloader import run_automatic_checks
 from app.backend.updater import check_for_updates
 
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
 class YoutubeWeeklyGUI(tk.Tk):
     def __init__(self):
         super().__init__()
+        self.iconbitmap(resource_path("assets/icon4.ico"))
         self.configure(bg="#2b2b2b")
 
         self.settings, self.startup_warnings = load_settings()
