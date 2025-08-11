@@ -46,6 +46,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.open_file_viewers = {}
         self.download_stage = 0 # 0: idle, 1: video, 2: audio
         self.last_progress_value = 0
+        self.downloading_channels = set()
 
         style = ttk.Style()
         style.theme_use("default")
@@ -333,29 +334,50 @@ class YoutubeWeeklyGUI(tk.Tk):
 
     def download_for_channel(self, channel):
         """Launch the download check in a background thread."""
+        channel_name = channel["name"]
+        if channel_name in self.downloading_channels:
+            self._set_status(f"A download for {channel_name} is already in progress.")
+            return
+
+        self.downloading_channels.add(channel_name)
         self.download_stage = 1 # Reset for new download
         self.last_progress_value = 0
-        threading.Thread(
-            target=self._worker_download,
-            args=(channel,),
-            daemon=True
-        ).start()
+        try:
+            threading.Thread(
+                target=self._worker_download,
+                args=(channel,),
+                daemon=True
+            ).start()
+        finally:
+            # This will run immediately after the thread starts, maybe not what we want.
+            # self.downloading_channels.remove(channel_name)
+            pass
 
     def download_others(self):
         """Download video from the link in the others entry to data/videos/other."""
+        if "others" in self.downloading_channels:
+            self._set_status("A download for 'others' is already in progress.")
+            return
+
+        self.downloading_channels.add("others")
         self.download_stage = 1 # Reset for new download
         self.last_progress_value = 0
         link = self.others_link_var.get().strip()
         if not link:
             self._set_status("Please enter a YouTube link.")
+            self.downloading_channels.remove("others")
             return
 
         self._set_status("Starting download...")
-        threading.Thread(
-            target=self._worker_download_others,
-            args=(link,),
-            daemon=True
-        ).start()
+        try:
+            threading.Thread(
+                target=self._worker_download_others,
+                args=(link,),
+                daemon=True
+            ).start()
+        except Exception as e:
+            self._set_status(f"Error starting download thread: {e}")
+            self.downloading_channels.remove("others")
 
     def play_others(self):
         """Play the latest video in the 'other' folder."""
@@ -393,6 +415,9 @@ class YoutubeWeeklyGUI(tk.Tk):
                 "Download Error",
                 f"Failed to download video:\n{e}"
             )
+        finally:
+            if "others" in self.downloading_channels:
+                self.downloading_channels.remove("others")
 
     def _worker_play_others(self):
         """Worker function to find and play the latest video in the 'other' folder."""
@@ -449,73 +474,77 @@ class YoutubeWeeklyGUI(tk.Tk):
     def _worker_download(self, channel):
         """Worker function that runs off the main UI thread."""
         name = channel["name"]
-        fmt = channel["date_format"]
-
-        # Step 1: Find next Saturday's date or use selected date
-        self._set_status(f"Finding video for {name}...")
-        selected_date = self.channel_date_vars.get(name, tk.StringVar()).get()
-        if selected_date and selected_date != "automat":
-            try:
-                date_obj = datetime.strptime(selected_date, "%d.%m.%Y").date()
-                next_sat = date_obj.strftime(fmt)
-            except Exception as e:
-                self._set_status(f"Date parse error: {e}")
-                return
-        else:
-            next_sat = get_next_saturday(date_format=fmt)
-
-        # Step 2: Locate the video URL
-        url = find_video_url(channel["url"], next_sat, date_format=fmt)
-        if not url:
-            self._set_status(f"No video found for {name} on {next_sat}.")
-            self._send_notification("Video Not Found", f"No video found for {name} on {next_sat}.")
-            return
-
-        # Prepare channel-specific folder
-        channel_folder = os.path.join(self.base_path, channel["folder"])
-        os.makedirs(channel_folder, exist_ok=True)
-
-        # Step 3: Check if that exact video is already downloaded
-        numeric = next_sat.lower()
-        date_obj = datetime.strptime(next_sat, fmt).date()
-        romanian = format_romanian_date(date_obj).lower()
-
-        existing = [
-            f for f in os.listdir(channel_folder)
-            if numeric in f.lower() or romanian in f.lower()
-        ]
-        if existing:
-            existing_titles = ", ".join(existing)
-            self._set_status(
-                f"Video for {name} already exists: {existing_titles}"
-            )
-            return
-
-        # Step 4: Delete previous (in channel folder) only if no custom date selected
-        if not selected_date or selected_date == "automat":
-            delete_old_videos(channel_folder, keep_old=self.settings.get("keep_old_videos", False))
-
-        # Step 5: Download into channel folder
-        quality_pref = self.channel_quality_vars.get(name, tk.StringVar()).get()
-        self._set_status(f"Downloading from {name} ({quality_pref})...")
         try:
-            error = download_video(url, channel_folder, quality_pref, protect=self.settings.get("keep_old_videos", False), progress_hook=self.progress_hook)
-            if error:
-                self._set_status(f"Error downloading {name}: {error}")
-                self._send_notification("Download Error", f"Failed to download video for {name}: {error}")
+            fmt = channel["date_format"]
+
+            # Step 1: Find next Saturday's date or use selected date
+            self._set_status(f"Finding video for {name}...")
+            selected_date = self.channel_date_vars.get(name, tk.StringVar()).get()
+            if selected_date and selected_date != "automat":
+                try:
+                    date_obj = datetime.strptime(selected_date, "%d.%m.%Y").date()
+                    next_sat = date_obj.strftime(fmt)
+                except Exception as e:
+                    self._set_status(f"Date parse error: {e}")
+                    return
+            else:
+                next_sat = get_next_saturday(date_format=fmt)
+
+            # Step 2: Locate the video URL
+            url = find_video_url(channel["url"], next_sat, date_format=fmt)
+            if not url:
+                self._set_status(f"No video found for {name} on {next_sat}.")
+                self._send_notification("Video Not Found", f"No video found for {name} on {next_sat}.")
+                return
+
+            # Prepare channel-specific folder
+            channel_folder = os.path.join(self.base_path, channel["folder"])
+            os.makedirs(channel_folder, exist_ok=True)
+
+            # Step 3: Check if that exact video is already downloaded
+            numeric = next_sat.lower()
+            date_obj = datetime.strptime(next_sat, fmt).date()
+            romanian = format_romanian_date(date_obj).lower()
+
+            existing = [
+                f for f in os.listdir(channel_folder)
+                if numeric in f.lower() or romanian in f.lower()
+            ]
+            if existing:
+                existing_titles = ", ".join(existing)
+                self._set_status(
+                    f"Video for {name} already exists: {existing_titles}"
+                )
+                return
+
+            # Step 4: Delete previous (in channel folder) only if no custom date selected
+            if not selected_date or selected_date == "automat":
+                delete_old_videos(channel_folder, keep_old=self.settings.get("keep_old_videos", False))
+
+            # Step 5: Download into channel folder
+            quality_pref = self.channel_quality_vars.get(name, tk.StringVar()).get()
+            self._set_status(f"Downloading from {name} ({quality_pref})...")
+            try:
+                error = download_video(url, channel_folder, quality_pref, protect=self.settings.get("keep_old_videos", False), progress_hook=self.progress_hook)
+                if error:
+                    self._set_status(f"Error downloading {name}: {error}")
+                    self._send_notification("Download Error", f"Failed to download video for {name}: {error}")
+                    messagebox.showerror(
+                        "Download Error",
+                        f"Failed to download {name}:\n{error}"
+                    )
+                else:
+                    self._send_notification("Download Complete", f"Finished downloading video for {name}.")
+            except Exception as e:
+                self._set_status(f"Error downloading {name}: {e}")
+                self._send_notification("Download Error", f"Failed to download video for {name}: {e}")
                 messagebox.showerror(
                     "Download Error",
-                    f"Failed to download {name}:\n{error}"
+                    f"Failed to download {name}:\n{e}"
                 )
-            else:
-                self._send_notification("Download Complete", f"Finished downloading video for {name}.")
-        except Exception as e:
-            self._set_status(f"Error downloading {name}: {e}")
-            self._send_notification("Download Error", f"Failed to download video for {name}: {e}")
-            messagebox.showerror(
-                "Download Error",
-                f"Failed to download {name}:\n{e}"
-            )
+        finally:
+            if name in self.downloading_channels:
+                self.downloading_channels.remove(name)
 
     def play_latest(self, channel):
         """Play the latest video for a given channel."""

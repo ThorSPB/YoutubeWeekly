@@ -56,68 +56,66 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
 
     # Perform checks only on Friday (4) and Saturday (5)
     if day_of_week == 4 or day_of_week == 5:
-        channels_to_check = [ch for ch in channels if ch.get("folder", ch["name"]) != "others"]
-        if not channels_to_check:
+        channels_to_process = [
+            ch for ch in channels
+            if ch.get("folder", ch["name"]) != "others" and
+               auto_download_log.get(current_sabbath_date, {}).get(ch.get("folder", ch["name"])) != "downloaded"
+        ]
+
+        if not channels_to_process:
             return
 
-        initial_message = "Starting automatic download check for channels: " + ", ".join([ch["name"] for ch in channels_to_check])
-        send_notification_callback("Auto Download Initiated", initial_message)
+        initial_message = "Starting automatic download for: " + ", ".join([ch["name"] for ch in channels_to_process])
+        send_notification_callback("Auto Download Started", initial_message)
 
-        download_results = {} # To store results for the final summary
+        download_results = {}
 
-        for channel_data in channels_to_check:
+        for channel_data in channels_to_process:
             channel_key = channel_data.get("folder", channel_data["name"])
             channel_name = channel_data.get("name", channel_key)
             channel_url = channel_data["url"]
             date_format = channel_data.get("date_format", "%d.%m.%Y")
             folder = os.path.join(settings.get("video_folder", "data/videos"), channel_data.get("folder", channel_key))
 
-            # Only attempt download if status is not 'downloaded'
-            if auto_download_log[current_sabbath_date].get(channel_key) != "downloaded":
-                send_notification_callback("Auto Download", f"Checking for {channel_name} video...")
-                
-                # Use the Sabbath date for finding the video
-                expected_date_str = datetime.strptime(current_sabbath_date, "%Y-%m-%d").strftime(date_format)
-                video_url = find_video_url(channel_url, expected_date_str, date_format=date_format)
+            expected_date_str = datetime.strptime(current_sabbath_date, "%Y-%m-%d").strftime(date_format)
+            video_url = find_video_url(channel_url, expected_date_str, date_format=date_format)
 
-                if video_url:
-                    try:
-                        # Ensure folder exists before downloading
-                        os.makedirs(folder, exist_ok=True)
-                        # Delete old videos before downloading, based on the setting
-                        delete_old_videos(folder, settings.get("keep_old_videos", False))
-                        download_video(video_url, folder, settings.get("default_quality", "1080p"), protect=settings.get("keep_old_videos", False), progress_hook=progress_hook)
-                        auto_download_log[current_sabbath_date][channel_key] = "downloaded"
-                        download_results[channel_name] = "Downloaded"
-                        send_notification_callback("Auto Download Success", f"Downloaded {channel_name} video.")
-                    except Exception as e:
-                        auto_download_log[current_sabbath_date][channel_key] = "error"
-                        download_results[channel_name] = f"Error: {e}"
-                        send_notification_callback("Auto Download Error", f"Failed to download {channel_name}: {e}")
-                else:
-                    auto_download_log[current_sabbath_date][channel_key] = "not_found"
-                    download_results[channel_name] = "Not Found"
-                    send_notification_callback("Auto Download Info", f"No video found for {channel_name}.")
+            if video_url:
+                try:
+                    os.makedirs(folder, exist_ok=True)
+                    delete_old_videos(folder, settings.get("keep_old_videos", False))
+                    quality = settings.get("default_quality", "1080p")
+                    download_video(video_url, folder, quality, protect=settings.get("keep_old_videos", False), progress_hook=progress_hook)
+                    auto_download_log[current_sabbath_date][channel_key] = "downloaded"
+                    download_results[channel_name] = "Success"
+                except Exception as e:
+                    auto_download_log[current_sabbath_date][channel_key] = "error"
+                    download_results[channel_name] = f"Failed: {e}"
             else:
-                download_results[channel_name] = "Already Downloaded"
+                auto_download_log[current_sabbath_date][channel_key] = "not_found"
+                download_results[channel_name] = "Not Found"
 
         # Final summary notification
-        summary_message = "Automatic download summary:\n"
-        all_successful = True
-        any_successful = False
+        summary_items = []
         for channel, status in download_results.items():
-            summary_message += f"- {channel}: {status}\n"
-            if "Error" in status or "Not Found" in status:
-                all_successful = False
-            elif status == "Downloaded":
-                any_successful = True
+            summary_items.append(f"{channel}: {status}")
         
-        if all_successful and any_successful:
-            send_notification_callback("Auto Download Complete", "All selected videos downloaded successfully!")
-        elif any_successful:
-            send_notification_callback("Auto Download Partial Success", "Some videos downloaded, others had issues.")
+        summary_message = "\n".join(summary_items)
+        
+        if not summary_items:
+             summary_title = "Auto Download"
+             summary_message = "All videos were already downloaded."
+        elif all(status == "Success" for status in download_results.values()):
+            summary_title = "Auto Download Complete"
+            summary_message = "All videos downloaded successfully."
+        elif any(status == "Success" for status in download_results.values()):
+            summary_title = "Auto Download Partially Complete"
+            summary_message = "\n".join(summary_items)
         else:
-            send_notification_callback("Auto Download Failed", "No videos were downloaded successfully.")
+            summary_title = "Auto Download Failed"
+            summary_message = "\n".join(summary_items)
+
+        send_notification_callback(summary_title, summary_message)
 
     # Save the updated log and settings
     save_auto_download_log(auto_download_log)
