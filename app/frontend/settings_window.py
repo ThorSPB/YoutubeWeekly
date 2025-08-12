@@ -1,8 +1,10 @@
 import os
+import sys
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import json
 from app.backend.config import save_settings, load_default_settings
+from app.frontend.help_window import HelpWindow
 from screeninfo import get_monitors
 
 class SettingsWindow(tk.Toplevel):
@@ -135,6 +137,14 @@ class SettingsWindow(tk.Toplevel):
         notifications_check = ttk.Checkbutton(main_frame, text="Enable Notifications", variable=self.enable_notifications_var, style="Dark.TCheckbutton")
         notifications_check.pack(anchor="w", pady=5)
 
+        # Start with system setting
+        # Check actual Windows registry status and sync with settings
+        actual_startup_enabled = self.is_startup_enabled()
+        self.settings["start_with_system"] = actual_startup_enabled
+        self.start_with_system_var = tk.BooleanVar(value=actual_startup_enabled)
+        start_with_system_check = ttk.Checkbutton(main_frame, text="Start with Windows (minimized to tray)", variable=self.start_with_system_var, style="Dark.TCheckbutton")
+        start_with_system_check.pack(anchor="w", pady=5)
+
         # MPV Player setting
         self.use_mpv_var = tk.BooleanVar(value=self.settings.get("use_mpv", False))
         mpv_check = ttk.Checkbutton(main_frame, text="Use MPV Player", variable=self.use_mpv_var, command=self.toggle_mpv_path_entry, style="Dark.TCheckbutton")
@@ -218,7 +228,63 @@ class SettingsWindow(tk.Toplevel):
         reset_button = ttk.Button(button_frame, text="Reset to Defaults", command=self.reset_to_defaults, style="Dark.TButton")
         reset_button.pack(side="left", padx=5)
 
+        # Help button
+        help_button = ttk.Button(button_frame, text="?", command=self.open_help, style="Dark.TButton", width=3)
+        help_button.pack(side="left", padx=(0, 10))
+
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+    def is_startup_enabled(self):
+        """Check if the app is set to start with Windows"""
+        if sys.platform != "win32":
+            return False
+        
+        try:
+            import winreg
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
+                               r"Software\Microsoft\Windows\CurrentVersion\Run")
+            try:
+                winreg.QueryValueEx(key, "YoutubeWeekly")
+                winreg.CloseKey(key)
+                return True
+            except WindowsError:
+                winreg.CloseKey(key)
+                return False
+        except Exception:
+            return False
+
+    def set_startup(self, enable):
+        """Enable or disable startup with Windows"""
+        if sys.platform != "win32":
+            return
+        
+        try:
+            import winreg
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
+                               r"Software\Microsoft\Windows\CurrentVersion\Run", 
+                               0, winreg.KEY_SET_VALUE)
+            
+            if enable:
+                # Get the executable path
+                if getattr(sys, 'frozen', False):
+                    # Running as compiled executable
+                    startup_command = f'"{sys.executable}" --start-minimized'
+                else:
+                    # Running as script - use python with the main script
+                    main_script = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "main.py")
+                    startup_command = f'"{sys.executable}" "{main_script}" --start-minimized'
+                
+                winreg.SetValueEx(key, "YoutubeWeekly", 0, winreg.REG_SZ, startup_command)
+            else:
+                # Remove from startup
+                try:
+                    winreg.DeleteValue(key, "YoutubeWeekly")
+                except WindowsError:
+                    pass  # Key doesn't exist, which is fine
+            
+            winreg.CloseKey(key)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to update startup settings: {e}")
 
     def browse_folder(self):
         folder_selected = filedialog.askdirectory()
@@ -249,12 +315,26 @@ class SettingsWindow(tk.Toplevel):
         save_settings(self.settings)
         self.destroy()
 
+    def open_help(self):
+        """Open the settings help window"""
+        help_win = HelpWindow(self, "Settings Guide", "docs/settings_help.md")
+        help_win.focus_set()
+
     def save_settings(self):
         self.settings["keep_old_videos"] = self.keep_old_videos_var.get()
         self.settings["video_folder"] = self.video_folder_var.get()
         self.settings["default_quality"] = self.quality_var.get()
         self.settings["enable_auto_download"] = self.enable_auto_download_var.get()
         self.settings["enable_notifications"] = self.enable_notifications_var.get()
+        
+        # Handle startup with system setting
+        new_startup_value = self.start_with_system_var.get()
+        old_startup_value = self.settings.get("start_with_system", False)
+        
+        if new_startup_value != old_startup_value:
+            self.set_startup(new_startup_value)
+        
+        self.settings["start_with_system"] = new_startup_value
         self.settings["use_mpv"] = self.use_mpv_var.get()
         self.settings["mpv_path"] = self.mpv_path_var.get()
         self.settings["ffmpeg_path"] = self.ffmpeg_path_var.get()
@@ -265,7 +345,7 @@ class SettingsWindow(tk.Toplevel):
         self.settings["settings_window_geometry"] = self.geometry()
 
         save_settings(self.settings)
-        
+
         self.destroy()
 
     def _validate_mpv_volume(self, *args):

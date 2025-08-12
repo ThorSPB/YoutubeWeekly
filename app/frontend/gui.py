@@ -16,6 +16,7 @@ from app.backend.downloader import find_video_url, download_video, get_next_satu
 from datetime import datetime
 from app.frontend.settings_window import SettingsWindow
 from app.frontend.file_viewer import FileViewer
+from app.frontend.help_window import HelpWindow
 from app.backend.auto_downloader import run_automatic_checks
 from app.backend.updater import check_for_updates
 
@@ -71,7 +72,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         if saved_geometry:
             self.geometry(saved_geometry)
         else:
-            self.geometry("515x275")  # Default size
+            self.geometry("515x285+689+414")  # Default size
             self.center_window()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.bind("<Unmap>", self.minimize_to_tray)
@@ -108,17 +109,19 @@ class YoutubeWeeklyGUI(tk.Tk):
 
         ttk.Button(header_frame, text="⚙", command=self.open_settings, width=3).pack(side="right")
 
-        # Status label with wrapping
+        # Status label with wrapping - fixed height to prevent layout shifts
         self.status_var = tk.StringVar()
+        self.status_var.set("Ready to download weekly videos, or any custom videos. Select quality and date, then click Download.")  # Placeholder message
         self.status_label = tk.Label(
             self,
             textvariable=self.status_var,
             fg="#ffffff",
             bg="#2b2b2b",
-            anchor="w",
+            anchor="nw",  # North-west anchor for multi-line text
             justify="left",
             wraplength=self.winfo_width(),
-            font=default_font
+            font=default_font,
+            height=2  # Reserve space for 2 lines of text
         )
         self.status_label.pack(pady=(5, 15), padx=20, fill="x")
 
@@ -153,7 +156,7 @@ class YoutubeWeeklyGUI(tk.Tk):
                 row,
                 text=f"Download {channel['name']}",
                 command=lambda ch=channel: self.download_for_channel(ch),
-                width=26
+                width=34
             )
             btn.pack(side="left")
 
@@ -176,7 +179,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         # Others link entry and button frame
         others_frame = ttk.Frame(content_frame)
         others_frame.configure(style="Dark.TFrame")
-        others_frame.pack(pady=(10, 0), anchor="w", fill="x")
+        others_frame.pack(pady=(5, 0), anchor="w", fill="x")
 
         self.others_quality_var = tk.StringVar(value=self.settings.get("default_quality", "1080p"))
         others_combo = ttk.Combobox(
@@ -193,11 +196,11 @@ class YoutubeWeeklyGUI(tk.Tk):
         others_entry = ttk.Entry(
             others_frame,
             textvariable=self.others_link_var,
-            width=27,
+            width=37,
         )
         others_entry.insert(0, "Paste YouTube link...")
         others_entry.bind("<FocusIn>", lambda e: others_entry.delete(0, "end") if others_entry.get() == "Paste YouTube link..." else None)
-        others_entry.pack(side="left", padx=(0, 9))
+        others_entry.pack(side="left", padx=(0, 3))
 
         others_btn = ttk.Button(
             others_frame,
@@ -223,11 +226,23 @@ class YoutubeWeeklyGUI(tk.Tk):
         )
         folder_others_btn.pack(side="left", padx=(5, 0))
 
-        # Quit button
-        ttk.Button(self, text="Quit", command=self.on_closing, width=10).pack(pady=(15, 15))
+        # Progress bar - always reserve space to prevent layout shifts
+        # Configure thinner progress bar styles
+        style.configure("Thin.Horizontal.TProgressbar", thickness=2)  # Make it thinner
+        style.configure("Invisible.Horizontal.TProgressbar", background="#2b2b2b", troughcolor="#2b2b2b", borderwidth=0, lightcolor="#2b2b2b", darkcolor="#2b2b2b", thickness=8)
+        
+        self.progress_bar = ttk.Progressbar(self, orient="horizontal", length=300, mode="determinate", style="Invisible.Horizontal.TProgressbar")
+        self.progress_bar.pack(pady=(5, 5), padx=20, fill="x")
 
-        # Progress bar
-        self.progress_bar = ttk.Progressbar(self, orient="horizontal", length=300, mode="determinate")
+        # Bottom buttons frame
+        bottom_buttons_frame = ttk.Frame(self, style="Dark.TFrame")
+        bottom_buttons_frame.pack(pady=(5, 15))
+        
+        # Quit button  
+        ttk.Button(bottom_buttons_frame, text="Quit", command=self.on_closing, width=10).pack(side="left", padx=(208, 174))
+
+        # Help button
+        ttk.Button(bottom_buttons_frame, text="?", command=self.open_help, width=3).pack(side="left", padx=(0, 0))
 
         self.resizable(False, False)
         self.bind("<Configure>", self._on_resize)
@@ -348,6 +363,11 @@ class YoutubeWeeklyGUI(tk.Tk):
         for var in self.channel_quality_vars.values():
             var.set(default_quality)
         self.others_quality_var.set(default_quality)
+
+    def open_help(self):
+        """Open the main help window"""
+        help_win = HelpWindow(self, "User Guide", "docs/main_help.md")
+        help_win.focus_set()
 
 
     def _on_resize(self, event):
@@ -705,11 +725,10 @@ class YoutubeWeeklyGUI(tk.Tk):
     def progress_hook(self, d):
         # Ensure UI updates happen on main thread
         def update_ui():
-            # Always pack the progress bar when download starts
-            if not self.progress_bar.winfo_ismapped():
-                self.progress_bar.pack(pady=(0, 10), padx=20, fill="x")
+            # Make the progress bar visible when download starts (space already reserved)
+            self.progress_bar.configure(style="Thin.Horizontal.TProgressbar")  # Switch to visible thin style
         
-        # Schedule the packing of the progress bar on the main thread
+        # Schedule showing the progress bar on the main thread
         self.after(0, update_ui)
 
         if d['status'] == 'downloading':
@@ -745,7 +764,7 @@ class YoutubeWeeklyGUI(tk.Tk):
                     self.progress_bar.configure(value=100)
                     self._set_status("Download complete.")
                     # Hide progress bar after a delay
-                    self.after(2000, lambda: self.progress_bar.pack_forget() if self.progress_bar.winfo_ismapped() else None)
+                    self.after(2000, lambda: self.progress_bar.configure(style="Invisible.Horizontal.TProgressbar"))
                     self.download_stage = 0 # Reset to idle
                     self.last_progress_value = 0
             
