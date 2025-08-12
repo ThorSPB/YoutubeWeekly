@@ -29,7 +29,7 @@ def get_current_sabbath_date():
         upcoming_saturday = today + timedelta(days=days_until_saturday)
         return upcoming_saturday.strftime("%Y-%m-%d")
 
-def run_automatic_checks(initial_settings, channels, send_notification_callback, progress_hook=None):
+def run_automatic_checks(initial_settings, channels, send_notification_callback, progress_hook=None, show_window_callback=None):
     settings, _ = load_settings() # Reload settings to get the latest values
     if not settings.get("enable_auto_download", False):
         return
@@ -51,11 +51,33 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
         if channel_key != "others" and channel_key not in auto_download_log[current_sabbath_date]:
             auto_download_log[current_sabbath_date][channel_key] = "pending"
 
+    # Pre-check: Verify existence of downloaded files
+    for channel_data in channels:
+        channel_key = channel_data.get("folder", channel_data["name"])
+        if channel_key != "others" and auto_download_log.get(current_sabbath_date, {}).get(channel_key) == "downloaded":
+            channel_folder = os.path.join(settings.get("video_folder", "data/videos"), channel_data.get("folder", channel_key))
+            date_format = channel_data.get("date_format", "%d.%m.%Y")
+            expected_date_str = datetime.strptime(current_sabbath_date, "%Y-%m-%d").strftime(date_format)
+
+            numeric = expected_date_str.lower()
+            romanian = format_romanian_date(datetime.strptime(expected_date_str, date_format)).lower()
+
+            # Check if the folder exists and contains a file matching the date
+            found_file = False
+            if os.path.exists(channel_folder):
+                for f in os.listdir(channel_folder):
+                    if numeric in f.lower() or romanian in f.lower():
+                        found_file = True
+                        break
+            
+            if not found_file:
+                auto_download_log[current_sabbath_date][channel_key] = "pending"
+
     today = datetime.now().date()
     day_of_week = today.weekday() # Monday is 0, Sunday is 6
 
     # Perform checks only on Friday (4) and Saturday (5)
-    if day_of_week == 4 or day_of_week == 5:
+    if day_of_week == 1 or day_of_week == 2:
         channels_to_process = [
             ch for ch in channels
             if ch.get("folder", ch["name"]) != "others" and
@@ -82,18 +104,40 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
 
             if video_url:
                 try:
+                    # IMPORTANT: Reset GUI download state for progress tracking
+                    if progress_hook and hasattr(progress_hook, '__self__'):
+                        gui_instance = progress_hook.__self__
+                        # Schedule the reset on the main UI thread
+                        gui_instance.after(0, lambda: setattr(gui_instance, 'download_stage', 1))
+                        gui_instance.after(0, lambda: setattr(gui_instance, 'last_progress_value', 0))
+                        # Update status to show which channel is being downloaded
+                        gui_instance.after(0, lambda ch=channel_name: gui_instance._set_status(f"Auto downloading {ch}..."))
+                    
                     os.makedirs(folder, exist_ok=True)
                     delete_old_videos(folder, settings.get("keep_old_videos", False))
                     quality = settings.get("default_quality", "1080p")
-                    download_video(video_url, folder, quality, protect=settings.get("keep_old_videos", False), progress_hook=progress_hook)
-                    auto_download_log[current_sabbath_date][channel_key] = "downloaded"
-                    download_results[channel_name] = "Success"
+                    
+                    # Call download_video with progress_hook
+                    error = download_video(video_url, folder, quality, protect=settings.get("keep_old_videos", False), progress_hook=progress_hook)
+                    
+                    if error:
+                        auto_download_log[current_sabbath_date][channel_key] = "error"
+                        download_results[channel_name] = f"Failed: {error}"
+                    else:
+                        auto_download_log[current_sabbath_date][channel_key] = "downloaded"
+                        download_results[channel_name] = "Success"
+                        
                 except Exception as e:
                     auto_download_log[current_sabbath_date][channel_key] = "error"
                     download_results[channel_name] = f"Failed: {e}"
             else:
                 auto_download_log[current_sabbath_date][channel_key] = "not_found"
                 download_results[channel_name] = "Not Found"
+
+        # Reset GUI state after all downloads complete
+        if progress_hook and hasattr(progress_hook, '__self__'):
+            gui_instance = progress_hook.__self__
+            gui_instance.after(0, lambda: gui_instance._set_status("Auto downloads complete."))
 
         # Final summary notification
         summary_items = []
@@ -115,7 +159,7 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
             summary_title = "Auto Download Failed"
             summary_message = "\n".join(summary_items)
 
-        send_notification_callback(summary_title, summary_message)
+        send_notification_callback(summary_title, summary_message, on_click=show_window_callback)
 
     # Save the updated log and settings
     save_auto_download_log(auto_download_log)

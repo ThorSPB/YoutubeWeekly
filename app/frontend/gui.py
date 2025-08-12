@@ -47,6 +47,8 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.download_stage = 0 # 0: idle, 1: video, 2: audio
         self.last_progress_value = 0
         self.downloading_channels = set()
+        self.notification_callback = None
+        self.tray_icon = None
 
         style = ttk.Style()
         style.theme_use("default")
@@ -79,16 +81,6 @@ class YoutubeWeeklyGUI(tk.Tk):
             }
             for key, ch_data in raw.items()
         ]
-
-        # Run automatic checks in a separate thread
-        threading.Thread(
-            target=run_automatic_checks,
-            args=(self.settings, self.channels, self._send_notification, self.progress_hook),
-            daemon=True
-        ).start()
-
-        # Check for updates in a separate thread
-        threading.Thread(target=self._check_for_updates_thread, daemon=True).start()
 
         self.recent_sabbaths_per_channel = {
             ch["name"]: ["automat"] + get_recent_sabbaths(date_format="%d.%m.%Y")
@@ -230,10 +222,21 @@ class YoutubeWeeklyGUI(tk.Tk):
         # Progress bar
         self.progress_bar = ttk.Progressbar(self, orient="horizontal", length=300, mode="determinate")
 
-
         self.resizable(False, False)
-
         self.bind("<Configure>", self._on_resize)
+
+        # IMPORTANT: Move the automatic checks and update check to AFTER all UI initialization
+        # This ensures self.progress_hook exists when it's passed to the threads
+        
+        # Run automatic checks in a separate thread
+        threading.Thread(
+            target=run_automatic_checks,
+            args=(self.settings, self.channels, self._send_notification, self.progress_hook, self.show_window),
+            daemon=True
+        ).start()
+
+        # Check for updates in a separate thread
+        threading.Thread(target=self._check_for_updates_thread, daemon=True).start()
 
     def center_window(self):
         self.update_idletasks()
@@ -268,20 +271,36 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.tray_icon = pystray.Icon("YoutubeWeekly", image, "YoutubeWeekly Downloader", menu)
         self.tray_icon.run_detached()
 
-    def show_from_tray(self, icon, item):
-        self.tray_icon.stop()
+    def show_window(self):
+        if hasattr(self, 'tray_icon') and self.tray_icon and self.tray_icon.visible:
+            self.tray_icon.stop()
         self.deiconify()
         self.lift()
         self.attributes('-topmost', True)
         self.after_idle(self.attributes, '-topmost', False)
         self.focus_force()
 
+    def show_from_tray(self, icon, item):
+        self.show_window()
+        if self.notification_callback:
+            self.notification_callback()
+            self.notification_callback = None
+
+    def bring_to_foreground(self):
+        if self.state() == 'iconic' or self.state() == 'withdrawn':
+            self.show_window()
+        else:
+            self.lift()
+            self.attributes('-topmost', True)
+            self.after_idle(self.attributes, '-topmost', False)
+            self.focus_force()
+
     def quit_application(self, icon=None, item=None):
         # Ensure operations are performed on the main Tkinter thread
         self.after(0, self._perform_quit)
 
     def _perform_quit(self):
-        if hasattr(self, 'tray_icon') and self.tray_icon.visible:
+        if self.tray_icon is not None and self.tray_icon.visible:
             self.tray_icon.stop()
         self.destroy()
 
@@ -320,7 +339,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.status_var.set(text)
         self.update_idletasks()
 
-    def _send_notification(self, title, message):
+    def _send_notification(self, title, message, on_click=None):
         if self.settings.get("enable_notifications", True):
             try:
                 notification.notify(
@@ -329,6 +348,8 @@ class YoutubeWeeklyGUI(tk.Tk):
                     app_name="YoutubeWeekly Downloader",
                     timeout=10
                 )
+                if on_click:
+                    self.notification_callback = on_click
             except Exception as e:
                 print(f"Error sending notification: {e}")
 
@@ -348,10 +369,10 @@ class YoutubeWeeklyGUI(tk.Tk):
                 args=(channel,),
                 daemon=True
             ).start()
-        finally:
-            # This will run immediately after the thread starts, maybe not what we want.
-            # self.downloading_channels.remove(channel_name)
-            pass
+        except Exception as e:
+            self._set_status(f"Error starting download: {e}")
+            if channel_name in self.downloading_channels:
+                self.downloading_channels.remove(channel_name)
 
     def download_others(self):
         """Download video from the link in the others entry to data/videos/other."""
@@ -400,17 +421,17 @@ class YoutubeWeeklyGUI(tk.Tk):
             error = download_video(link, folder, self.others_quality_var.get(), progress_hook=self.progress_hook)
             if error:
                 self._set_status(f"Error downloading: {error}")
-                self._send_notification("Download Error", f"Failed to download video from link: {link}\n{error}")
+                self._send_notification("Download Error", f"Failed to download video from link: {link}\n{error}", on_click=self.bring_to_foreground)
                 messagebox.showerror(
                     "Download Error",
                     f"Failed to download video:\n{error}"
                 )
             else:
                 self._set_status("Download complete.")
-                self._send_notification("Download Complete", f"Finished downloading video from link: {link}")
+                self._send_notification("Download Complete", f"Finished downloading video from link: {link}", on_click=self.bring_to_foreground)
         except Exception as e:
             self._set_status(f"Error downloading: {e}")
-            self._send_notification("Download Error", f"Failed to download video from link: {link}\n{e}")
+            self._send_notification("Download Error", f"Failed to download video from link: {link}\n{e}", on_click=self.bring_to_foreground)
             messagebox.showerror(
                 "Download Error",
                 f"Failed to download video:\n{e}"
@@ -494,7 +515,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             url = find_video_url(channel["url"], next_sat, date_format=fmt)
             if not url:
                 self._set_status(f"No video found for {name} on {next_sat}.")
-                self._send_notification("Video Not Found", f"No video found for {name} on {next_sat}.")
+                self._send_notification("Video Not Found", f"No video found for {name} on {next_sat}.", on_click=self.bring_to_foreground)
                 return
 
             # Prepare channel-specific folder
@@ -528,16 +549,16 @@ class YoutubeWeeklyGUI(tk.Tk):
                 error = download_video(url, channel_folder, quality_pref, protect=self.settings.get("keep_old_videos", False), progress_hook=self.progress_hook)
                 if error:
                     self._set_status(f"Error downloading {name}: {error}")
-                    self._send_notification("Download Error", f"Failed to download video for {name}: {error}")
+                    self._send_notification("Download Error", f"Failed to download video for {name}: {error}", on_click=self.bring_to_foreground)
                     messagebox.showerror(
                         "Download Error",
                         f"Failed to download {name}:\n{error}"
                     )
                 else:
-                    self._send_notification("Download Complete", f"Finished downloading video for {name}.")
+                    self._send_notification("Download Complete", f"Finished downloading video for {name}.", on_click=self.bring_to_foreground)
             except Exception as e:
                 self._set_status(f"Error downloading {name}: {e}")
-                self._send_notification("Download Error", f"Failed to download video for {name}: {e}")
+                self._send_notification("Download Error", f"Failed to download video for {name}: {e}", on_click=self.bring_to_foreground)
                 messagebox.showerror(
                     "Download Error",
                     f"Failed to download {name}:\n{e}"
@@ -630,8 +651,16 @@ class YoutubeWeeklyGUI(tk.Tk):
             messagebox.showerror("Error", f"Could not open folder: {e}")
 
     def progress_hook(self, d):
+        # Ensure UI updates happen on main thread
+        def update_ui():
+            # Always pack the progress bar when download starts
+            if not self.progress_bar.winfo_ismapped():
+                self.progress_bar.pack(pady=(0, 10), padx=20, fill="x")
+        
+        # Schedule the packing of the progress bar on the main thread
+        self.after(0, update_ui)
+
         if d['status'] == 'downloading':
-            self.progress_bar.pack(pady=(0, 10), padx=20, fill="x")
             total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate')
             if total_bytes:
                 percent = (d['downloaded_bytes'] / total_bytes) * 100
@@ -644,30 +673,31 @@ class YoutubeWeeklyGUI(tk.Tk):
                 # Ratchet logic: only update if progress has increased
                 if unified_percent > self.last_progress_value:
                     self.last_progress_value = unified_percent
-                    self.progress_bar['value'] = unified_percent
-                    self._set_status(f"Downloading... {unified_percent:.1f}%")
-                    self.update_idletasks()
-                    time.sleep(0.1)
+                    # Schedule UI update on the main thread
+                    def update_progress():
+                        self._set_status(f"Downloading... {unified_percent:.1f}%")
+                        self.progress_bar.configure(value=unified_percent)
+                    self.after(0, update_progress)
 
         elif d['status'] == 'finished':
-            if self.download_stage == 1:
-                self.download_stage = 2 # Move to audio stage
-                # Ensure the bar hits 50% exactly
-                if self.last_progress_value < 50:
-                    self.last_progress_value = 50
-                    self.progress_bar['value'] = 50
-                    self._set_status(f"Downloading... 50.0%")
-                    self.update_idletasks()
-            else:
-                # Ensure the bar hits 100% exactly
-                self.progress_bar['value'] = 100
-                self._set_status("Download complete.")
-                self.update_idletasks()
-                time.sleep(0.5) # Give user a moment to see "complete"
-                self.progress_bar.pack_forget()
-                self.download_stage = 0 # Reset to idle
-                self.last_progress_value = 0
-
+            def handle_finished():
+                if self.download_stage == 1:
+                    self.download_stage = 2 # Move to audio stage
+                    # Ensure the bar hits 50% exactly
+                    if self.last_progress_value < 50:
+                        self.last_progress_value = 50
+                        self._set_status(f"Downloading... 50.0%")
+                        self.progress_bar.configure(value=50)
+                else:
+                    # Ensure the bar hits 100% exactly
+                    self.progress_bar.configure(value=100)
+                    self._set_status("Download complete.")
+                    # Hide progress bar after a delay
+                    self.after(2000, lambda: self.progress_bar.pack_forget() if self.progress_bar.winfo_ismapped() else None)
+                    self.download_stage = 0 # Reset to idle
+                    self.last_progress_value = 0
+            
+            self.after(0, handle_finished)
     def _check_for_updates_thread(self):
         is_new_version, latest_version, download_url = check_for_updates()
         if is_new_version:
