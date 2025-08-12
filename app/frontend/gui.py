@@ -373,12 +373,31 @@ class YoutubeWeeklyGUI(tk.Tk):
     def _send_notification(self, title, message, on_click=None):
         if self.settings.get("enable_notifications", True):
             try:
+                # Get the icon path - try multiple approaches for compiled app
+                icon_path = None
+                icon_candidates = [
+                    resource_path("assets/icon4.ico"),
+                    os.path.join(os.path.dirname(__file__), "assets", "icon4.ico"),
+                ]
+                
+                # If running as compiled app, also try the temp directory
+                if getattr(sys, 'frozen', False):
+                    icon_candidates.extend([
+                        os.path.join(sys._MEIPASS, "assets", "icon4.ico"),
+                        os.path.join(sys._MEIPASS, "app", "frontend", "assets", "icon4.ico"),
+                    ])
+                
+                for candidate in icon_candidates:
+                    if os.path.exists(candidate):
+                        icon_path = candidate
+                        break
+                
                 notification.notify(
                     title=title,
                     message=message,
-                    app_name="YoutubeWeekly Downloader",
+                    app_name="YoutubeWeekly",
                     timeout=10,
-                    app_icon=resource_path("assets/icon4.ico") if os.path.exists(resource_path("assets/icon4.ico")) else None
+                    app_icon=icon_path
                 )
 
             except Exception as e:
