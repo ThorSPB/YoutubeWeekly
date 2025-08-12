@@ -50,6 +50,13 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.notification_callback = None
         self.tray_icon = None
 
+        # Initialize and run tray icon from the start
+        image = Image.open(resource_path("assets/icon4.ico"))
+        menu = (pystray.MenuItem('Show', self.show_window, default=True),
+                pystray.MenuItem('Quit', self.quit_application))
+        self.tray_icon = pystray.Icon("YoutubeWeekly", image, "YoutubeWeekly Downloader", menu)
+        self.tray_icon.run_detached()
+
         style = ttk.Style()
         style.theme_use("default")
         # Standardize font across OS
@@ -265,15 +272,11 @@ class YoutubeWeeklyGUI(tk.Tk):
             if viewer.winfo_exists():
                 viewer.on_closing()
         self.withdraw()
-        image = Image.open(resource_path("assets/icon4.ico"))
-        menu = (pystray.MenuItem('Show', self.show_from_tray, default=True),
-                pystray.MenuItem('Quit', self.quit_application))
-        self.tray_icon = pystray.Icon("YoutubeWeekly", image, "YoutubeWeekly Downloader", menu)
-        self.tray_icon.run_detached()
+        # Tray icon is now initialized in __init__ and runs continuously
 
     def show_window(self):
-        if hasattr(self, 'tray_icon') and self.tray_icon and self.tray_icon.visible:
-            self.tray_icon.stop()
+        # if hasattr(self, 'tray_icon') and self.tray_icon and self.tray_icon.visible:
+        #     self.tray_icon.stop() # Removed to keep icon in tray
         self.deiconify()
         self.lift()
         self.attributes('-topmost', True)
