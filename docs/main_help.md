@@ -47,7 +47,8 @@ Videos are saved in organized folders:
 - **Keep Old Videos**: Enable in settings to prevent automatic deletion
 - **Quality Settings**: Higher quality = larger file size but better video
 - **Date Selection**: Use specific dates to download older Sabbath videos
-- **System Tray**: Double-click tray icon to quickly show/hide window
+- **System Tray**: Click tray icon to quickly show/hide window
+- **Minimize**: Minimizing the app will automatically send it to the system tray
 
 ## ❓ Need More Help?
 
