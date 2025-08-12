@@ -77,7 +77,7 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
     day_of_week = today.weekday() # Monday is 0, Sunday is 6
 
     # Perform checks only on Friday (4) and Saturday (5)
-    if day_of_week == 1 or day_of_week == 2:
+    if day_of_week == 4 or day_of_week == 5:
         channels_to_process = [
             ch for ch in channels
             if ch.get("folder", ch["name"]) != "others" and
