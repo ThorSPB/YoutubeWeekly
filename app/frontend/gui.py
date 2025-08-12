@@ -47,8 +47,8 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.download_stage = 0 # 0: idle, 1: video, 2: audio
         self.last_progress_value = 0
         self.downloading_channels = set()
-        self.notification_callback = None
         self.tray_icon = None
+        self.pending_show_request = False  # Track if we need to show window
 
         # Initialize and run tray icon from the start
         image = Image.open(resource_path("assets/icon4.ico"))
@@ -283,20 +283,45 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.after_idle(self.attributes, '-topmost', False)
         self.focus_force()
 
-    def show_from_tray(self, icon, item):
-        self.show_window()
-        if self.notification_callback:
-            self.notification_callback()
-            self.notification_callback = None
+    def show_from_tray(self, icon=None, item=None):
+        self.bring_to_foreground()
 
     def bring_to_foreground(self):
-        if self.state() == 'iconic' or self.state() == 'withdrawn':
-            self.show_window()
-        else:
+        print("bring_to_foreground called!")
+        
+        def show_and_focus():
+            if self.state() == 'iconic' or self.state() == 'withdrawn':
+                self.deiconify()
+            
+            # Force the window to the top
             self.lift()
             self.attributes('-topmost', True)
-            self.after_idle(self.attributes, '-topmost', False)
             self.focus_force()
+            
+            # Remove topmost after a brief moment so it doesn't stay always on top
+            self.after(100, lambda: self.attributes('-topmost', False))
+            
+            # Try additional focusing methods for different OS
+            try:
+                if sys.platform == "win32":
+                    # Windows specific - try to bring window to front
+                    import ctypes
+                    from ctypes import wintypes
+                    
+                    def get_hwnd(window):
+                        # Get the window handle
+                        window.update()
+                        return window.winfo_id()
+                    
+                    hwnd = get_hwnd(self)
+                    # Show window and bring to foreground
+                    ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                    ctypes.windll.user32.SetForegroundWindow(hwnd)
+            except Exception as e:
+                print(f"Error with platform-specific focusing: {e}")
+        
+        # Schedule on main thread
+        self.after(0, show_and_focus)
 
     def quit_application(self, icon=None, item=None):
         # Ensure operations are performed on the main Tkinter thread
@@ -306,6 +331,9 @@ class YoutubeWeeklyGUI(tk.Tk):
         if self.tray_icon is not None and self.tray_icon.visible:
             self.tray_icon.stop()
         self.destroy()
+
+    def _run_asyncio_tasks(self):
+        pass
 
     def open_settings(self):
         settings_win = SettingsWindow(self, self.settings)
@@ -349,10 +377,10 @@ class YoutubeWeeklyGUI(tk.Tk):
                     title=title,
                     message=message,
                     app_name="YoutubeWeekly Downloader",
-                    timeout=10
+                    timeout=10,
+                    app_icon=resource_path("assets/icon4.ico") if os.path.exists(resource_path("assets/icon4.ico")) else None
                 )
-                if on_click:
-                    self.notification_callback = on_click
+
             except Exception as e:
                 print(f"Error sending notification: {e}")
 
@@ -652,6 +680,8 @@ class YoutubeWeeklyGUI(tk.Tk):
                 subprocess.Popen(["xdg-open", folder_path])
         except Exception as e:
             messagebox.showerror("Error", f"Could not open folder: {e}")
+
+    
 
     def progress_hook(self, d):
         # Ensure UI updates happen on main thread
