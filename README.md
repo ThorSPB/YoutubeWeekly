@@ -27,7 +27,3 @@ This app is written in **Python** using `tkinter`, `yt-dlp`, and is intended to 
 
 ---
 
-## 💡 Future Ideas
-
-- **Subtitle Downloader:** An option to download available subtitles (e.g., Romanian) for videos.
-- **UI Revamp:** A visual overhaul to modernize the application's look and feel.

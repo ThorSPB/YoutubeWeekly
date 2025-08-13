@@ -19,6 +19,7 @@ from app.frontend.file_viewer import FileViewer
 from app.frontend.help_window import HelpWindow
 from app.backend.auto_downloader import run_automatic_checks
 from app.backend.updater import check_for_updates
+from app.backend.windows_startup import is_in_startup, add_to_startup, remove_from_startup
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
@@ -37,6 +38,15 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.configure(bg="#2b2b2b")
 
         self.settings, self.startup_warnings = load_settings()
+
+        # Synchronize startup setting with Windows Registry
+        app_should_start_with_system = self.settings.get("start_with_system", False)
+        is_currently_in_startup = is_in_startup()
+
+        if app_should_start_with_system and not is_currently_in_startup:
+            add_to_startup()
+        elif not app_should_start_with_system and is_currently_in_startup:
+            remove_from_startup()
 
         if self.startup_warnings:
             messagebox.showwarning("Configuration Warnings", "\n".join(self.startup_warnings))
@@ -196,17 +206,17 @@ class YoutubeWeeklyGUI(tk.Tk):
         others_entry = ttk.Entry(
             others_frame,
             textvariable=self.others_link_var,
-            width=37,
+            width=35,
         )
         others_entry.insert(0, "Paste YouTube link...")
         others_entry.bind("<FocusIn>", lambda e: others_entry.delete(0, "end") if others_entry.get() == "Paste YouTube link..." else None)
-        others_entry.pack(side="left", padx=(0, 3))
+        others_entry.pack(side="left", padx=(0, 8))
 
         others_btn = ttk.Button(
             others_frame,
             text="Download",
             command=self.download_others,
-            width=11
+            width=12
         )
         others_btn.pack(side="left")
 

@@ -6,6 +6,7 @@ import json
 from app.backend.config import save_settings, load_default_settings
 from app.frontend.help_window import HelpWindow
 from screeninfo import get_monitors
+from app.backend.windows_startup import add_to_startup, remove_from_startup, is_in_startup
 
 class SettingsWindow(tk.Toplevel):
     def __init__(self, parent, settings):
@@ -139,7 +140,7 @@ class SettingsWindow(tk.Toplevel):
 
         # Start with system setting
         # Check actual Windows registry status and sync with settings
-        actual_startup_enabled = self.is_startup_enabled()
+        actual_startup_enabled = is_in_startup()
         self.settings["start_with_system"] = actual_startup_enabled
         self.start_with_system_var = tk.BooleanVar(value=actual_startup_enabled)
         start_with_system_check = ttk.Checkbutton(main_frame, text="Start with Windows (minimized to tray)", variable=self.start_with_system_var, style="Dark.TCheckbutton")
@@ -234,57 +235,7 @@ class SettingsWindow(tk.Toplevel):
 
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
-    def is_startup_enabled(self):
-        """Check if the app is set to start with Windows"""
-        if sys.platform != "win32":
-            return False
-        
-        try:
-            import winreg
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
-                               r"Software\Microsoft\Windows\CurrentVersion\Run")
-            try:
-                winreg.QueryValueEx(key, "YoutubeWeekly")
-                winreg.CloseKey(key)
-                return True
-            except WindowsError:
-                winreg.CloseKey(key)
-                return False
-        except Exception:
-            return False
-
-    def set_startup(self, enable):
-        """Enable or disable startup with Windows"""
-        if sys.platform != "win32":
-            return
-        
-        try:
-            import winreg
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
-                               r"Software\Microsoft\Windows\CurrentVersion\Run", 
-                               0, winreg.KEY_SET_VALUE)
-            
-            if enable:
-                # Get the executable path
-                if getattr(sys, 'frozen', False):
-                    # Running as compiled executable
-                    startup_command = f'"{sys.executable}" --start-minimized'
-                else:
-                    # Running as script - use python with the main script
-                    main_script = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "main.py")
-                    startup_command = f'"{sys.executable}" "{main_script}" --start-minimized'
-                
-                winreg.SetValueEx(key, "YoutubeWeekly", 0, winreg.REG_SZ, startup_command)
-            else:
-                # Remove from startup
-                try:
-                    winreg.DeleteValue(key, "YoutubeWeekly")
-                except WindowsError:
-                    pass  # Key doesn't exist, which is fine
-            
-            winreg.CloseKey(key)
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to update startup settings: {e}")
+    
 
     def browse_folder(self):
         folder_selected = filedialog.askdirectory()
@@ -332,7 +283,10 @@ class SettingsWindow(tk.Toplevel):
         old_startup_value = self.settings.get("start_with_system", False)
         
         if new_startup_value != old_startup_value:
-            self.set_startup(new_startup_value)
+            if new_startup_value:
+                add_to_startup()
+            else:
+                remove_from_startup()
         
         self.settings["start_with_system"] = new_startup_value
         self.settings["use_mpv"] = self.use_mpv_var.get()
