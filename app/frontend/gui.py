@@ -19,7 +19,7 @@ from app.frontend.file_viewer import FileViewer
 from app.frontend.help_window import HelpWindow
 from app.backend.auto_downloader import run_automatic_checks
 from app.backend.updater import check_for_updates
-from app.backend.windows_startup import is_in_startup, add_to_startup, remove_from_startup
+from app.backend.startup_manager import is_in_startup, add_to_startup, remove_from_startup
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """

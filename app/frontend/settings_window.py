@@ -6,7 +6,7 @@ import json
 from app.backend.config import save_settings, load_default_settings
 from app.frontend.help_window import HelpWindow
 from screeninfo import get_monitors
-from app.backend.windows_startup import add_to_startup, remove_from_startup, is_in_startup
+from app.backend.startup_manager import add_to_startup, remove_from_startup, is_in_startup
 
 class SettingsWindow(tk.Toplevel):
     def __init__(self, parent, settings):
@@ -143,7 +143,7 @@ class SettingsWindow(tk.Toplevel):
         actual_startup_enabled = is_in_startup()
         self.settings["start_with_system"] = actual_startup_enabled
         self.start_with_system_var = tk.BooleanVar(value=actual_startup_enabled)
-        start_with_system_check = ttk.Checkbutton(main_frame, text="Start with Windows (minimized to tray)", variable=self.start_with_system_var, style="Dark.TCheckbutton")
+        start_with_system_check = ttk.Checkbutton(main_frame, text="Start with System (minimized to tray)", variable=self.start_with_system_var, style="Dark.TCheckbutton")
         start_with_system_check.pack(anchor="w", pady=5)
 
         # MPV Player setting
