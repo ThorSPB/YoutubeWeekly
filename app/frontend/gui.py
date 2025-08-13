@@ -542,7 +542,7 @@ class YoutubeWeeklyGUI(tk.Tk):
                 mpv_path = self.settings.get("mpv_path")
                 mpv_args = [f'"{mpv_path}"', f'"{latest_file}"']
                 if self.settings.get("mpv_fullscreen", False):
-                    script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "player", "scripts", "delayed-fullscreen.lua"))
+                    script_path = resource_path("app/player/scripts/delayed-fullscreen.lua")
                     mpv_args.append(f"--script={script_path}")
                 if self.settings.get("mpv_volume") is not None:
                     mpv_args.append(f"--volume={self.settings.get("mpv_volume")}")
@@ -689,7 +689,7 @@ class YoutubeWeeklyGUI(tk.Tk):
                 mpv_path = self.settings.get("mpv_path")
                 mpv_args = [f'"{mpv_path}"', f'"{latest_file}"']
                 if self.settings.get("mpv_fullscreen", False):
-                    script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "player", "scripts", "delayed-fullscreen.lua"))
+                    script_path = resource_path("app/player/scripts/delayed-fullscreen.lua")
                     mpv_args.append(f"--script={script_path}")
                 if self.settings.get("mpv_volume") is not None:
                     mpv_args.append(f"--volume={self.settings.get("mpv_volume")}")
