@@ -43,6 +43,14 @@ if not os.path.exists(AUTO_DOWNLOAD_LOG_FILE):
     with open(AUTO_DOWNLOAD_LOG_FILE, 'w', encoding='utf-8') as f:
         json.dump({}, f)
 
+def get_base_path():
+    """ Get absolute path to base directory, works for dev and for PyInstaller """
+    if getattr(sys, 'frozen', False):
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        return os.path.dirname(sys.executable)
+    else:
+        return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+
 def get_default_executable_paths():
     if getattr(sys, 'frozen', False):
         # Running in a PyInstaller bundle
@@ -96,6 +104,16 @@ def load_settings():
     # Always use the bundled executables
     settings["mpv_path"] = default_paths["mpv_path"]
     settings["ffmpeg_path"] = default_paths["ffmpeg_path"]
+
+    # Ensure video_folder is an absolute path relative to the executable
+    video_folder = settings.get("video_folder", "data/videos")
+    if not os.path.isabs(video_folder):
+        base_path = get_base_path()
+        video_folder = os.path.join(base_path, video_folder)
+        settings["video_folder"] = video_folder
+
+    if not os.path.exists(video_folder):
+        os.makedirs(video_folder)
 
     return settings, warnings
 
