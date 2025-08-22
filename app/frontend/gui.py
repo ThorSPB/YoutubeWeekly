@@ -1,5 +1,17 @@
 import os
 import sys
+
+# Set the correct working directory to the project root
+if getattr(sys, 'frozen', False):
+    # Running as a bundled executable (pyinstaller)
+    application_path = os.path.dirname(sys.executable)
+    os.chdir(application_path)
+else:
+    # Running from source
+    # we are in app/frontend/gui.py, so we need to go up two levels
+    application_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    os.chdir(application_path)
+
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
