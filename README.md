@@ -28,6 +28,23 @@ It finds the correct video for the current or upcoming Sabbath and saves it into
 This app is written in **Python** using `tkinter`, `yt-dlp`, and is intended to be packaged into a standalone executable using `PyInstaller`.
 
 ---
+
+## 🖥️ Installation and Usage
+
+### For Windows
+Simply run the `YoutubeWeekly.exe` file. No installation is required.
+
+### For macOS
+Because this application is not registered with Apple, you will see a security warning the first time you open it. This is normal.
+
+Follow these steps to open the app for the first time:
+1.  **Right-click** the **YoutubeWeekly** application icon.
+2.  Select **"Open"** from the context menu that appears.
+3.  A warning dialog will appear. Click the **"Open"** button.
+
+You only need to do this once. After the first time, you can open the app normally by double-clicking it.
+
+---
 ### Recommendations and Instructions
 - The release version will come with the recommended settings, which are the following:
     * "Enable Automatic Downloads" - checked

@@ -204,7 +204,7 @@ class SettingsWindow(tk.Toplevel):
         
         ttk.Label(self.ffmpeg_path_frame, text="FFmpeg Path:", style="Dark.TLabel").pack(side="left")
         self.ffmpeg_path_var = tk.StringVar(value=self.settings.get("ffmpeg_path", ""))
-        self.ffmpeg_path_entry = ttk.Entry(self.ffmpeg_path_frame, textvariable=self.ffmpeg_path_var, width=56, style="Dark.TEntry")
+        self.ffmpeg_path_entry = ttk.Entry(self.ffmpeg_path_frame, textvariable=self.ffmpeg_path_var, width=40, style="Dark.TEntry")
         self.ffmpeg_path_entry.pack(side="left", padx=5)
         
         ffmpeg_browse_button = ttk.Button(self.ffmpeg_path_frame, text="Browse", command=self.browse_ffmpeg_path, style="Dark.TButton")

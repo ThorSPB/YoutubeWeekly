@@ -46,6 +46,7 @@ def resource_path(relative_path):
 class YoutubeWeeklyGUI(tk.Tk):
     def __init__(self):
         super().__init__()
+        self._handle_macos_gatekeeper()
         self.iconbitmap(resource_path("assets/icon4.ico"))
         self.configure(bg="#2b2b2b")
 
@@ -113,7 +114,8 @@ class YoutubeWeeklyGUI(tk.Tk):
         ]
 
         self.recent_sabbaths_per_channel = {
-            ch["name"]: ["automat"] + get_recent_sabbaths(date_format="%d.%m.%Y")
+            ch["name"]:
+            ["automat"] + get_recent_sabbaths(date_format="%d.%m.%Y")
             for ch in self.channels
         }
 
@@ -168,7 +170,7 @@ class YoutubeWeeklyGUI(tk.Tk):
                 row,
                 textvariable=self.channel_date_vars[channel["name"]],
                 values=self.recent_sabbaths_per_channel[channel["name"]],
-                width=8,
+                width=6,
                 state="readonly",
                 justify="center"
             )
@@ -218,11 +220,11 @@ class YoutubeWeeklyGUI(tk.Tk):
         others_entry = ttk.Entry(
             others_frame,
             textvariable=self.others_link_var,
-            width=35,
+            width=24,
         )
         others_entry.insert(0, "Paste YouTube link...")
         others_entry.bind("<FocusIn>", lambda e: others_entry.delete(0, "end") if others_entry.get() == "Paste YouTube link..." else None)
-        others_entry.pack(side="left", padx=(0, 8))
+        others_entry.pack(side="left", padx=(0, 10))
 
         others_btn = ttk.Button(
             others_frame,
@@ -552,7 +554,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             self._set_status(f"Playing {os.path.basename(latest_file)}...")
             if self.settings.get("use_mpv", False) and self.settings.get("mpv_path"): # Use MPV if enabled
                 mpv_path = self.settings.get("mpv_path")
-                mpv_args = [f'"{mpv_path}"', f'"{latest_file}"']
+                mpv_args = [mpv_path, latest_file]
                 if self.settings.get("mpv_fullscreen", False):
                     script_path = resource_path("app/player/scripts/delayed-fullscreen.lua")
                     mpv_args.append(f"--script={script_path}")
@@ -699,7 +701,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             self._set_status(f"Playing {os.path.basename(latest_file)}...")
             if self.settings.get("use_mpv", False) and self.settings.get("mpv_path"): # Use MPV if enabled
                 mpv_path = self.settings.get("mpv_path")
-                mpv_args = [f'"{mpv_path}"', f'"{latest_file}"']
+                mpv_args = [mpv_path, latest_file]
                 if self.settings.get("mpv_fullscreen", False):
                     script_path = resource_path("app/player/scripts/delayed-fullscreen.lua")
                     mpv_args.append(f"--script={script_path}")
@@ -798,6 +800,33 @@ class YoutubeWeeklyGUI(tk.Tk):
                 "Update Available",
                 f"A new version ({latest_version}) is available!\n\nDownload it from: {download_url}"
             )
+
+    def _handle_macos_gatekeeper(self):
+        if sys.platform == "darwin":
+            # application_path is defined at the top of the file
+            binaries_to_fix = [
+                "app/tools/ffmpeg_macOS/ffmpeg71arm/ffmpeg",
+                "app/tools/ffmpeg_macOS/ffmpeg71intel/ffmpeg",
+                "app/player/macOS/arm64/mpv-arm64-0.40.0/mpv.app",
+                "app/player/macOS/intel/mpv-0.39.0/mpv.app"
+            ]
+            for binary_rel_path in binaries_to_fix:
+                try:
+                    # application_path is a global variable in the module
+                    abs_path = os.path.join(application_path, binary_rel_path)
+                    if os.path.exists(abs_path):
+                        # Use -r for directories (.app bundles) and -d for files. -r works for both.
+                        command = ["xattr", "-rd", "com.apple.quarantine", abs_path]
+                        # Using capture_output=True to hide output unless there is an error
+                        result = subprocess.run(command, check=False, capture_output=True, text=True)
+                        if result.returncode != 0 and "No such xattr" not in result.stderr:
+                                print(f"Failed to remove quarantine attribute from {binary_rel_path}: {result.stderr}")
+
+                except FileNotFoundError:
+                    # This can happen if the xattr command is not found
+                    print(f"Command 'xattr' not found. Please ensure you are on macOS and have xcode command line tools installed.")
+                except Exception as e:
+                    print(f"An unexpected error occurred while handling Gatekeeper for {binary_rel_path}: {e}")
 
 if __name__ == "__main__":
     import socket
