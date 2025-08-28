@@ -1,9 +1,6 @@
 {
-  "settings_window_geometry": "537x550+132+134",
-  "mpv_path": "D:\\Coding\\YoutubeAppColecta\\YoutubeWeekly\\app\\player\\win64\\mpv-x86_64-20250715-git-fdbea0f\\mpv.exe",
-  "ffmpeg_path": "D:\\Coding\\YoutubeAppColecta\\YoutubeWeekly\\app\\tools\\ffmpeg_win64\\ffmpeg-7.1.1-essentials_build\\bin\\ffmpeg.exe",
   "keep_old_videos": false,
-  "video_folder": "data/videos",
+  "video_folder": "videos",
   "default_quality": "1080p",
   "enable_auto_download": true,
   "enable_notifications": true,
@@ -12,10 +9,5 @@
   "mpv_volume": 100,
   "mpv_screen": "Default",
   "mpv_custom_args": "",
-  "main_window_geometry": "515x285+674+440",
-  "file_viewer_Others_geometry": "352x329+1222+406",
-  "file_viewer_ScoalaDeSabat_geometry": "352x329+1222+405",
-  "file_viewer_Departamentul Ispr\u0103vnicie_geometry": "352x329+1223+406",
-  "start_with_system": true,
-  "last_sabbath_checked": "2025-08-16"
+  "start_with_system": true
 }

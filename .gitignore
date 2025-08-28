@@ -179,6 +179,9 @@ data/videos/**
 bugs.txt
 app/tools/**
 app/player/**
+venv_intel
+working builds
 
 # macOS metadata
 .DS_Store
+install_homebrew.sh

@@ -47,14 +47,17 @@ def get_base_path():
     """ Get absolute path to base directory, works for dev and for PyInstaller """
     if getattr(sys, 'frozen', False):
         # PyInstaller creates a temp folder and stores path in _MEIPASS
-        return os.path.dirname(sys.executable)
+        if platform.system() == "Darwin":
+            return os.path.abspath(os.path.join(os.path.dirname(sys.executable), '..', '..', '..'))
+        else:
+            return os.path.dirname(sys.executable)
     else:
         return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 def get_default_executable_paths():
     if getattr(sys, 'frozen', False):
         # Running in a PyInstaller bundle
-        base_path = os.path.join(sys._MEIPASS, 'app')
+        base_path = sys._MEIPASS
     else:
         # Running in a normal Python environment
         base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) # This should be YoutubeWeekly/app
@@ -68,11 +71,11 @@ def get_default_executable_paths():
         ffmpeg_candidate = os.path.join(base_path, "tools", "ffmpeg_win64", "ffmpeg-7.1.1-essentials_build", "bin", "ffmpeg.exe")
     elif system == "Darwin": # macOS
         if platform.machine() == "arm64":
-            mpv_candidate = os.path.join(base_path, "player", "macOS", "arm64", "mpv-arm64-0.40.0", "mpv.app", "Contents", "MacOS", "mpv")
-            ffmpeg_candidate = os.path.join(base_path, "tools", "ffmpeg_macOS", "ffmpeg711arm", "ffmpeg")
+            mpv_candidate = os.path.join(base_path, "mpv_arm64.app", "Contents", "MacOS", "mpv") # New path for arm64 mpv executable
+            ffmpeg_candidate = os.path.join(base_path, "ffmpeg_arm64", "ffmpeg") # New path for arm64 ffmpeg executable
         else: # Intel
-            mpv_candidate = os.path.join(base_path, "player", "macOS", "intel", "mpv-0.39.0", "mpv.app", "Contents", "MacOS", "mpv")
-            ffmpeg_candidate = os.path.join(base_path, "tools", "ffmpeg_macOS", "ffmpeg71intel", "ffmpeg")
+            mpv_candidate = os.path.join(base_path, "mpv_intel.app", "Contents", "MacOS", "mpv") # New path for intel mpv executable
+            ffmpeg_candidate = os.path.join(base_path, "ffmpeg_intel", "ffmpeg") # New path for intel ffmpeg executable
     elif system == "Linux":
         # Assuming a 64-bit Linux for now, adjust if 32-bit is needed
         mpv_candidate = "/usr/bin/mpv" # Placeholder, as you didn't provide a bundled Linux mpv
@@ -105,12 +108,21 @@ def load_settings():
     settings["mpv_path"] = default_paths["mpv_path"]
     settings["ffmpeg_path"] = default_paths["ffmpeg_path"]
 
-    # Ensure video_folder is an absolute path relative to the executable
-    video_folder = settings.get("video_folder", "data/videos")
-    if not os.path.isabs(video_folder):
+    # --- NEW LOGIC FOR VIDEO FOLDER ---
+    video_folder = settings.get("video_folder", "videos")
+
+    if getattr(sys, 'frozen', False):
+        # For bundled app, data folder is at the same level as the executable
         base_path = get_base_path()
-        video_folder = os.path.join(base_path, video_folder)
-        settings["video_folder"] = video_folder
+        video_folder = os.path.join(base_path, 'data', 'videos')
+    else:
+        # For development, use a path relative to the project root
+        if not os.path.isabs(video_folder):
+            base_path = get_base_path()
+            video_folder = os.path.join(base_path, video_folder)
+
+    settings["video_folder"] = video_folder
+    # --- END NEW LOGIC ---
 
     if not os.path.exists(video_folder):
         os.makedirs(video_folder)

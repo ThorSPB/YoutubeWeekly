@@ -555,6 +555,11 @@ class YoutubeWeeklyGUI(tk.Tk):
             if self.settings.get("use_mpv", False) and self.settings.get("mpv_path"): # Use MPV if enabled
                 mpv_path = self.settings.get("mpv_path")
                 mpv_args = [mpv_path, latest_file]
+                # Add MPV logging to a file for debugging
+                mpv_log_dir = os.path.join(self.base_path, "logs")
+                os.makedirs(mpv_log_dir, exist_ok=True)
+                mpv_log_path = os.path.join(mpv_log_dir, "mpv.log")
+                mpv_args.append(f"--log-file={mpv_log_path}")
                 if self.settings.get("mpv_fullscreen", False):
                     script_path = resource_path("app/player/scripts/delayed-fullscreen.lua")
                     mpv_args.append(f"--script={script_path}")
@@ -702,6 +707,11 @@ class YoutubeWeeklyGUI(tk.Tk):
             if self.settings.get("use_mpv", False) and self.settings.get("mpv_path"): # Use MPV if enabled
                 mpv_path = self.settings.get("mpv_path")
                 mpv_args = [mpv_path, latest_file]
+                # Add MPV logging to a file for debugging
+                mpv_log_dir = os.path.join(self.base_path, "logs")
+                os.makedirs(mpv_log_dir, exist_ok=True)
+                mpv_log_path = os.path.join(mpv_log_dir, "mpv.log")
+                mpv_args.append(f"--log-file={mpv_log_path}")
                 if self.settings.get("mpv_fullscreen", False):
                     script_path = resource_path("app/player/scripts/delayed-fullscreen.lua")
                     mpv_args.append(f"--script={script_path}")
