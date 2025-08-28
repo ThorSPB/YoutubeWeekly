@@ -4,7 +4,7 @@ import platform
 import sys
 import shutil
 
-__version__ = "1.0.0"
+__version__ = "1.0.4"
 
 def get_app_data_dir():
     if platform.system() == "Windows":
