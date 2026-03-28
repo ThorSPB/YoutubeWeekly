@@ -153,10 +153,16 @@ class SettingsWindow(tk.Toplevel):
         self.auto_install_tree_label.pack(side="left")
         self.auto_install_updates_var = tk.BooleanVar(value=self.settings.get("auto_install_updates", False))
         self.auto_install_check = ttk.Checkbutton(
-            auto_install_frame, text="Auto-install updates on startup",
+            auto_install_frame, text="",
             variable=self.auto_install_updates_var, style="Dark.TCheckbutton"
         )
         self.auto_install_check.pack(side="left")
+        self.auto_install_label = tk.Label(
+            auto_install_frame, text="Auto-install updates on startup",
+            fg="white", bg="#2b2b2b", font=("Segoe UI", 9)
+        )
+        self.auto_install_label.pack(side="left")
+        self.auto_install_label.bind("<Button-1>", lambda e: self.auto_install_check.invoke() if str(self.auto_install_check.cget("state")) != "disabled" else None)
         self._update_auto_install_state()
 
         # === Player Tab ===
@@ -254,6 +260,7 @@ class SettingsWindow(tk.Toplevel):
         """Grey out auto-install checkbox when check-for-updates is disabled."""
         enabled = self.check_for_updates_var.get()
         self.auto_install_check.config(state="normal" if enabled else "disabled")
+        self.auto_install_label.config(fg="white" if enabled else "#555555")
         self.auto_install_tree_label.config(fg="#666666" if enabled else "#444444")
         if not enabled:
             self.auto_install_updates_var.set(False)
