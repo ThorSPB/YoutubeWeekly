@@ -252,15 +252,22 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.progress_bar = ttk.Progressbar(self, orient="horizontal", length=300, mode="determinate", style="Invisible.Horizontal.TProgressbar")
         self.progress_bar.pack(pady=(5, 5), padx=20, fill="x")
 
-        # Bottom buttons frame
-        bottom_buttons_frame = ttk.Frame(self, style="Dark.TFrame")
-        bottom_buttons_frame.pack(pady=(5, 15))
-        
-        # Quit button  
-        ttk.Button(bottom_buttons_frame, text="Quit", command=self.on_closing, width=10).pack(side="left", padx=(208, 174))
+        # Bottom frame with version, quit, and help
+        bottom_frame = ttk.Frame(self, style="Dark.TFrame")
+        bottom_frame.pack(pady=(5, 15), padx=20, fill="x")
 
-        # Help button
-        ttk.Button(bottom_buttons_frame, text="?", command=self.open_help, width=3).pack(side="left", padx=(0, 0))
+        # Version label (bottom left)
+        from app.backend.config import __version__
+        tk.Label(
+            bottom_frame, text=f"v{__version__}",
+            fg="#666666", bg="#2b2b2b", font=("Segoe UI", 8)
+        ).pack(side="left")
+
+        # Help button (bottom right)
+        ttk.Button(bottom_frame, text="?", command=self.open_help, width=3).pack(side="right")
+
+        # Quit button (center-right)
+        ttk.Button(bottom_frame, text="Quit", command=self.on_closing, width=10).pack(side="right", padx=(0, 10))
 
         self.resizable(False, False)
         self.bind("<Configure>", self._on_resize)

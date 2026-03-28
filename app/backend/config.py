@@ -113,9 +113,15 @@ def load_settings():
 
     # Ensure video_folder is an absolute path relative to the executable
     video_folder = settings.get("video_folder", "data/videos")
+    base_path = get_base_path()
+
     if not os.path.isabs(video_folder):
-        base_path = get_base_path()
         video_folder = os.path.join(base_path, video_folder)
+        settings["video_folder"] = video_folder
+    elif not os.path.exists(video_folder):
+        # Saved absolute path no longer exists (app moved or updated to new folder).
+        # Reset to default relative path resolved against current base.
+        video_folder = os.path.join(base_path, "data", "videos")
         settings["video_folder"] = video_folder
 
     if not os.path.exists(video_folder):
