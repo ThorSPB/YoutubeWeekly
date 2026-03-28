@@ -141,11 +141,15 @@ class SettingsWindow(tk.Toplevel):
         self.start_with_system_var.trace_add("write", lambda *_: self._update_auto_install_state())
         ttk.Checkbutton(general_frame, text="Start with System (minimized to tray)", variable=self.start_with_system_var, style="Dark.TCheckbutton").pack(anchor="w", pady=5, padx=10)
 
+        # Check for updates — child of start with system
         self.check_for_updates_var = tk.BooleanVar(value=self.settings.get("check_for_updates", True))
         self.check_for_updates_var.trace_add("write", lambda *_: self._update_auto_install_state())
-        ttk.Checkbutton(general_frame, text="Check for updates on startup", variable=self.check_for_updates_var, style="Dark.TCheckbutton").pack(anchor="w", pady=5, padx=10)
+        check_updates_frame = ttk.Frame(general_frame, style="Dark.TFrame")
+        check_updates_frame.pack(anchor="w", pady=(0, 0), padx=10)
+        tk.Label(check_updates_frame, text="  ├ ", fg="#666666", bg="#2b2b2b", font=("Consolas", 10)).pack(side="left")
+        ttk.Checkbutton(check_updates_frame, text="Check for updates on startup", variable=self.check_for_updates_var, style="Dark.TCheckbutton").pack(side="left")
 
-        # Auto-install with visual tree indicator showing dependency
+        # Auto-install — child of both start with system + check for updates
         auto_install_frame = ttk.Frame(general_frame, style="Dark.TFrame")
         auto_install_frame.pack(anchor="w", pady=(0, 5), padx=10)
         self.auto_install_tree_label = tk.Label(
@@ -153,9 +157,12 @@ class SettingsWindow(tk.Toplevel):
         )
         self.auto_install_tree_label.pack(side="left")
         self.auto_install_updates_var = tk.BooleanVar(value=self.settings.get("auto_install_updates", False))
-        self.auto_install_check = ttk.Checkbutton(
+        self.auto_install_check = tk.Checkbutton(
             auto_install_frame, text="Auto-install updates (when minimized to tray)",
-            variable=self.auto_install_updates_var, style="Dark.TCheckbutton"
+            variable=self.auto_install_updates_var,
+            bg="#2b2b2b", fg="white", selectcolor="#3c3c3c",
+            activebackground="#2b2b2b", activeforeground="white",
+            font=("Segoe UI", 9), borderwidth=0, highlightthickness=0,
         )
         self.auto_install_check.pack(side="left")
         self._update_auto_install_state()
@@ -254,10 +261,12 @@ class SettingsWindow(tk.Toplevel):
     def _update_auto_install_state(self):
         """Grey out auto-install checkbox when its dependencies are disabled."""
         can_auto_install = self.start_with_system_var.get() and self.check_for_updates_var.get()
-        state = "normal" if can_auto_install else "disabled"
-        self.auto_install_check.config(state=state)
-        self.auto_install_tree_label.config(fg="#666666" if can_auto_install else "#444444")
-        if not can_auto_install:
+        if can_auto_install:
+            self.auto_install_check.config(state="normal", fg="white")
+            self.auto_install_tree_label.config(fg="#666666")
+        else:
+            self.auto_install_check.config(state="disabled", fg="#555555")
+            self.auto_install_tree_label.config(fg="#444444")
             self.auto_install_updates_var.set(False)
 
     def load_window_position(self):
