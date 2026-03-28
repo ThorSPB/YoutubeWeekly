@@ -290,8 +290,9 @@ class YoutubeWeeklyGUI(tk.Tk):
             daemon=True
         ).start()
 
-        # Check for updates in a separate thread
-        threading.Thread(target=self._check_for_updates_thread, daemon=True).start()
+        # Check for updates in a separate thread (if enabled)
+        if self.settings.get("check_for_updates", True):
+            threading.Thread(target=self._check_for_updates_thread, daemon=True).start()
 
         # Show changelog after an update
         if self._just_updated:

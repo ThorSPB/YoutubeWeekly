@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.1.3
+- **Version Rollback**: Roll back to any previous version from Settings — your data and settings are preserved
+- Accessible via Settings → Rollback button
+
 ## v1.1.2
 - **Silent Auto-Updates**: New setting to automatically install updates on startup (when running in system tray)
 - **Update Check Button**: Refresh button (↻) next to version label — check for updates anytime

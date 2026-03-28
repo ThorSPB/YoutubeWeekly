@@ -5,6 +5,7 @@ import logging
 from app.backend.config import __version__
 
 GITHUB_REPO_URL = "https://api.github.com/repos/ThorSPB/YoutubeWeekly/releases/latest"
+GITHUB_ALL_RELEASES_URL = "https://api.github.com/repos/ThorSPB/YoutubeWeekly/releases"
 
 
 def get_platform_asset_name(version=None):
@@ -61,6 +62,41 @@ def check_for_updates():
     except (KeyError, ValueError) as e:
         logging.error(f"Unexpected response format from GitHub API: {e}")
         return False, None, None, []
+
+
+def get_available_versions():
+    """Fetch all available release versions from GitHub.
+
+    Returns: list of (version_string, assets) tuples, newest first.
+    Excludes pre-releases and the current version.
+    """
+    try:
+        response = requests.get(GITHUB_ALL_RELEASES_URL, timeout=10)
+        response.raise_for_status()
+        releases = response.json()
+
+        versions = []
+        for release in releases:
+            if release.get("prerelease") or release.get("draft"):
+                continue
+            version = release["tag_name"].lstrip("vV")
+            if version == __version__:
+                continue
+            # Skip versions before v1.1.0 (no auto-updater, user would get stuck)
+            try:
+                version_parts = list(map(int, version.split('.')))
+                if version_parts < [1, 1, 0]:
+                    continue
+            except ValueError:
+                continue
+            assets = release.get("assets", [])
+            if get_asset_download_url(assets, version):
+                versions.append((version, assets))
+
+        return versions
+    except (requests.exceptions.RequestException, KeyError, ValueError) as e:
+        logging.error(f"Failed to fetch available versions: {e}")
+        return []
 
 
 def download_update(asset_url, dest_path, progress_callback=None):

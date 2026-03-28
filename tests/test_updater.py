@@ -5,6 +5,7 @@ from app.backend.updater import (
     check_for_updates,
     get_platform_asset_name,
     get_asset_download_url,
+    get_available_versions,
     download_update,
 )
 
@@ -149,3 +150,29 @@ def test_download_update_failure(mock_get, tmp_path):
     dest = str(tmp_path / "update.zip")
     with pytest.raises(requests.exceptions.RequestException):
         download_update("https://example.com/update.zip", dest)
+
+
+# --- get_available_versions tests ---
+
+@patch("app.backend.updater.requests.get")
+@patch("app.backend.updater.get_asset_download_url", return_value="https://example.com/dl.zip")
+def test_get_available_versions(mock_asset_url, mock_get):
+    mock_response = MagicMock()
+    mock_response.json.return_value = [
+        {"tag_name": "v99.0.0", "prerelease": False, "draft": False, "assets": [{"name": "YoutubeWeekly-win64.zip"}]},
+        {"tag_name": "v98.0.0", "prerelease": False, "draft": False, "assets": [{"name": "YoutubeWeekly-win64.zip"}]},
+        {"tag_name": "v0.0.0-binaries", "prerelease": True, "draft": False, "assets": []},
+    ]
+    mock_get.return_value = mock_response
+
+    versions = get_available_versions()
+    version_strings = [v for v, _ in versions]
+    assert "99.0.0" in version_strings
+    assert "98.0.0" in version_strings
+    assert "0.0.0-binaries" not in version_strings
+
+
+@patch("app.backend.updater.requests.get")
+def test_get_available_versions_network_error(mock_get):
+    mock_get.side_effect = requests.exceptions.RequestException("fail")
+    assert get_available_versions() == []

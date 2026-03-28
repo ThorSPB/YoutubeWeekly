@@ -1,9 +1,10 @@
 import os
 import sys
+import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import json
-from app.backend.config import save_settings, load_default_settings
+from app.backend.config import save_settings, load_default_settings, __version__
 from app.frontend.help_window import HelpWindow
 from screeninfo import get_monitors
 from app.backend.startup_manager import add_to_startup, remove_from_startup, is_in_startup
@@ -146,6 +147,11 @@ class SettingsWindow(tk.Toplevel):
         start_with_system_check = ttk.Checkbutton(main_frame, text="Start with System (minimized to tray)", variable=self.start_with_system_var, style="Dark.TCheckbutton")
         start_with_system_check.pack(anchor="w", pady=5)
 
+        # Check for updates setting
+        self.check_for_updates_var = tk.BooleanVar(value=self.settings.get("check_for_updates", True))
+        check_updates_check = ttk.Checkbutton(main_frame, text="Check for updates on startup", variable=self.check_for_updates_var, style="Dark.TCheckbutton")
+        check_updates_check.pack(anchor="w", pady=5)
+
         # Auto-install updates setting
         self.auto_install_updates_var = tk.BooleanVar(value=self.settings.get("auto_install_updates", False))
         auto_updates_check = ttk.Checkbutton(main_frame, text="Auto-install updates on startup (when minimized to tray)", variable=self.auto_install_updates_var, style="Dark.TCheckbutton")
@@ -236,7 +242,11 @@ class SettingsWindow(tk.Toplevel):
 
         # Help button
         help_button = ttk.Button(button_frame, text="?", command=self.open_help, style="Dark.TButton", width=3)
-        help_button.pack(side="left", padx=(0, 10))
+        help_button.pack(side="left", padx=(0, 5))
+
+        # Rollback button
+        rollback_button = ttk.Button(button_frame, text="Rollback", command=self._show_rollback_dialog, style="Dark.TButton")
+        rollback_button.pack(side="left")
 
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
@@ -294,6 +304,7 @@ class SettingsWindow(tk.Toplevel):
                 remove_from_startup()
         
         self.settings["start_with_system"] = new_startup_value
+        self.settings["check_for_updates"] = self.check_for_updates_var.get()
         self.settings["auto_install_updates"] = self.auto_install_updates_var.get()
         self.settings["use_mpv"] = self.use_mpv_var.get()
         self.settings["mpv_path"] = self.mpv_path_var.get()
@@ -329,6 +340,7 @@ class SettingsWindow(tk.Toplevel):
         self.quality_var.set(self.settings.get("default_quality", "1080p"))
         self.enable_auto_download_var.set(self.settings.get("enable_auto_download", False))
         self.enable_notifications_var.set(self.settings.get("enable_notifications", True))
+        self.check_for_updates_var.set(self.settings.get("check_for_updates", True))
         self.auto_install_updates_var.set(self.settings.get("auto_install_updates", False))
         self.use_mpv_var.set(self.settings.get("use_mpv", False))
         self.mpv_path_var.set(self.settings.get("mpv_path", ""))
@@ -337,3 +349,102 @@ class SettingsWindow(tk.Toplevel):
         self.mpv_screen_var.set(self.settings.get("mpv_screen", "Default"))
         self.mpv_custom_args_var.set(self.settings.get("mpv_custom_args", ""))
         self.ffmpeg_path_var.set(self.settings.get("ffmpeg_path", ""))
+
+    def _show_rollback_dialog(self):
+        """Show a dialog to select a previous version to rollback to."""
+        from app.backend.updater import get_available_versions, get_asset_download_url
+        from app.backend.config import get_base_path, UPDATE_DIR
+
+        dialog = tk.Toplevel(self)
+        dialog.title("Rollback to Previous Version")
+        dialog.configure(bg="#2b2b2b")
+        dialog.geometry("400x250")
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.grab_set()
+
+        dialog.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() - 400) // 2
+        y = self.winfo_y() + (self.winfo_height() - 250) // 2
+        dialog.geometry(f"+{x}+{y}")
+
+        tk.Label(
+            dialog, text=f"Current version: v{__version__}",
+            fg="white", bg="#2b2b2b", font=("Segoe UI", 10, "bold")
+        ).pack(pady=(15, 5))
+
+        tk.Label(
+            dialog, text="Loading available versions...",
+            fg="#cccccc", bg="#2b2b2b", font=("Segoe UI", 9)
+        ).pack(pady=(0, 10))
+
+        listbox_frame = tk.Frame(dialog, bg="#2b2b2b")
+        listbox_frame.pack(fill="both", expand=True, padx=20)
+
+        listbox = tk.Listbox(
+            listbox_frame, bg="#3c3c3c", fg="white", selectbackground="#0078D7",
+            font=("Segoe UI", 10), borderwidth=0, highlightthickness=0
+        )
+        listbox.pack(fill="both", expand=True)
+
+        btn_frame = tk.Frame(dialog, bg="#2b2b2b")
+        btn_frame.pack(pady=(10, 15))
+
+        rollback_btn = ttk.Button(btn_frame, text="Rollback", state="disabled", width=12)
+        rollback_btn.pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Cancel", command=dialog.destroy, width=10).pack(side="left", padx=5)
+
+        # Store versions data for selection
+        versions_data = []
+
+        def on_versions_loaded(versions):
+            if not versions:
+                listbox.insert(tk.END, "No other versions available")
+                return
+
+            versions_data.clear()
+            versions_data.extend(versions)
+            listbox.delete(0, tk.END)
+            for version, _ in versions:
+                listbox.insert(tk.END, f"  v{version}")
+            rollback_btn.config(state="normal")
+
+        def on_select_and_rollback():
+            selection = listbox.curselection()
+            if not selection:
+                messagebox.showwarning("No Selection", "Please select a version to rollback to.", parent=dialog)
+                return
+
+            version, assets = versions_data[selection[0]]
+            confirmed = messagebox.askyesno(
+                "Confirm Rollback",
+                f"Are you sure you want to rollback to v{version}?\n\n"
+                "Your settings and downloaded videos will be preserved.\n"
+                "The app will close and restart on the selected version.",
+                parent=dialog
+            )
+            if not confirmed:
+                return
+
+            asset_url = get_asset_download_url(assets, version)
+            if not asset_url:
+                messagebox.showerror("Rollback Failed", "No download available for this version on your platform.", parent=dialog)
+                return
+
+            dialog.destroy()
+            self.destroy()
+
+            # Trigger the rollback via the parent GUI's update mechanism
+            parent = self.master
+            if hasattr(parent, '_start_update'):
+                parent._pending_update = None
+                parent._start_update(version, "", assets)
+
+        rollback_btn.config(command=on_select_and_rollback)
+
+        # Load versions in background
+        def load_versions():
+            versions = get_available_versions()
+            dialog.after(0, lambda: on_versions_loaded(versions))
+
+        threading.Thread(target=load_versions, daemon=True).start()
