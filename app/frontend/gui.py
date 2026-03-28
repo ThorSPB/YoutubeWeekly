@@ -19,7 +19,7 @@ from app.frontend.help_window import HelpWindow
 from app.frontend.player_utils import play_video
 from app.backend.auto_downloader import run_automatic_checks
 from app.backend.updater import check_for_updates, get_asset_download_url, get_platform_asset_name, download_update
-from app.backend.config import get_base_path, UPDATE_DIR
+from app.backend.config import get_base_path, UPDATE_DIR, __version__
 from app.backend.startup_manager import is_in_startup, add_to_startup, remove_from_startup
 from app.backend.logger import setup_logger
 
@@ -45,8 +45,8 @@ class YoutubeWeeklyGUI(tk.Tk):
         log_folder = self.settings.get("log_folder", "data/logs")
         setup_logger(log_folder)
 
-        # Clean up any leftover update artifacts
-        self._cleanup_update_artifacts()
+        # Clean up any leftover update artifacts and detect post-update
+        self._just_updated = self._cleanup_update_artifacts()
 
         # Synchronize startup setting with Windows Registry
         app_should_start_with_system = self.settings.get("start_with_system", False)
@@ -129,7 +129,10 @@ class YoutubeWeeklyGUI(tk.Tk):
 
         # Status label with wrapping - fixed height to prevent layout shifts
         self.status_var = tk.StringVar()
-        self.status_var.set("Ready to download weekly videos, or any custom videos. Select quality and date, then click Download.")  # Placeholder message
+        if self._just_updated:
+            self.status_var.set(f"Update complete! Now running v{__version__}.")
+        else:
+            self.status_var.set("Ready to download weekly videos, or any custom videos. Select quality and date, then click Download.")
         self.status_label = tk.Label(
             self,
             textvariable=self.status_var,
@@ -257,7 +260,6 @@ class YoutubeWeeklyGUI(tk.Tk):
         bottom_frame.pack(pady=(5, 15), padx=20, fill="x")
 
         # Version label (bottom left)
-        from app.backend.config import __version__
         tk.Label(
             bottom_frame, text=f"v{__version__}",
             fg="#666666", bg="#2b2b2b", font=("Segoe UI", 8)
@@ -266,8 +268,8 @@ class YoutubeWeeklyGUI(tk.Tk):
         # Help button (bottom right)
         ttk.Button(bottom_frame, text="?", command=self.open_help, width=3).pack(side="right")
 
-        # Quit button (center-right)
-        ttk.Button(bottom_frame, text="Quit", command=self.on_closing, width=10).pack(side="right", padx=(0, 10))
+        # Quit button (centered)
+        ttk.Button(bottom_frame, text="Quit", command=self.on_closing, width=10).pack(expand=True)
 
         self.resizable(False, False)
         self.bind("<Configure>", self._on_resize)
@@ -288,6 +290,73 @@ class YoutubeWeeklyGUI(tk.Tk):
 
         # Check for updates in a separate thread
         threading.Thread(target=self._check_for_updates_thread, daemon=True).start()
+
+        # Show changelog after an update
+        if self._just_updated:
+            self.after(500, self._show_changelog)
+
+    def _show_changelog(self):
+        """Show the changelog for the current version after an update."""
+        changelog_path = resource_path("docs/CHANGELOG.md") if not getattr(sys, 'frozen', False) else None
+
+        # Try multiple paths for the changelog
+        candidates = [
+            os.path.join(get_base_path(), "CHANGELOG.md"),
+            os.path.join(get_base_path(), "_internal", "docs", "CHANGELOG.md"),
+        ]
+        if changelog_path:
+            candidates.insert(0, changelog_path)
+
+        content = None
+        for path in candidates:
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                break
+
+        if not content:
+            return
+
+        # Extract just the current version's section
+        lines = content.split("\n")
+        section_lines = []
+        found_current = False
+        for line in lines:
+            if line.startswith("## ") and f"v{__version__}" in line:
+                found_current = True
+                section_lines.append(line)
+            elif line.startswith("## ") and found_current:
+                break
+            elif found_current:
+                section_lines.append(line)
+
+        if not section_lines:
+            section_lines = [f"## v{__version__}", "", "Updated to the latest version."]
+
+        # Show in a simple dialog
+        dialog = tk.Toplevel(self)
+        dialog.title(f"What's New in v{__version__}")
+        dialog.configure(bg="#2b2b2b")
+        dialog.geometry("450x300")
+        dialog.resizable(False, False)
+        dialog.transient(self)
+
+        dialog.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() - 450) // 2
+        y = self.winfo_y() + (self.winfo_height() - 300) // 2
+        dialog.geometry(f"+{x}+{y}")
+
+        from tkinter import scrolledtext
+        text = scrolledtext.ScrolledText(
+            dialog, wrap="word", bg="#2b2b2b", fg="white",
+            font=("Segoe UI", 10), borderwidth=0, highlightthickness=0,
+            padx=15, pady=10
+        )
+        text.pack(fill="both", expand=True)
+        text.insert("1.0", "\n".join(section_lines))
+        text.config(state="disabled")
+
+        ttk.Button(dialog, text="Got it!", command=dialog.destroy, width=10).pack(pady=(5, 15))
 
     def center_window(self):
         self.update_idletasks()
@@ -769,7 +838,12 @@ class YoutubeWeeklyGUI(tk.Tk):
             
             self.after(0, handle_finished)
     def _cleanup_update_artifacts(self):
-        """Remove leftover .bak files and old update ZIPs."""
+        """Remove leftover .bak/.old files and old update ZIPs.
+
+        Returns True if the app was just updated (marker file found).
+        """
+        just_updated = False
+
         def _try_delete(path):
             try:
                 if os.path.isdir(path):
@@ -781,6 +855,10 @@ class YoutubeWeeklyGUI(tk.Tk):
 
         if getattr(sys, 'frozen', False):
             base = get_base_path()
+            marker = os.path.join(base, ".updated")
+            if os.path.exists(marker):
+                just_updated = True
+                _try_delete(marker)
             if os.path.exists(base):
                 for item in os.listdir(base):
                     if item.endswith('.bak') or item.endswith('.old'):
@@ -789,6 +867,8 @@ class YoutubeWeeklyGUI(tk.Tk):
         if os.path.exists(UPDATE_DIR):
             for item in os.listdir(UPDATE_DIR):
                 _try_delete(os.path.join(UPDATE_DIR, item))
+
+        return just_updated
 
     def _get_bootstrap_path(self):
         """Return path to the update bootstrap executable."""
