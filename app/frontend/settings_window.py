@@ -145,9 +145,19 @@ class SettingsWindow(tk.Toplevel):
         self.check_for_updates_var.trace_add("write", lambda *_: self._update_auto_install_state())
         ttk.Checkbutton(general_frame, text="Check for updates on startup", variable=self.check_for_updates_var, style="Dark.TCheckbutton").pack(anchor="w", pady=5, padx=10)
 
+        # Auto-install with visual tree indicator showing dependency
+        auto_install_frame = ttk.Frame(general_frame, style="Dark.TFrame")
+        auto_install_frame.pack(anchor="w", pady=(0, 5), padx=10)
+        self.auto_install_tree_label = tk.Label(
+            auto_install_frame, text="  └ ", fg="#666666", bg="#2b2b2b", font=("Consolas", 10)
+        )
+        self.auto_install_tree_label.pack(side="left")
         self.auto_install_updates_var = tk.BooleanVar(value=self.settings.get("auto_install_updates", False))
-        self.auto_install_check = ttk.Checkbutton(general_frame, text="Auto-install updates on startup (when minimized)", variable=self.auto_install_updates_var, style="Dark.TCheckbutton")
-        self.auto_install_check.pack(anchor="w", pady=5, padx=10)
+        self.auto_install_check = ttk.Checkbutton(
+            auto_install_frame, text="Auto-install updates (when minimized to tray)",
+            variable=self.auto_install_updates_var, style="Dark.TCheckbutton"
+        )
+        self.auto_install_check.pack(side="left")
         self._update_auto_install_state()
 
         # === Player Tab ===
@@ -244,7 +254,9 @@ class SettingsWindow(tk.Toplevel):
     def _update_auto_install_state(self):
         """Grey out auto-install checkbox when its dependencies are disabled."""
         can_auto_install = self.start_with_system_var.get() and self.check_for_updates_var.get()
-        self.auto_install_check.config(state="normal" if can_auto_install else "disabled")
+        state = "normal" if can_auto_install else "disabled"
+        self.auto_install_check.config(state=state)
+        self.auto_install_tree_label.config(fg="#666666" if can_auto_install else "#444444")
         if not can_auto_install:
             self.auto_install_updates_var.set(False)
 
