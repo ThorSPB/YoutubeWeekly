@@ -12,8 +12,9 @@ _settings_lock = threading.Lock()
 
 
 def load_protected_videos():
-    with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f).get("protected_videos", {})
+    with _settings_lock:
+        with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f).get("protected_videos", {})
 
 def add_protected_video(channel_folder, title):
     with _settings_lock:
