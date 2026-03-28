@@ -17,5 +17,6 @@
   "file_viewer_ScoalaDeSabat_geometry": "352x329+1222+405",
   "file_viewer_Departamentul Ispr\u0103vnicie_geometry": "352x329+1223+406",
   "start_with_system": true,
+  "auto_install_updates": false,
   "last_sabbath_checked": "2025-08-16"
 }

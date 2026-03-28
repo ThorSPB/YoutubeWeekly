@@ -146,6 +146,11 @@ class SettingsWindow(tk.Toplevel):
         start_with_system_check = ttk.Checkbutton(main_frame, text="Start with System (minimized to tray)", variable=self.start_with_system_var, style="Dark.TCheckbutton")
         start_with_system_check.pack(anchor="w", pady=5)
 
+        # Auto-install updates setting
+        self.auto_install_updates_var = tk.BooleanVar(value=self.settings.get("auto_install_updates", False))
+        auto_updates_check = ttk.Checkbutton(main_frame, text="Auto-install updates on startup (when minimized to tray)", variable=self.auto_install_updates_var, style="Dark.TCheckbutton")
+        auto_updates_check.pack(anchor="w", pady=5)
+
         # MPV Player setting
         self.use_mpv_var = tk.BooleanVar(value=self.settings.get("use_mpv", False))
         mpv_check = ttk.Checkbutton(main_frame, text="Use MPV Player", variable=self.use_mpv_var, command=self.toggle_mpv_path_entry, style="Dark.TCheckbutton")
@@ -289,6 +294,7 @@ class SettingsWindow(tk.Toplevel):
                 remove_from_startup()
         
         self.settings["start_with_system"] = new_startup_value
+        self.settings["auto_install_updates"] = self.auto_install_updates_var.get()
         self.settings["use_mpv"] = self.use_mpv_var.get()
         self.settings["mpv_path"] = self.mpv_path_var.get()
         self.settings["ffmpeg_path"] = self.ffmpeg_path_var.get()
@@ -323,6 +329,7 @@ class SettingsWindow(tk.Toplevel):
         self.quality_var.set(self.settings.get("default_quality", "1080p"))
         self.enable_auto_download_var.set(self.settings.get("enable_auto_download", False))
         self.enable_notifications_var.set(self.settings.get("enable_notifications", True))
+        self.auto_install_updates_var.set(self.settings.get("auto_install_updates", False))
         self.use_mpv_var.set(self.settings.get("use_mpv", False))
         self.mpv_path_var.set(self.settings.get("mpv_path", ""))
         self.mpv_fullscreen_var.set(self.settings.get("mpv_fullscreen", False))

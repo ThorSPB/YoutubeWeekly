@@ -68,6 +68,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.last_progress_value = 0
         self.downloading_channels = set()
         self.tray_icon = None
+        self._pending_update = None  # (version, url, assets) if update available
 
         # Initialize and run tray icon from the start
         image = Image.open(resource_path("assets/icon4.ico"))
@@ -259,11 +260,12 @@ class YoutubeWeeklyGUI(tk.Tk):
         bottom_frame = ttk.Frame(self, style="Dark.TFrame")
         bottom_frame.pack(pady=(5, 15), padx=20, fill="x")
 
-        # Version label (bottom left)
+        # Version label + update check button (bottom left)
         tk.Label(
             bottom_frame, text=f"v{__version__}",
             fg="#666666", bg="#2b2b2b", font=("Segoe UI", 8)
         ).pack(side="left")
+        ttk.Button(bottom_frame, text="\u21bb", command=self._check_for_updates_manual, width=2).pack(side="left", padx=(2, 0))
 
         # Help button (bottom right)
         ttk.Button(bottom_frame, text="?", command=self.open_help, width=3).pack(side="right")
@@ -388,13 +390,17 @@ class YoutubeWeeklyGUI(tk.Tk):
         # Tray icon is now initialized in __init__ and runs continuously
 
     def show_window(self):
-        # if hasattr(self, 'tray_icon') and self.tray_icon and self.tray_icon.visible:
-        #     self.tray_icon.stop() # Removed to keep icon in tray
         self.deiconify()
         self.lift()
         self.attributes('-topmost', True)
         self.after_idle(self.attributes, '-topmost', False)
         self.focus_force()
+
+        # If there's a pending update, show the dialog
+        if self._pending_update:
+            version, url, assets = self._pending_update
+            self._pending_update = None
+            self.after(300, lambda: self._show_update_dialog(version, url, assets))
 
     def show_from_tray(self, icon=None, item=None):
         self.bring_to_foreground()
@@ -882,8 +888,33 @@ class YoutubeWeeklyGUI(tk.Tk):
         if not is_new_version:
             return
 
-        # Schedule the update dialog on the main thread
-        self.after(0, lambda: self._show_update_dialog(latest_version, download_url, assets))
+        self._pending_update = (latest_version, download_url, assets)
+        is_minimized = "--start-minimized" in sys.argv
+        auto_install = self.settings.get("auto_install_updates", False)
+
+        if auto_install and is_minimized:
+            # Silent auto-update: download and install without user interaction
+            self._send_notification("Update Detected", f"Installing v{latest_version} automatically...")
+            self.after(0, lambda: self._start_update(latest_version, download_url, assets, silent=True))
+        elif is_minimized:
+            # Minimized but not auto-install: notify, show dialog when user opens GUI
+            self._send_notification("Update Available", f"Version {latest_version} is available. Open the app to update.")
+        else:
+            # Normal launch: show dialog immediately
+            self.after(0, lambda: self._show_update_dialog(latest_version, download_url, assets))
+
+    def _check_for_updates_manual(self):
+        """Manually triggered update check (from refresh button)."""
+        self._set_status("Checking for updates...")
+        threading.Thread(target=self._manual_update_check_thread, daemon=True).start()
+
+    def _manual_update_check_thread(self):
+        is_new_version, latest_version, download_url, assets = check_for_updates()
+        if is_new_version:
+            self._pending_update = (latest_version, download_url, assets)
+            self.after(0, lambda: self._show_update_dialog(latest_version, download_url, assets))
+        else:
+            self.after(0, lambda: self._set_status("You're running the latest version."))
 
     def _show_update_dialog(self, version, release_url, assets):
         """Show a dark-themed update dialog."""
@@ -921,7 +952,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         ttk.Button(btn_frame, text="Update Now", command=on_update, width=14).pack(side="left", padx=5)
         ttk.Button(btn_frame, text="Later", command=dialog.destroy, width=10).pack(side="left", padx=5)
 
-    def _start_update(self, version, release_url, assets):
+    def _start_update(self, version, release_url, assets, silent=False):
         """Begin the update process: download ZIP and launch bootstrap."""
         # Check if bootstrap exists (v1.0.4 won't have it)
         bootstrap_path = self._get_bootstrap_path()
@@ -962,45 +993,57 @@ class YoutubeWeeklyGUI(tk.Tk):
             return
 
         # Download in background thread
-        self._set_status(f"Downloading update v{version}...")
+        if not silent:
+            self._set_status(f"Downloading update v{version}...")
         threading.Thread(
             target=self._download_and_apply_update,
-            args=(asset_url, version, bootstrap_path),
+            args=(asset_url, version, bootstrap_path, silent),
             daemon=True
         ).start()
 
-    def _download_and_apply_update(self, asset_url, version, bootstrap_path):
+    def _download_and_apply_update(self, asset_url, version, bootstrap_path, silent=False):
         """Download the update ZIP and launch the bootstrap."""
         zip_name = get_platform_asset_name(version)
         zip_path = os.path.join(UPDATE_DIR, zip_name)
 
         def on_progress(percent):
-            def update():
-                self.progress_bar.configure(style="Thin.Horizontal.TProgressbar")
-                self.progress_bar.configure(value=percent)
-                self._set_status(f"Downloading update... {percent:.0f}%")
-            self.after(0, update)
+            if not silent:
+                def update():
+                    self.progress_bar.configure(style="Thin.Horizontal.TProgressbar")
+                    self.progress_bar.configure(value=percent)
+                    self._set_status(f"Downloading update... {percent:.0f}%")
+                self.after(0, update)
 
         try:
             download_update(asset_url, zip_path, progress_callback=on_progress)
         except Exception as e:
-            self.after(0, lambda: self._set_status(f"Update download failed: {e}"))
-            self.after(0, lambda: messagebox.showerror("Update Failed", f"Download failed:\n{e}"))
+            if silent:
+                self._send_notification("Update Failed", f"Auto-update download failed: {e}")
+            else:
+                self.after(0, lambda: self._set_status(f"Update download failed: {e}"))
+                self.after(0, lambda: messagebox.showerror("Update Failed", f"Download failed:\n{e}"))
             return
 
         # Launch bootstrap and exit
         base = get_base_path()
         exe_name = os.path.basename(sys.executable)
+        should_minimize = silent or "--start-minimized" in sys.argv
 
-        self.after(0, lambda: self._set_status("Installing update..."))
+        if not silent:
+            self.after(0, lambda: self._set_status("Installing update..."))
+
+        bootstrap_cmd = [bootstrap_path, "--zip", zip_path, "--target", base, "--exe", exe_name, "--pid", str(os.getpid())]
+        if should_minimize:
+            bootstrap_cmd.append("--minimized")
 
         try:
-            subprocess.Popen(
-                [bootstrap_path, "--zip", zip_path, "--target", base, "--exe", exe_name, "--pid", str(os.getpid())],
-                cwd=base
-            )
+            subprocess.Popen(bootstrap_cmd, cwd=base)
         except OSError as e:
-            self.after(0, lambda: messagebox.showerror("Update Failed", f"Could not launch updater:\n{e}"))
+            if silent:
+                self._send_notification("Update Failed", f"Could not launch updater: {e}")
+            else:
+                self.after(0, lambda: self._set_status(f"Could not launch updater: {e}"))
+                self.after(0, lambda: messagebox.showerror("Update Failed", f"Could not launch updater:\n{e}"))
             return
 
         # Exit the app — bootstrap will take over
