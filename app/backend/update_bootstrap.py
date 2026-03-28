@@ -202,6 +202,14 @@ def main():
     except OSError:
         pass
 
+    # Leave a marker so the app knows it was just updated
+    try:
+        marker = os.path.join(target_dir, ".updated")
+        with open(marker, "w") as f:
+            f.write("ok")
+    except OSError:
+        pass
+
     # Step 7: Launch new version
     try:
         if sys.platform == "win32":
