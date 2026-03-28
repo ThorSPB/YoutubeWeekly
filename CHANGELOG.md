@@ -1,8 +1,14 @@
 # Changelog
 
 ## v1.1.3
-- **Version Rollback**: Roll back to any previous version from Settings — your data and settings are preserved
-- Accessible via Settings → Rollback button
+- **Version Rollback**: Roll back to any previous version from Settings → Advanced → Rollback
+- **Auto-Install Updates**: New setting to automatically install updates on startup (no popup, just updates)
+- **Disable Update Checks**: New setting to turn off automatic update checking
+- **Tabbed Settings**: Settings window reorganized into General, Player, and Advanced tabs
+- **Changelog Formatting**: Post-update changelog popup now renders markdown properly
+- **Dev Version Label**: Shows "vdev" when running from source instead of stale version number
+- **Dependent Settings**: Auto-install greys out when update checking is disabled
+- **Refresh Button**: Update check button (↻) moved to left of version label
 
 ## v1.1.2
 - **Silent Auto-Updates**: New setting to automatically install updates on startup (when running in system tray)
