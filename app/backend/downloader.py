@@ -147,6 +147,8 @@ def find_video_url(channel_url, expected_date, date_format="%d.%m.%Y"):
                             reason.append(f"date is off by {abs(offset)} day ({'before' if offset < 0 else 'after'} Sabbath)")
                         if variant in normalized_title and variant not in title_lower:
                             reason.append("delimiter mismatch in date format")
+                        if offset == 0 and variant not in exact_parts and not reason:
+                            reason.append("non-standard date format")
                         if reason:
                             best_fuzzy = (url, {
                                 "type": "fuzzy",
