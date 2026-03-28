@@ -3,6 +3,10 @@ import os
 import platform
 import sys
 import shutil
+import threading
+
+# Lock for thread-safe access to SETTINGS_FILE
+settings_lock = threading.Lock()
 
 __version__ = "1.0.4"
 
@@ -93,11 +97,12 @@ def get_default_executable_paths():
     return {"mpv_path": mpv_path, "ffmpeg_path": ffmpeg_path}, warnings
 
 def load_settings():
-    try:
-        with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
-            settings = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        settings = {}
+    with settings_lock:
+        try:
+            with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
+                settings = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            settings = {}
 
     default_paths, warnings = get_default_executable_paths()
 
@@ -123,8 +128,9 @@ def load_channels():
         return json.load(f)
 
 def save_settings(settings):
-    with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(settings, f, indent=2)
+    with settings_lock:
+        with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(settings, f, indent=2)
 
 def load_default_settings():
     if getattr(sys, 'frozen', False):

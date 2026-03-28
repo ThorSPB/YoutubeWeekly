@@ -1,23 +1,20 @@
 import os
 import json
 import time
-import threading
 import yt_dlp
 import logging
 from datetime import datetime, timedelta
-from app.backend.config import load_settings, SETTINGS_FILE
+from app.backend.config import load_settings, SETTINGS_FILE, settings_lock
 from tkinter import messagebox
-
-_settings_lock = threading.Lock()
 
 
 def load_protected_videos():
-    with _settings_lock:
+    with settings_lock:
         with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
             return json.load(f).get("protected_videos", {})
 
 def add_protected_video(channel_folder, title):
-    with _settings_lock:
+    with settings_lock:
         with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
             settings = json.load(f)
         protected = settings.setdefault("protected_videos", {})
