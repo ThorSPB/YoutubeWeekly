@@ -12,6 +12,7 @@ from app.backend.updater import (
 
 # --- check_for_updates tests ---
 
+@patch("app.backend.updater.__version__", "1.0.0")
 @patch("app.backend.updater.requests.get")
 def test_check_for_updates_new_version(mock_get):
     mock_response = MagicMock()
@@ -63,6 +64,7 @@ def test_check_for_updates_malformed_response(mock_get):
     assert is_new is False
 
 
+@patch("app.backend.updater.__version__", "1.0.0")
 @patch("app.backend.updater.requests.get")
 def test_check_for_updates_version_prefix_stripping(mock_get):
     mock_response = MagicMock()
