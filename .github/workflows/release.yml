@@ -215,13 +215,26 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Inject version
+        run: |
+          $version = "${{ needs.create-release.outputs.version }}"
+          (Get-Content app/backend/config.py) -replace '__version__ = ".*"', "__version__ = `"$version`"" | Set-Content app/backend/config.py
+
       - name: Run tests
         run: |
           python -m pytest --ignore=tests/test_gui.py --ignore=tests/test_player_logic.py --tb=short -q
 
+      - name: Build update bootstrap
+        run: |
+          python -m PyInstaller update_bootstrap.spec --noconfirm
+
       - name: Build with PyInstaller
         run: |
           python -m PyInstaller youtubeweekly.spec --noconfirm
+
+      - name: Copy bootstrap to dist
+        run: |
+          Copy-Item ./dist/update_bootstrap.exe ./dist/YoutubeWeekly/
 
       - name: Create ZIP
         run: |
@@ -269,13 +282,25 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Inject version
+        run: |
+          sed -i '' "s/__version__ = \".*\"/__version__ = \"${{ needs.create-release.outputs.version }}\"/" app/backend/config.py
+
       - name: Run tests
         run: |
           python -m pytest --ignore=tests/test_gui.py --ignore=tests/test_player_logic.py --tb=short -q
 
+      - name: Build update bootstrap
+        run: |
+          python -m PyInstaller update_bootstrap.spec --noconfirm
+
       - name: Build with PyInstaller
         run: |
           python -m PyInstaller youtubeweekly.spec --noconfirm
+
+      - name: Copy bootstrap to dist
+        run: |
+          cp dist/update_bootstrap dist/YoutubeWeekly/
 
       - name: Create ZIP
         run: |
@@ -325,13 +350,25 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Inject version
+        run: |
+          sed -i '' "s/__version__ = \".*\"/__version__ = \"${{ needs.create-release.outputs.version }}\"/" app/backend/config.py
+
       - name: Run tests
         run: |
           python -m pytest --ignore=tests/test_gui.py --ignore=tests/test_player_logic.py --tb=short -q
 
+      - name: Build update bootstrap
+        run: |
+          python -m PyInstaller update_bootstrap.spec --noconfirm
+
       - name: Build with PyInstaller
         run: |
           python -m PyInstaller youtubeweekly.spec --noconfirm
+
+      - name: Copy bootstrap to dist
+        run: |
+          cp dist/update_bootstrap dist/YoutubeWeekly/
 
       - name: Create ZIP
         run: |
@@ -379,13 +416,25 @@ jobs:
           tar -xf ffmpeg-linux.tar.xz --strip-components=1 -C app/tools/ffmpeg_linux/ffmpeg-7.0.2-amd64-static
           chmod +x app/tools/ffmpeg_linux/ffmpeg-7.0.2-amd64-static/ffmpeg
 
+      - name: Inject version
+        run: |
+          sed -i "s/__version__ = \".*\"/__version__ = \"${{ needs.create-release.outputs.version }}\"/" app/backend/config.py
+
       - name: Run tests
         run: |
           python -m pytest --ignore=tests/test_gui.py --ignore=tests/test_player_logic.py --tb=short -q
 
+      - name: Build update bootstrap
+        run: |
+          python -m PyInstaller update_bootstrap.spec --noconfirm
+
       - name: Build with PyInstaller
         run: |
           python -m PyInstaller youtubeweekly.spec --noconfirm
+
+      - name: Copy bootstrap to dist
+        run: |
+          cp dist/update_bootstrap dist/YoutubeWeekly/
 
       - name: Create ZIP
         run: |

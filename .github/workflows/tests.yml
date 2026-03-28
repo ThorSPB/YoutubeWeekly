@@ -8,10 +8,16 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.12"]
+        include:
+          - os: ubuntu-latest
+            python-version: "3.11"
+          - os: ubuntu-latest
+            python-version: "3.13"
 
     steps:
       - uses: actions/checkout@v4
@@ -37,3 +43,4 @@ jobs:
           python scripts/dry_run_auto_download.py --day wednesday
           python scripts/dry_run_config.py
           python scripts/dry_run_startup.py
+          python scripts/dry_run_update.py

@@ -1,6 +1,8 @@
 import os
 import sys
+import shutil
 import threading
+import webbrowser
 import tkinter as tk
 from tkinter import ttk, messagebox
 import subprocess
@@ -16,7 +18,8 @@ from app.frontend.file_viewer import FileViewer
 from app.frontend.help_window import HelpWindow
 from app.frontend.player_utils import play_video
 from app.backend.auto_downloader import run_automatic_checks
-from app.backend.updater import check_for_updates
+from app.backend.updater import check_for_updates, get_asset_download_url, get_platform_asset_name, download_update
+from app.backend.config import get_base_path, UPDATE_DIR
 from app.backend.startup_manager import is_in_startup, add_to_startup, remove_from_startup
 from app.backend.logger import setup_logger
 
@@ -41,6 +44,9 @@ class YoutubeWeeklyGUI(tk.Tk):
         # Initialize logging
         log_folder = self.settings.get("log_folder", "data/logs")
         setup_logger(log_folder)
+
+        # Clean up any leftover update artifacts
+        self._cleanup_update_artifacts()
 
         # Synchronize startup setting with Windows Registry
         app_should_start_with_system = self.settings.get("start_with_system", False)
@@ -733,13 +739,163 @@ class YoutubeWeeklyGUI(tk.Tk):
                     self.last_progress_value = 0
             
             self.after(0, handle_finished)
+    def _cleanup_update_artifacts(self):
+        """Remove leftover .bak files and old update ZIPs."""
+        def _try_delete(path):
+            try:
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
+                else:
+                    os.remove(path)
+            except OSError:
+                pass
+
+        if getattr(sys, 'frozen', False):
+            base = get_base_path()
+            if os.path.exists(base):
+                for item in os.listdir(base):
+                    if item.endswith('.bak'):
+                        _try_delete(os.path.join(base, item))
+
+        if os.path.exists(UPDATE_DIR):
+            for item in os.listdir(UPDATE_DIR):
+                _try_delete(os.path.join(UPDATE_DIR, item))
+
+    def _get_bootstrap_path(self):
+        """Return path to the update bootstrap executable."""
+        base = get_base_path()
+        if sys.platform == "win32":
+            return os.path.join(base, "update_bootstrap.exe")
+        return os.path.join(base, "update_bootstrap")
+
     def _check_for_updates_thread(self):
-        is_new_version, latest_version, download_url = check_for_updates()
-        if is_new_version:
+        is_new_version, latest_version, download_url, assets = check_for_updates()
+        if not is_new_version:
+            return
+
+        # Schedule the update dialog on the main thread
+        self.after(0, lambda: self._show_update_dialog(latest_version, download_url, assets))
+
+    def _show_update_dialog(self, version, release_url, assets):
+        """Show a dark-themed update dialog."""
+        dialog = tk.Toplevel(self)
+        dialog.title("Update Available")
+        dialog.configure(bg="#2b2b2b")
+        dialog.geometry("400x160")
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.grab_set()
+
+        # Center on parent
+        dialog.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() - 400) // 2
+        y = self.winfo_y() + (self.winfo_height() - 160) // 2
+        dialog.geometry(f"+{x}+{y}")
+
+        tk.Label(
+            dialog, text=f"Version {version} is available!",
+            fg="white", bg="#2b2b2b", font=("Segoe UI", 12, "bold")
+        ).pack(pady=(20, 5))
+
+        tk.Label(
+            dialog, text="Would you like to update now?",
+            fg="#cccccc", bg="#2b2b2b", font=("Segoe UI", 10)
+        ).pack(pady=(0, 20))
+
+        btn_frame = tk.Frame(dialog, bg="#2b2b2b")
+        btn_frame.pack()
+
+        def on_update():
+            dialog.destroy()
+            self._start_update(version, release_url, assets)
+
+        ttk.Button(btn_frame, text="Update Now", command=on_update, width=14).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Later", command=dialog.destroy, width=10).pack(side="left", padx=5)
+
+    def _start_update(self, version, release_url, assets):
+        """Begin the update process: download ZIP and launch bootstrap."""
+        # Check if bootstrap exists (v1.0.4 won't have it)
+        bootstrap_path = self._get_bootstrap_path()
+        if not getattr(sys, 'frozen', False) or not os.path.exists(bootstrap_path):
+            webbrowser.open(release_url)
             messagebox.showinfo(
-                "Update Available",
-                f"A new version ({latest_version}) is available!\n\nDownload it from: {download_url}"
+                "Manual Update Required",
+                f"This is a one-time manual update to v{version}.\n\n"
+                "Download and extract the ZIP to replace your current installation.\n"
+                "Future updates will be automatic."
             )
+            return
+
+        # Check write permissions
+        base = get_base_path()
+        probe = os.path.join(base, ".update_probe")
+        try:
+            with open(probe, "w") as f:
+                f.write("test")
+            os.remove(probe)
+        except OSError:
+            messagebox.showerror(
+                "Update Failed",
+                f"Cannot write to the installation directory:\n{base}\n\n"
+                "Try running the app as administrator, or move it to a user-writable location."
+            )
+            return
+
+        # Find the asset download URL
+        asset_url = get_asset_download_url(assets, version)
+        if not asset_url:
+            webbrowser.open(release_url)
+            messagebox.showinfo(
+                "Manual Download Required",
+                f"No matching download found for your platform.\n"
+                "Opening the release page in your browser."
+            )
+            return
+
+        # Download in background thread
+        self._set_status(f"Downloading update v{version}...")
+        threading.Thread(
+            target=self._download_and_apply_update,
+            args=(asset_url, version, bootstrap_path),
+            daemon=True
+        ).start()
+
+    def _download_and_apply_update(self, asset_url, version, bootstrap_path):
+        """Download the update ZIP and launch the bootstrap."""
+        zip_name = get_platform_asset_name(version)
+        zip_path = os.path.join(UPDATE_DIR, zip_name)
+
+        def on_progress(percent):
+            def update():
+                self.progress_bar.configure(style="Thin.Horizontal.TProgressbar")
+                self.progress_bar.configure(value=percent)
+                self._set_status(f"Downloading update... {percent:.0f}%")
+            self.after(0, update)
+
+        try:
+            download_update(asset_url, zip_path, progress_callback=on_progress)
+        except Exception as e:
+            self.after(0, lambda: self._set_status(f"Update download failed: {e}"))
+            self.after(0, lambda: messagebox.showerror("Update Failed", f"Download failed:\n{e}"))
+            return
+
+        # Launch bootstrap and exit
+        base = get_base_path()
+        exe_name = os.path.basename(sys.executable)
+
+        self.after(0, lambda: self._set_status("Installing update..."))
+
+        try:
+            subprocess.Popen(
+                [bootstrap_path, "--zip", zip_path, "--target", base, "--exe", exe_name, "--pid", str(os.getpid())],
+                cwd=base
+            )
+        except OSError as e:
+            self.after(0, lambda: messagebox.showerror("Update Failed", f"Could not launch updater:\n{e}"))
+            return
+
+        # Exit the app — bootstrap will take over
+        self.after(100, self.quit_application)
 
 if __name__ == "__main__":
     import socket
