@@ -115,18 +115,21 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False,
     os.makedirs(video_folder, exist_ok=True)
 
     # Determine format options based on quality_pref
-    if quality_pref == "1080p":
-        ydl_format = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]'
-        merge_format = 'mp4'
-    elif quality_pref == "720p":
-        ydl_format = 'bestvideo[height<=720]+bestaudio/best[height<=720]'
-        merge_format = 'mp4'
-    elif quality_pref == "480p":
-        ydl_format = 'bestvideo[height<=480]+bestaudio/best[height<=480]'
-        merge_format = 'mp4'
-    elif quality_pref == "mp3":
+    quality_formats = {
+        "max":   'bestvideo+bestaudio/best',
+        "4k":    'bestvideo[height<=2160]+bestaudio/best[height<=2160]',
+        "2k":    'bestvideo[height<=1440]+bestaudio/best[height<=1440]',
+        "1080p": 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
+        "720p":  'bestvideo[height<=720]+bestaudio/best[height<=720]',
+        "480p":  'bestvideo[height<=480]+bestaudio/best[height<=480]',
+    }
+
+    if quality_pref == "mp3":
         ydl_format = 'bestaudio/best'
         merge_format = 'mp3'
+    elif quality_pref in quality_formats:
+        ydl_format = quality_formats[quality_pref]
+        merge_format = 'mp4'
     else:
         ydl_format = 'bestvideo+bestaudio/best'
         merge_format = 'mp4'

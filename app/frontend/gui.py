@@ -60,7 +60,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         if self.startup_warnings:
             messagebox.showwarning("Configuration Warnings", "\n".join(self.startup_warnings))
 
-        self.quality_options = ["1080p", "720p", "480p", "mp3"]
+        self.quality_options = ["max", "4k", "2k", "1080p", "720p", "480p", "mp3"]
         self.channel_quality_vars = {}
         self.channel_date_vars = {}
         self.open_file_viewers = {}
