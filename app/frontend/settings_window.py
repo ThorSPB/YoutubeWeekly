@@ -138,13 +138,17 @@ class SettingsWindow(tk.Toplevel):
         actual_startup_enabled = is_in_startup()
         self.settings["start_with_system"] = actual_startup_enabled
         self.start_with_system_var = tk.BooleanVar(value=actual_startup_enabled)
+        self.start_with_system_var.trace_add("write", lambda *_: self._update_auto_install_state())
         ttk.Checkbutton(general_frame, text="Start with System (minimized to tray)", variable=self.start_with_system_var, style="Dark.TCheckbutton").pack(anchor="w", pady=5, padx=10)
 
         self.check_for_updates_var = tk.BooleanVar(value=self.settings.get("check_for_updates", True))
+        self.check_for_updates_var.trace_add("write", lambda *_: self._update_auto_install_state())
         ttk.Checkbutton(general_frame, text="Check for updates on startup", variable=self.check_for_updates_var, style="Dark.TCheckbutton").pack(anchor="w", pady=5, padx=10)
 
         self.auto_install_updates_var = tk.BooleanVar(value=self.settings.get("auto_install_updates", False))
-        ttk.Checkbutton(general_frame, text="Auto-install updates on startup (when minimized)", variable=self.auto_install_updates_var, style="Dark.TCheckbutton").pack(anchor="w", pady=5, padx=10)
+        self.auto_install_check = ttk.Checkbutton(general_frame, text="Auto-install updates on startup (when minimized)", variable=self.auto_install_updates_var, style="Dark.TCheckbutton")
+        self.auto_install_check.pack(anchor="w", pady=5, padx=10)
+        self._update_auto_install_state()
 
         # === Player Tab ===
         player_frame = ttk.Frame(notebook, style="Dark.TFrame")
@@ -236,6 +240,13 @@ class SettingsWindow(tk.Toplevel):
     def toggle_mpv_path_entry(self):
         state = "normal" if self.use_mpv_var.get() else "disabled"
         self.mpv_path_entry.config(state=state)
+
+    def _update_auto_install_state(self):
+        """Grey out auto-install checkbox when its dependencies are disabled."""
+        can_auto_install = self.start_with_system_var.get() and self.check_for_updates_var.get()
+        self.auto_install_check.config(state="normal" if can_auto_install else "disabled")
+        if not can_auto_install:
+            self.auto_install_updates_var.set(False)
 
     def load_window_position(self):
         geometry = self.settings.get("settings_window_geometry")
