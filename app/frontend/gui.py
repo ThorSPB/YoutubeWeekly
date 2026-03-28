@@ -1,6 +1,8 @@
 import os
 import sys
+import shutil
 import threading
+import webbrowser
 import tkinter as tk
 from tkinter import ttk, messagebox
 import subprocess
@@ -16,7 +18,7 @@ from app.frontend.file_viewer import FileViewer
 from app.frontend.help_window import HelpWindow
 from app.frontend.player_utils import play_video
 from app.backend.auto_downloader import run_automatic_checks
-from app.backend.updater import check_for_updates, get_asset_download_url, download_update
+from app.backend.updater import check_for_updates, get_asset_download_url, get_platform_asset_name, download_update
 from app.backend.config import get_base_path, UPDATE_DIR
 from app.backend.startup_manager import is_in_startup, add_to_startup, remove_from_startup
 from app.backend.logger import setup_logger
@@ -739,7 +741,6 @@ class YoutubeWeeklyGUI(tk.Tk):
             self.after(0, handle_finished)
     def _cleanup_update_artifacts(self):
         """Remove leftover .bak files and old update ZIPs."""
-        import shutil
         if getattr(sys, 'frozen', False):
             base = get_base_path()
             for item in os.listdir(base):
@@ -812,8 +813,6 @@ class YoutubeWeeklyGUI(tk.Tk):
 
     def _start_update(self, version, release_url, assets):
         """Begin the update process: download ZIP and launch bootstrap."""
-        import webbrowser
-
         # Check if bootstrap exists (v1.0.4 won't have it)
         bootstrap_path = self._get_bootstrap_path()
         if not getattr(sys, 'frozen', False) or not os.path.exists(bootstrap_path):
@@ -862,8 +861,6 @@ class YoutubeWeeklyGUI(tk.Tk):
 
     def _download_and_apply_update(self, asset_url, version, bootstrap_path):
         """Download the update ZIP and launch the bootstrap."""
-        from app.backend.updater import get_platform_asset_name
-
         zip_name = get_platform_asset_name(version)
         zip_path = os.path.join(UPDATE_DIR, zip_name)
 

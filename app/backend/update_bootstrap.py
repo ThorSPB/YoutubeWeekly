@@ -20,11 +20,14 @@ import zipfile
 def wait_for_process_exit(pid, timeout=30):
     """Wait for a process to exit, polling every 0.5s."""
     start = time.time()
+
+    if sys.platform == "win32":
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+
     while time.time() - start < timeout:
         try:
             if sys.platform == "win32":
-                import ctypes
-                kernel32 = ctypes.windll.kernel32
                 handle = kernel32.OpenProcess(0x100000, False, pid)  # SYNCHRONIZE
                 if handle:
                     kernel32.CloseHandle(handle)
@@ -71,8 +74,8 @@ def restore_backup(backed_up):
                 else:
                     os.remove(orig_path)
             os.rename(bak_path, orig_path)
-        except OSError:
-            pass  # Best effort
+        except OSError as e:
+            print(f"CRITICAL: Failed to restore backup {bak_path} -> {orig_path}: {e}", file=sys.stderr)
 
 
 def cleanup_backup(backed_up):
