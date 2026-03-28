@@ -18,7 +18,7 @@ def test_download_video_invalid_url(mock_yt_dlp, caplog):
     mock_ydl_instance.download.side_effect = Exception("Invalid URL")
 
     download_video("invalid_url", "data/videos")
-    assert any("Download failed" in record.message for record in caplog.records)
+    assert any("An unexpected error occurred during download" in record.message for record in caplog.records)
 
 @patch("app.backend.downloader.yt_dlp.YoutubeDL")
 def test_download_video_empty_folder(mock_yt_dlp, caplog):

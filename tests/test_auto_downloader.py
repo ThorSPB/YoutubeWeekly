@@ -118,13 +118,14 @@ def test_run_automatic_checks_friday_new_sabbath(mock_download_video, mock_find_
     save_settings_to_path(mock_settings_file, settings)
 
     mock_find_video_url.side_effect = ["http://video1.url", "http://video2.url"]
+    mock_download_video.return_value = None  # None means success
 
     run_automatic_checks(settings, mock_channels_data, mock_send_notification)
 
     # Assertions
     assert mock_find_video_url.call_count == len(mock_channels_data)
     assert mock_download_video.call_count == len(mock_channels_data)
-    assert mock_send_notification.call_count == len(mock_channels_data) * 2 # 1 checking, 1 downloaded per channel
+    assert mock_send_notification.call_count == 2  # 1 start + 1 summary
 
     updated_settings = load_settings_from_path(mock_settings_file)
     assert updated_settings["last_sabbath_checked"] == "2025-07-19"
@@ -159,13 +160,14 @@ def test_run_automatic_checks_saturday_partial_download(mock_download_video, moc
     save_auto_download_log(initial_log)
 
     mock_find_video_url.side_effect = ["http://video1.url", "http://video2.url"]
+    mock_download_video.return_value = None  # None means success
 
     run_automatic_checks(settings, mock_channels_data, mock_send_notification)
 
     # Assertions
     assert mock_find_video_url.call_count == len(mock_channels_data)
     assert mock_download_video.call_count == len(mock_channels_data)
-    assert mock_send_notification.call_count == len(mock_channels_data) * 2 # 1 checking, 1 downloaded per channel
+    assert mock_send_notification.call_count == 2  # 1 start + 1 summary
 
     updated_settings = load_settings_from_path(mock_settings_file)
     assert updated_settings["last_sabbath_checked"] == "2025-07-19"

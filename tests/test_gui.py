@@ -2,6 +2,12 @@ import pytest
 import os
 import sys
 from unittest.mock import patch, MagicMock, call
+
+# Mock pystray before importing gui to avoid Xlib dependency in headless environments
+if 'pystray' not in sys.modules:
+    sys.modules['pystray'] = MagicMock()
+    sys.modules['pystray._base'] = MagicMock()
+
 import tkinter as tk
 from app.frontend.gui import YoutubeWeeklyGUI
 
