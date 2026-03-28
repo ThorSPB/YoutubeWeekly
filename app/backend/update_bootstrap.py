@@ -149,12 +149,14 @@ def main():
     parser.add_argument("--target", required=True, help="Installation directory to update")
     parser.add_argument("--exe", required=True, help="Main executable name (e.g., YoutubeWeekly.exe)")
     parser.add_argument("--pid", required=True, type=int, help="PID of the main app to wait for")
+    parser.add_argument("--minimized", action="store_true", help="Launch new version minimized to tray")
     args = parser.parse_args()
 
     zip_path = args.zip
     target_dir = args.target
     exe_name = args.exe
     pid = args.pid
+    start_minimized = args.minimized
 
     # Step 1: Wait for main app to exit
     if not wait_for_process_exit(pid):
@@ -212,11 +214,14 @@ def main():
 
     # Step 7: Launch new version
     try:
+        launch_args = [new_exe]
+        if start_minimized:
+            launch_args.append("--start-minimized")
         if sys.platform == "win32":
-            subprocess.Popen([new_exe], cwd=target_dir)
+            subprocess.Popen(launch_args, cwd=target_dir)
         else:
             os.chmod(new_exe, 0o755)
-            subprocess.Popen([new_exe], cwd=target_dir)
+            subprocess.Popen(launch_args, cwd=target_dir)
     except OSError as e:
         show_error("Update Complete", f"Update installed successfully but failed to launch the app: {e}\n\nPlease start YoutubeWeekly manually.")
         sys.exit(1)
