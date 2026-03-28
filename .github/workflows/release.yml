@@ -1,0 +1,401 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'How to bump the version?'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - manual
+      manual_version:
+        description: 'Manual version (required if bump_type is manual)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  PYTHON_VERSION: '3.12'
+  APP_NAME: 'YoutubeWeekly'
+  BINARIES_TAG: 'v0.0.0-binaries'
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Calculate Next Version
+        id: get_version
+        run: |
+          REF="${{ github.ref }}"
+          EVENT="${{ github.event_name }}"
+
+          CREATE_TAG="false"
+          VERSION=""
+          PREVIOUS_TAG=""
+
+          if [[ "$REF" == "refs/tags/v"* ]]; then
+            echo "Triggered by tag push."
+            VERSION=${REF#refs/tags/v}
+            PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+            CREATE_TAG="false"
+          else
+            echo "Triggered by $EVENT on $REF"
+
+            BUMP_TYPE="none"
+
+            if [ "$EVENT" = "workflow_dispatch" ]; then
+              BUMP_TYPE="${{ inputs.bump_type }}"
+            elif [ "$EVENT" = "push" ]; then
+              COMMIT_MSG=$(cat << 'EOF'
+          ${{ github.event.head_commit.message }}
+          EOF
+          )
+              echo "Commit message: $COMMIT_MSG"
+
+              if [[ "$COMMIT_MSG" == *"[major]"* ]]; then
+                BUMP_TYPE="major"
+              elif [[ "$COMMIT_MSG" == *"[minor]"* ]]; then
+                BUMP_TYPE="minor"
+              elif [[ "$COMMIT_MSG" == *"[patch]"* ]]; then
+                BUMP_TYPE="patch"
+              fi
+            fi
+
+            echo "Bump Type: $BUMP_TYPE"
+
+            if [ "$BUMP_TYPE" != "none" ]; then
+              git fetch --tags
+              LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+              # Skip the binaries tag
+              if [ "$LATEST_TAG" = "${{ env.BINARIES_TAG }}" ]; then
+                LATEST_TAG=$(git tag -l 'v*.*.*' --sort=-v:refname | grep -v 'binaries' | head -n1 || echo "v0.0.0")
+              fi
+              PREVIOUS_TAG=$LATEST_TAG
+              echo "Latest tag: $LATEST_TAG"
+
+              if [ "$BUMP_TYPE" = "manual" ]; then
+                VERSION="${{ inputs.manual_version }}"
+              else
+                CLEAN_TAG=${LATEST_TAG#v}
+                IFS='.' read -r major minor patch <<< "$CLEAN_TAG"
+                major=${major:-0}
+                minor=${minor:-0}
+                patch=${patch:-0}
+
+                if [ "$BUMP_TYPE" = "major" ]; then
+                  major=$((major + 1)); minor=0; patch=0
+                elif [ "$BUMP_TYPE" = "minor" ]; then
+                  minor=$((minor + 1)); patch=0
+                else
+                  patch=$((patch + 1))
+                fi
+                VERSION="$major.$minor.$patch"
+              fi
+
+              CREATE_TAG="true"
+              echo "Calculated next version: $VERSION"
+            else
+              echo "No version bump detected. Skipping release creation."
+            fi
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "previous_tag=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+          echo "create_tag=$CREATE_TAG" >> $GITHUB_OUTPUT
+          echo "Final Version: $VERSION"
+
+      - name: Create and Push Tag
+        if: steps.get_version.outputs.create_tag == 'true' && steps.get_version.outputs.version != ''
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          TAG="v$VERSION"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          echo "Creating tag $TAG"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+      - name: Generate release notes
+        id: changelog
+        if: steps.get_version.outputs.version != ''
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          PREVIOUS_TAG="${{ steps.get_version.outputs.previous_tag }}"
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"- %s (%h)" HEAD)
+          else
+            COMMITS=$(git log --pretty=format:"- %s (%h)" $PREVIOUS_TAG..HEAD)
+          fi
+
+          REPO="${{ github.repository }}"
+          BASE_URL="https://github.com/$REPO/releases/download/v$VERSION"
+
+          echo "## 🚀 Download YoutubeWeekly v$VERSION" > release_body.md
+          echo "" >> release_body.md
+          echo "| Platform | Download |" >> release_body.md
+          echo "| :--- | :--- |" >> release_body.md
+          echo "| **Windows (x64)** | [Download ZIP]($BASE_URL/YoutubeWeekly-v$VERSION-win64.zip) |" >> release_body.md
+          echo "| **macOS (Apple Silicon)** | [Download ZIP]($BASE_URL/YoutubeWeekly-v$VERSION-macos-arm64.zip) |" >> release_body.md
+          echo "| **macOS (Intel)** | [Download ZIP]($BASE_URL/YoutubeWeekly-v$VERSION-macos-intel.zip) |" >> release_body.md
+          echo "| **Linux (x64)** | [Download ZIP]($BASE_URL/YoutubeWeekly-v$VERSION-linux-x64.zip) |" >> release_body.md
+          echo "" >> release_body.md
+          echo "---" >> release_body.md
+          echo "### 📝 What's New" >> release_body.md
+          echo "$COMMITS" >> release_body.md
+
+      - name: Create Release
+        id: create_release
+        if: steps.get_version.outputs.version != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: YoutubeWeekly v${{ steps.get_version.outputs.version }}
+          body_path: release_body.md
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows:
+    name: Build Windows
+    needs: create-release
+    if: needs.create-release.outputs.version != ''
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Download bundled mpv
+        run: |
+          gh release download ${{ env.BINARIES_TAG }} --pattern "player-win64.zip" --dir .
+          Expand-Archive -Path player-win64.zip -DestinationPath app/ -Force
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download bundled ffmpeg
+        run: |
+          gh release download ${{ env.BINARIES_TAG }} --pattern "ffmpeg-win64.zip" --dir .
+          Expand-Archive -Path ffmpeg-win64.zip -DestinationPath app/ -Force
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests
+        run: |
+          python -m pytest --ignore=tests/test_gui.py --ignore=tests/test_player_logic.py --tb=short -q
+
+      - name: Build with PyInstaller
+        run: |
+          python -m PyInstaller youtubeweekly.spec --noconfirm
+
+      - name: Create ZIP
+        run: |
+          Compress-Archive -Path ./dist/YoutubeWeekly/* -DestinationPath ./${{ env.APP_NAME }}-v${{ needs.create-release.outputs.version }}-win64.zip
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          files: ./${{ env.APP_NAME }}-v${{ needs.create-release.outputs.version }}-win64.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos-arm64:
+    name: Build macOS (Apple Silicon)
+    needs: create-release
+    if: needs.create-release.outputs.version != ''
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Download bundled mpv
+        run: |
+          gh release download ${{ env.BINARIES_TAG }} --pattern "player-macos-arm64.zip" --dir .
+          unzip -o player-macos-arm64.zip -d app/
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download bundled ffmpeg
+        run: |
+          gh release download ${{ env.BINARIES_TAG }} --pattern "ffmpeg-macos.zip" --dir .
+          unzip -o ffmpeg-macos.zip -d app/
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests
+        run: |
+          python -m pytest --ignore=tests/test_gui.py --ignore=tests/test_player_logic.py --tb=short -q
+
+      - name: Build with PyInstaller
+        run: |
+          python -m PyInstaller youtubeweekly.spec --noconfirm
+
+      - name: Create ZIP
+        run: |
+          cd dist/YoutubeWeekly
+          zip -r ../../${{ env.APP_NAME }}-v${{ needs.create-release.outputs.version }}-macos-arm64.zip .
+          cd ../..
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          files: ./${{ env.APP_NAME }}-v${{ needs.create-release.outputs.version }}-macos-arm64.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos-intel:
+    name: Build macOS (Intel)
+    needs: create-release
+    if: needs.create-release.outputs.version != ''
+    runs-on: macos-13
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Download bundled mpv
+        run: |
+          gh release download ${{ env.BINARIES_TAG }} --pattern "player-macos-intel.zip" --dir .
+          unzip -o player-macos-intel.zip -d app/
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download bundled ffmpeg
+        run: |
+          gh release download ${{ env.BINARIES_TAG }} --pattern "ffmpeg-macos.zip" --dir .
+          unzip -o ffmpeg-macos.zip -d app/
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests
+        run: |
+          python -m pytest --ignore=tests/test_gui.py --ignore=tests/test_player_logic.py --tb=short -q
+
+      - name: Build with PyInstaller
+        run: |
+          python -m PyInstaller youtubeweekly.spec --noconfirm
+
+      - name: Create ZIP
+        run: |
+          cd dist/YoutubeWeekly
+          zip -r ../../${{ env.APP_NAME }}-v${{ needs.create-release.outputs.version }}-macos-intel.zip .
+          cd ../..
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          files: ./${{ env.APP_NAME }}-v${{ needs.create-release.outputs.version }}-macos-intel.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-linux:
+    name: Build Linux
+    needs: create-release
+    if: needs.create-release.outputs.version != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Download static ffmpeg for Linux
+        run: |
+          mkdir -p app/tools/ffmpeg_linux/ffmpeg-7.0.2-amd64-static
+          curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o ffmpeg-linux.tar.xz
+          tar -xf ffmpeg-linux.tar.xz --strip-components=1 -C app/tools/ffmpeg_linux/ffmpeg-7.0.2-amd64-static
+          chmod +x app/tools/ffmpeg_linux/ffmpeg-7.0.2-amd64-static/ffmpeg
+
+      - name: Run tests
+        run: |
+          python -m pytest --ignore=tests/test_gui.py --ignore=tests/test_player_logic.py --tb=short -q
+
+      - name: Build with PyInstaller
+        run: |
+          python -m PyInstaller youtubeweekly.spec --noconfirm
+
+      - name: Create ZIP
+        run: |
+          cd dist/YoutubeWeekly
+          zip -r ../../${{ env.APP_NAME }}-v${{ needs.create-release.outputs.version }}-linux-x64.zip .
+          cd ../..
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          files: ./${{ env.APP_NAME }}-v${{ needs.create-release.outputs.version }}-linux-x64.zip
+          token: ${{ secrets.GITHUB_TOKEN }}

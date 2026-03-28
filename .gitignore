@@ -30,7 +30,6 @@ MANIFEST
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
-*.spec
 
 # Installer logs
 pip-log.txt
@@ -179,6 +178,8 @@ data/videos/**
 bugs.txt
 app/tools/**
 app/player/**
+!app/player/scripts/
+!app/player/scripts/**
 
 # macOS metadata
 .DS_Store
