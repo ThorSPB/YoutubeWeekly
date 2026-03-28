@@ -580,16 +580,25 @@ class YoutubeWeeklyGUI(tk.Tk):
                 self._send_notification("Video Not Found", f"No video found for {name} on {next_sat}.", on_click=self.bring_to_foreground)
                 return
 
-            # If fuzzy match, ask user to confirm
+            # If fuzzy match, ask user to confirm (must run dialog on main thread)
             if match_info and match_info["type"] == "fuzzy":
-                confirmed = messagebox.askyesno(
-                    "Possible Match Found",
-                    f"No exact match for {name} on {next_sat}.\n\n"
-                    f"Found a similar video:\n\"{match_info['title']}\"\n\n"
-                    f"Reason: {match_info['reason']}\n\n"
-                    f"Download this video?"
-                )
-                if not confirmed:
+                result = [None]
+                event = threading.Event()
+
+                def ask_on_main_thread():
+                    result[0] = messagebox.askyesno(
+                        "Possible Match Found",
+                        f"No exact match for {name} on {next_sat}.\n\n"
+                        f"Found a similar video:\n\"{match_info['title']}\"\n\n"
+                        f"Reason: {match_info['reason']}\n\n"
+                        f"Download this video?"
+                    )
+                    event.set()
+
+                self.after(0, ask_on_main_thread)
+                event.wait()
+
+                if not result[0]:
                     self._set_status(f"Download cancelled for {name}.")
                     return
 
