@@ -917,7 +917,21 @@ class YoutubeWeeklyGUI(tk.Tk):
             return
 
         # Exit the app — bootstrap will take over
-        self.after(100, self.quit_application)
+        # Use os._exit to ensure the process actually terminates,
+        # since quit_application relies on the Tkinter event loop
+        # which may not process in time for the bootstrap's PID wait.
+        def force_exit():
+            try:
+                self.settings["main_window_geometry"] = self.geometry()
+                from app.backend.config import save_settings
+                save_settings(self.settings)
+            except Exception:
+                pass
+            if self.tray_icon and self.tray_icon.visible:
+                self.tray_icon.stop()
+            os._exit(0)
+
+        self.after(500, force_exit)
 
 if __name__ == "__main__":
     import socket
