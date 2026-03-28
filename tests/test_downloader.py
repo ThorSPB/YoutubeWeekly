@@ -27,8 +27,8 @@ def mock_settings_file(tmp_path):
     }
     with open(settings_path, "w", encoding="utf-8") as f:
         json.dump(initial_settings, f)
-    
-    with patch('app.backend.downloader.os.path.join', return_value=str(settings_path)):
+
+    with patch('app.backend.downloader.SETTINGS_FILE', str(settings_path)):
         yield settings_path
 
 # Test for load_protected_videos

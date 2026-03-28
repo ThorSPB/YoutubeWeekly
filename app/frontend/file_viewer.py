@@ -3,9 +3,7 @@ import sys
 import tkinter as tk
 from tkinter import ttk, messagebox
 from app.backend.config import save_settings
-import subprocess
-import shlex
-import time
+from app.frontend.player_utils import play_video
 
 class FileViewer(tk.Toplevel):
     def __init__(self, parent, settings, channel_name, channel_folder, on_close_callback):
@@ -114,41 +112,9 @@ class FileViewer(tk.Toplevel):
             messagebox.showwarning("No Selection", "Please select a video to play.")
             return
 
-        try:
-            if self.settings.get("use_mpv", False) and self.settings.get("mpv_path"):
-                mpv_path = self.settings.get("mpv_path")
-                mpv_args = [mpv_path, self.selected_file_path]
-
-                if self.settings.get("mpv_fullscreen", False):
-                    mpv_args.append(f"--script={self.script_path}")
-
-                if self.settings.get("mpv_volume") is not None:
-                    mpv_args.append(f"--volume={self.settings.get('mpv_volume')}")
-
-                if self.settings.get("mpv_screen") != "Default":
-                    mpv_args.append(f"--screen={self.settings.get('mpv_screen')}")
-
-                custom_args = self.settings.get("mpv_custom_args", "").strip()
-                if custom_args:
-                    mpv_args.extend(shlex.split(custom_args))
-
-                if os.name == 'nt':
-                    process = subprocess.Popen(mpv_args, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-                else:
-                    process = subprocess.Popen(mpv_args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-                
-                stdout, stderr = process.communicate()
-                if process.returncode != 0:
-                    error_message = stderr.decode().strip() if stderr else "Unknown MPV error."
-                    messagebox.showerror("MPV Playback Error", f"MPV exited with an error:\n{error_message}")
-            else:
-                if os.name == 'nt':
-                    os.startfile(self.selected_file_path)
-                elif os.name == 'posix':
-                    subprocess.call(['open', self.selected_file_path] if sys.platform == 'darwin' else ['xdg-open', self.selected_file_path])
-
-        except Exception as e:
-            messagebox.showerror("Playback Error", f"Could not play video:\n{e}")
+        error = play_video(self.settings, self.selected_file_path, self.script_path)
+        if error:
+            messagebox.showerror("Playback Error", f"Could not play video:\n{error}")
 
     def delete_selected(self):
         if not self.selected_file_path:

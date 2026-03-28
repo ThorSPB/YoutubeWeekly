@@ -1,7 +1,7 @@
 from app.backend.config import load_settings, load_channels
 from app.backend.downloader import get_next_saturday, find_video_url, download_video, delete_old_videos
 
-settings = load_settings()
+settings, _ = load_settings()
 channels = load_channels()
 
 channel_url = channels["channel_1"]["url"]
