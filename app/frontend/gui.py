@@ -897,8 +897,8 @@ class YoutubeWeeklyGUI(tk.Tk):
         is_minimized = "--start-minimized" in sys.argv
         auto_install = self.settings.get("auto_install_updates", False)
 
-        if auto_install and is_minimized:
-            # Silent auto-update: download and install without user interaction
+        if auto_install:
+            # Auto-update: download and install without user interaction
             self._send_notification("Update Detected", f"Installing v{latest_version} automatically...")
             self.after(0, lambda: self._start_update(latest_version, download_url, assets, silent=True))
         elif is_minimized:
@@ -1032,7 +1032,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         # Launch bootstrap and exit
         base = get_base_path()
         exe_name = os.path.basename(sys.executable)
-        should_minimize = silent or "--start-minimized" in sys.argv
+        should_minimize = "--start-minimized" in sys.argv
 
         if not silent:
             self.after(0, lambda: self._set_status("Installing update..."))
