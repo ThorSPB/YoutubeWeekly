@@ -750,13 +750,13 @@ class YoutubeWeeklyGUI(tk.Tk):
                             shutil.rmtree(path)
                         else:
                             os.remove(path)
-                    except Exception:
+                    except OSError:
                         pass
         if os.path.exists(UPDATE_DIR):
             for item in os.listdir(UPDATE_DIR):
                 try:
                     os.remove(os.path.join(UPDATE_DIR, item))
-                except Exception:
+                except OSError:
                     pass
 
     def _get_bootstrap_path(self):

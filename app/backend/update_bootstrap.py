@@ -50,7 +50,7 @@ def backup_install(target_dir, exe_name):
         try:
             os.rename(src, dst)
             backed_up.append((dst, src))
-        except Exception as e:
+        except OSError as e:
             # If we can't rename something, restore what we already backed up
             restore_backup(backed_up)
             raise RuntimeError(f"Failed to backup {item}: {e}")
@@ -67,7 +67,7 @@ def restore_backup(backed_up):
                 else:
                     os.remove(orig_path)
             os.rename(bak_path, orig_path)
-        except Exception:
+        except OSError:
             pass  # Best effort
 
 
@@ -79,7 +79,7 @@ def cleanup_backup(backed_up):
                 shutil.rmtree(bak_path)
             else:
                 os.remove(bak_path)
-        except Exception:
+        except OSError:
             pass  # Best effort, will be cleaned on next launch
 
 
@@ -159,7 +159,7 @@ def main():
     cleanup_backup(backed_up)
     try:
         os.remove(zip_path)
-    except Exception:
+    except OSError:
         pass
 
     # Step 7: Launch new version

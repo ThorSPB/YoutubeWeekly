@@ -61,6 +61,8 @@ def test_play_video_mpv_failure(mock_popen):
 
 
 @patch("app.frontend.player_utils.subprocess.call")
+@patch("app.frontend.player_utils.os.name", "posix")
+@patch("app.frontend.player_utils.sys.platform", "linux")
 def test_play_video_default_player_linux(mock_call):
     settings = {"use_mpv": False}
     error = play_video(settings, "/tmp/video.mp4")
