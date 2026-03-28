@@ -394,7 +394,7 @@ class SettingsWindow(tk.Toplevel):
             versions_data.clear()
             versions_data.extend(versions)
             listbox.delete(0, tk.END)
-            for version, _ in versions:
+            for version, _, _ in versions:
                 listbox.insert(tk.END, f"  v{version}")
             rollback_btn.config(state="normal")
 
@@ -404,7 +404,7 @@ class SettingsWindow(tk.Toplevel):
                 messagebox.showwarning("No Selection", "Please select a version to rollback to.", parent=dialog)
                 return
 
-            version, assets = versions_data[selection[0]]
+            version, assets, release_url = versions_data[selection[0]]
             confirmed = messagebox.askyesno(
                 "Confirm Rollback",
                 f"Are you sure you want to rollback to v{version}?\n\n"
@@ -427,7 +427,7 @@ class SettingsWindow(tk.Toplevel):
             parent = self.master
             if hasattr(parent, '_start_update'):
                 parent._pending_update = None
-                parent._start_update(version, "", assets)
+                parent._start_update(version, release_url, assets)
 
         rollback_btn.config(command=on_select_and_rollback)
 

@@ -161,17 +161,22 @@ def test_download_update_failure(mock_get, tmp_path):
 def test_get_available_versions(mock_asset_url, mock_get):
     mock_response = MagicMock()
     mock_response.json.return_value = [
-        {"tag_name": "v99.0.0", "prerelease": False, "draft": False, "assets": [{"name": "YoutubeWeekly-win64.zip"}]},
-        {"tag_name": "v98.0.0", "prerelease": False, "draft": False, "assets": [{"name": "YoutubeWeekly-win64.zip"}]},
-        {"tag_name": "v0.0.0-binaries", "prerelease": True, "draft": False, "assets": []},
+        {"tag_name": "v99.0.0", "prerelease": False, "draft": False, "assets": [{"name": "YoutubeWeekly-win64.zip"}], "html_url": "https://example.com/v99"},
+        {"tag_name": "v98.0.0", "prerelease": False, "draft": False, "assets": [{"name": "YoutubeWeekly-win64.zip"}], "html_url": "https://example.com/v98"},
+        {"tag_name": "v0.0.0-binaries", "prerelease": True, "draft": False, "assets": [], "html_url": ""},
+        {"tag_name": "v0.9.0", "prerelease": False, "draft": False, "assets": [{"name": "YoutubeWeekly-win64.zip"}], "html_url": "https://example.com/v09"},
     ]
+    mock_response.links = {}
     mock_get.return_value = mock_response
 
     versions = get_available_versions()
-    version_strings = [v for v, _ in versions]
+    version_strings = [v for v, _, _ in versions]
     assert "99.0.0" in version_strings
     assert "98.0.0" in version_strings
     assert "0.0.0-binaries" not in version_strings
+    assert "0.9.0" not in version_strings  # Below MIN_ROLLBACK_VERSION
+    # Check html_url is returned
+    assert versions[0][2] == "https://example.com/v99"
 
 
 @patch("app.backend.updater.requests.get")

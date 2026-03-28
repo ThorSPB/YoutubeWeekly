@@ -68,34 +68,41 @@ def check_for_updates():
         return False, None, None, []
 
 
+MIN_ROLLBACK_VERSION = [1, 1, 0]
+
+
 def get_available_versions():
     """Fetch all available release versions from GitHub.
 
-    Returns: list of (version_string, assets) tuples, newest first.
-    Excludes pre-releases and the current version.
+    Returns: list of (version_string, assets, release_url) tuples, newest first.
+    Excludes pre-releases, the current version, and versions before v1.1.0.
     """
+    versions = []
+    url = GITHUB_ALL_RELEASES_URL
     try:
-        response = requests.get(GITHUB_ALL_RELEASES_URL, timeout=10)
-        response.raise_for_status()
-        releases = response.json()
+        while url:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            releases = response.json()
 
-        versions = []
-        for release in releases:
-            if release.get("prerelease") or release.get("draft"):
-                continue
-            version = release["tag_name"].lstrip("vV")
-            if version == __version__:
-                continue
-            # Skip versions before v1.1.0 (no auto-updater, user would get stuck)
-            try:
-                version_parts = list(map(int, version.split('.')))
-                if version_parts < [1, 1, 0]:
+            for release in releases:
+                if release.get("prerelease") or release.get("draft"):
                     continue
-            except ValueError:
-                continue
-            assets = release.get("assets", [])
-            if get_asset_download_url(assets, version):
-                versions.append((version, assets))
+                version = release["tag_name"].lstrip("vV")
+                if version == __version__:
+                    continue
+                try:
+                    version_parts = list(map(int, version.split('.')))
+                    if version_parts < MIN_ROLLBACK_VERSION:
+                        continue
+                except ValueError:
+                    continue
+                assets = release.get("assets", [])
+                release_url = release.get("html_url", "")
+                if get_asset_download_url(assets, version):
+                    versions.append((version, assets, release_url))
+
+            url = response.links.get('next', {}).get('url')
 
         return versions
     except (requests.exceptions.RequestException, KeyError, ValueError) as e:
