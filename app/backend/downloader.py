@@ -10,13 +10,20 @@ from tkinter import messagebox
 
 def load_protected_videos():
     with settings_lock:
-        with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f).get("protected_videos", {})
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f).get("protected_videos", {})
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
 
 def add_protected_video(channel_folder, title):
     with settings_lock:
-        with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-            settings = json.load(f)
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                settings = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            settings = {}
+
         protected = settings.setdefault("protected_videos", {})
         protected.setdefault(channel_folder, [])
         if title not in protected[channel_folder]:
