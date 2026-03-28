@@ -29,7 +29,9 @@ def get_current_sabbath_date():
         upcoming_saturday = today + timedelta(days=days_until_saturday)
         return upcoming_saturday.strftime("%Y-%m-%d")
 
-def run_automatic_checks(initial_settings, channels, send_notification_callback, progress_hook=None, show_window_callback=None):
+def run_automatic_checks(initial_settings, channels, send_notification_callback,
+                         progress_hook=None, show_window_callback=None,
+                         status_callback=None, reset_progress_callback=None):
     settings, _ = load_settings() # Reload settings to get the latest values
     if not settings.get("enable_auto_download", False):
         return
@@ -104,14 +106,11 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
 
             if video_url:
                 try:
-                    # IMPORTANT: Reset GUI download state for progress tracking
-                    if progress_hook and hasattr(progress_hook, '__self__'):
-                        gui_instance = progress_hook.__self__
-                        # Schedule the reset on the main UI thread
-                        gui_instance.after(0, lambda: setattr(gui_instance, 'download_stage', 1))
-                        gui_instance.after(0, lambda: setattr(gui_instance, 'last_progress_value', 0))
-                        # Update status to show which channel is being downloaded
-                        gui_instance.after(0, lambda ch=channel_name: gui_instance._set_status(f"Auto downloading {ch}..."))
+                    # Reset progress tracking and update status for this channel
+                    if reset_progress_callback:
+                        reset_progress_callback()
+                    if status_callback:
+                        status_callback(f"Auto downloading {channel_name}...")
                     
                     os.makedirs(folder, exist_ok=True)
                     delete_old_videos(folder, settings.get("keep_old_videos", False))
@@ -134,10 +133,9 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
                 auto_download_log[current_sabbath_date][channel_key] = "not_found"
                 download_results[channel_name] = "Not Found"
 
-        # Reset GUI state after all downloads complete
-        if progress_hook and hasattr(progress_hook, '__self__'):
-            gui_instance = progress_hook.__self__
-            gui_instance.after(0, lambda: gui_instance._set_status("Auto downloads complete."))
+        # Update status after all downloads complete
+        if status_callback:
+            status_callback("Auto downloads complete.")
 
         # Final summary notification
         summary_items = []

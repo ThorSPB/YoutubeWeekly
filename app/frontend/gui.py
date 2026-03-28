@@ -1,25 +1,10 @@
 import os
 import sys
-
-# Set the correct working directory to the project root
-if getattr(sys, 'frozen', False):
-    # Running as a bundled executable (pyinstaller)
-    application_path = os.path.dirname(sys.executable)
-    os.chdir(application_path)
-else:
-    # Running from source
-    # we are in app/frontend/gui.py, so we need to go up two levels
-    application_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-    os.chdir(application_path)
-
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
 import subprocess
-import shlex
-import time
 from plyer import notification
-import json
 from PIL import Image
 import pystray
 
@@ -29,9 +14,11 @@ from datetime import datetime
 from app.frontend.settings_window import SettingsWindow
 from app.frontend.file_viewer import FileViewer
 from app.frontend.help_window import HelpWindow
+from app.frontend.player_utils import play_video
 from app.backend.auto_downloader import run_automatic_checks
 from app.backend.updater import check_for_updates
 from app.backend.startup_manager import is_in_startup, add_to_startup, remove_from_startup
+from app.backend.logger import setup_logger
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
@@ -50,6 +37,10 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.configure(bg="#2b2b2b")
 
         self.settings, self.startup_warnings = load_settings()
+
+        # Initialize logging
+        log_folder = self.settings.get("log_folder", "data/logs")
+        setup_logger(log_folder)
 
         # Synchronize startup setting with Windows Registry
         app_should_start_with_system = self.settings.get("start_with_system", False)
@@ -71,7 +62,6 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.last_progress_value = 0
         self.downloading_channels = set()
         self.tray_icon = None
-        self.pending_show_request = False  # Track if we need to show window
 
         # Initialize and run tray icon from the start
         image = Image.open(resource_path("assets/icon4.ico"))
@@ -276,6 +266,10 @@ class YoutubeWeeklyGUI(tk.Tk):
         threading.Thread(
             target=run_automatic_checks,
             args=(self.settings, self.channels, self._send_notification, self.progress_hook, self.show_window),
+            kwargs={
+                'status_callback': lambda msg: self.after(0, lambda: self._set_status(msg)),
+                'reset_progress_callback': lambda: self.after(0, self._reset_download_progress),
+            },
             daemon=True
         ).start()
 
@@ -368,9 +362,6 @@ class YoutubeWeeklyGUI(tk.Tk):
         if self.tray_icon is not None and self.tray_icon.visible:
             self.tray_icon.stop()
         self.destroy()
-
-    def _run_asyncio_tasks(self):
-        pass
 
     def open_settings(self):
         settings_win = SettingsWindow(self, self.settings)
@@ -548,41 +539,14 @@ class YoutubeWeeklyGUI(tk.Tk):
 
         latest_file = max(files, key=os.path.getctime)
 
-        try:
-            self._set_status(f"Playing {os.path.basename(latest_file)}...")
-            if self.settings.get("use_mpv", False) and self.settings.get("mpv_path"): # Use MPV if enabled
-                mpv_path = self.settings.get("mpv_path")
-                mpv_args = [f'"{mpv_path}"', f'"{latest_file}"']
-                if self.settings.get("mpv_fullscreen", False):
-                    script_path = resource_path("app/player/scripts/delayed-fullscreen.lua")
-                    mpv_args.append(f"--script={script_path}")
-                if self.settings.get("mpv_volume") is not None:
-                    mpv_args.append(f"--volume={self.settings.get("mpv_volume")}")
-                if self.settings.get("mpv_screen") != "Default":
-                    mpv_args.append(f"--screen={self.settings.get("mpv_screen")}")
-                custom_args = self.settings.get("mpv_custom_args", "").strip()
-                if custom_args:
-                    mpv_args.extend(shlex.split(custom_args))
-
-                if os.name == 'nt': # Windows
-                    command = ' '.join(mpv_args)
-                    process = subprocess.Popen(command, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-                else: # macOS, Linux
-                    process = subprocess.Popen(mpv_args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-                
-                stdout, stderr = process.communicate()
-                if process.returncode != 0:
-                    error_message = stderr.decode().strip() if stderr else "Unknown MPV error."
-                    messagebox.showerror("MPV Playback Error", f"MPV exited with an error:\n{error_message}")
-            else: # Fallback to default system player
-                if os.name == 'nt': # Windows
-                    os.startfile(latest_file)
-                elif os.name == 'posix': # macOS, Linux
-                    subprocess.call(['open', latest_file] if sys.platform == 'darwin' else ['xdg-open', latest_file])
+        self._set_status(f"Playing {os.path.basename(latest_file)}...")
+        script_path = resource_path("app/player/scripts/delayed-fullscreen.lua")
+        error = play_video(self.settings, latest_file, script_path)
+        if error:
+            self._set_status(f"Error playing video: {error}")
+            messagebox.showerror("Playback Error", f"Could not play video:\n{error}")
+        else:
             self._set_status(f"Launched video player for Others.")
-        except Exception as e:
-            self._set_status(f"Error playing video: {e}")
-            messagebox.showerror("Playback Error", f"Could not play video:\n{e}")
 
     def _worker_download(self, channel):
         """Worker function that runs off the main UI thread."""
@@ -695,41 +659,14 @@ class YoutubeWeeklyGUI(tk.Tk):
 
         latest_file = max(files, key=os.path.getctime)
 
-        try:
-            self._set_status(f"Playing {os.path.basename(latest_file)}...")
-            if self.settings.get("use_mpv", False) and self.settings.get("mpv_path"): # Use MPV if enabled
-                mpv_path = self.settings.get("mpv_path")
-                mpv_args = [f'"{mpv_path}"', f'"{latest_file}"']
-                if self.settings.get("mpv_fullscreen", False):
-                    script_path = resource_path("app/player/scripts/delayed-fullscreen.lua")
-                    mpv_args.append(f"--script={script_path}")
-                if self.settings.get("mpv_volume") is not None:
-                    mpv_args.append(f"--volume={self.settings.get("mpv_volume")}")
-                if self.settings.get("mpv_screen") != "Default":
-                    mpv_args.append(f"--screen={self.settings.get("mpv_screen")}")
-                custom_args = self.settings.get("mpv_custom_args", "").strip()
-                if custom_args:
-                    mpv_args.extend(shlex.split(custom_args))
-
-                if os.name == 'nt': # Windows
-                    command = ' '.join(mpv_args)
-                    process = subprocess.Popen(command, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-                else: # macOS, Linux
-                    process = subprocess.Popen(mpv_args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-                
-                stdout, stderr = process.communicate()
-                if process.returncode != 0:
-                    error_message = stderr.decode().strip() if stderr else "Unknown MPV error."
-                    messagebox.showerror("MPV Playback Error", f"MPV exited with an error:\n{error_message}")
-            else: # Fallback to default system player
-                if os.name == 'nt': # Windows
-                    os.startfile(latest_file)
-                elif os.name == 'posix': # macOS, Linux
-                    subprocess.call(['open', latest_file] if sys.platform == 'darwin' else ['xdg-open', latest_file])
+        self._set_status(f"Playing {os.path.basename(latest_file)}...")
+        script_path = resource_path("app/player/scripts/delayed-fullscreen.lua")
+        error = play_video(self.settings, latest_file, script_path)
+        if error:
+            self._set_status(f"Error playing video: {error}")
+            messagebox.showerror("Playback Error", f"Could not play video:\n{error}")
+        else:
             self._set_status(f"Launched video player for {channel['name']}.")
-        except Exception as e:
-            self._set_status(f"Error playing video: {e}")
-            messagebox.showerror("Playback Error", f"Could not play video:\n{e}")
 
     def open_folder_in_explorer(self, folder_path):
         try:
@@ -743,6 +680,11 @@ class YoutubeWeeklyGUI(tk.Tk):
             messagebox.showerror("Error", f"Could not open folder: {e}")
 
     
+
+    def _reset_download_progress(self):
+        """Reset download progress state for a new download."""
+        self.download_stage = 1
+        self.last_progress_value = 0
 
     def progress_hook(self, d):
         # Ensure UI updates happen on main thread
@@ -801,6 +743,14 @@ class YoutubeWeeklyGUI(tk.Tk):
 
 if __name__ == "__main__":
     import socket
+
+    # Set the correct working directory to the project root
+    if getattr(sys, 'frozen', False):
+        application_path = os.path.dirname(sys.executable)
+        os.chdir(application_path)
+    else:
+        application_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        os.chdir(application_path)
 
     # Use a socket to ensure single instance
     try:
