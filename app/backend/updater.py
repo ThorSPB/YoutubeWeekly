@@ -49,6 +49,10 @@ def check_for_updates():
         download_url = latest_release["html_url"]
         assets = latest_release.get("assets", [])
 
+        # Skip update check when running from source (dev mode)
+        if __version__ == "dev":
+            return False, None, None, []
+
         current_version_parts = list(map(int, __version__.split('.')))
         latest_version_parts = list(map(int, latest_version.split('.')))
 

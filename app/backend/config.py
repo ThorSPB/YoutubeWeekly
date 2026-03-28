@@ -8,7 +8,7 @@ import threading
 # Lock for thread-safe access to SETTINGS_FILE
 settings_lock = threading.Lock()
 
-__version__ = "1.0.4"
+__version__ = "dev"
 
 def get_app_data_dir():
     if platform.system() == "Windows":
