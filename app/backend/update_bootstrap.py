@@ -105,9 +105,12 @@ def cleanup_backup(backed_up):
 
 
 def extract_zip(zip_path, target_dir):
-    """Extract ZIP to target directory."""
+    """Extract ZIP to target directory, skipping the bootstrap binary (can't overwrite itself)."""
     with zipfile.ZipFile(zip_path, 'r') as zf:
-        zf.extractall(target_dir)
+        for member in zf.infolist():
+            if member.filename.startswith("update_bootstrap"):
+                continue
+            zf.extract(member, target_dir)
 
 
 def show_error(title, message):
