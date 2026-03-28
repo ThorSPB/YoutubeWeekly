@@ -41,10 +41,10 @@ def run_dry_run():
     # Step 3: Check for updates (mocked)
     print("\n[3/6] Simulating update check...")
     mock_assets = [
-        {"name": f"YoutubeWeekly-v99.0.0-win64.zip", "browser_download_url": "https://example.com/win.zip"},
-        {"name": f"YoutubeWeekly-v99.0.0-macos-arm64.zip", "browser_download_url": "https://example.com/mac-arm.zip"},
-        {"name": f"YoutubeWeekly-v99.0.0-macos-intel.zip", "browser_download_url": "https://example.com/mac-intel.zip"},
-        {"name": f"YoutubeWeekly-v99.0.0-linux-x64.zip", "browser_download_url": "https://example.com/linux.zip"},
+        {"name": "YoutubeWeekly-win64.zip", "browser_download_url": "https://example.com/win.zip"},
+        {"name": "YoutubeWeekly-macos-arm64.zip", "browser_download_url": "https://example.com/mac-arm.zip"},
+        {"name": "YoutubeWeekly-macos-intel.zip", "browser_download_url": "https://example.com/mac-intel.zip"},
+        {"name": "YoutubeWeekly-linux-x64.zip", "browser_download_url": "https://example.com/linux.zip"},
     ]
     mock_release = {
         "tag_name": "v99.0.0",

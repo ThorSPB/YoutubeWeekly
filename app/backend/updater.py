@@ -7,19 +7,19 @@ from app.backend.config import __version__
 GITHUB_REPO_URL = "https://api.github.com/repos/ThorSPB/YoutubeWeekly/releases/latest"
 
 
-def get_platform_asset_name(version):
+def get_platform_asset_name(version=None):
     """Return the expected ZIP filename for this platform."""
     system = platform.system()
     machine = platform.machine().lower()
     if system == "Windows":
-        return f"YoutubeWeekly-v{version}-win64.zip"
+        return "YoutubeWeekly-win64.zip"
     elif system == "Darwin":
         if "arm" in machine:
-            return f"YoutubeWeekly-v{version}-macos-arm64.zip"
+            return "YoutubeWeekly-macos-arm64.zip"
         else:
-            return f"YoutubeWeekly-v{version}-macos-intel.zip"
+            return "YoutubeWeekly-macos-intel.zip"
     elif system == "Linux":
-        return f"YoutubeWeekly-v{version}-linux-x64.zip"
+        return "YoutubeWeekly-linux-x64.zip"
     return None
 
 

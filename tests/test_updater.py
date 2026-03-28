@@ -17,7 +17,7 @@ def test_check_for_updates_new_version(mock_get):
     mock_response.json.return_value = {
         "tag_name": "v99.0.0",
         "html_url": "https://github.com/ThorSPB/YoutubeWeekly/releases/tag/v99.0.0",
-        "assets": [{"name": "YoutubeWeekly-v99.0.0-win64.zip", "browser_download_url": "https://example.com/win.zip"}],
+        "assets": [{"name": "YoutubeWeekly-win64.zip", "browser_download_url": "https://example.com/win.zip"}],
     }
     mock_get.return_value = mock_response
 
@@ -82,44 +82,44 @@ def test_check_for_updates_version_prefix_stripping(mock_get):
 @patch("app.backend.updater.platform.system", return_value="Windows")
 @patch("app.backend.updater.platform.machine", return_value="AMD64")
 def test_platform_asset_name_windows(mock_machine, mock_system):
-    assert get_platform_asset_name("1.1.0") == "YoutubeWeekly-v1.1.0-win64.zip"
+    assert get_platform_asset_name() == "YoutubeWeekly-win64.zip"
 
 
 @patch("app.backend.updater.platform.system", return_value="Darwin")
 @patch("app.backend.updater.platform.machine", return_value="arm64")
 def test_platform_asset_name_macos_arm(mock_machine, mock_system):
-    assert get_platform_asset_name("1.1.0") == "YoutubeWeekly-v1.1.0-macos-arm64.zip"
+    assert get_platform_asset_name() == "YoutubeWeekly-macos-arm64.zip"
 
 
 @patch("app.backend.updater.platform.system", return_value="Darwin")
 @patch("app.backend.updater.platform.machine", return_value="x86_64")
 def test_platform_asset_name_macos_intel(mock_machine, mock_system):
-    assert get_platform_asset_name("1.1.0") == "YoutubeWeekly-v1.1.0-macos-intel.zip"
+    assert get_platform_asset_name() == "YoutubeWeekly-macos-intel.zip"
 
 
 @patch("app.backend.updater.platform.system", return_value="Linux")
 @patch("app.backend.updater.platform.machine", return_value="x86_64")
 def test_platform_asset_name_linux(mock_machine, mock_system):
-    assert get_platform_asset_name("1.1.0") == "YoutubeWeekly-v1.1.0-linux-x64.zip"
+    assert get_platform_asset_name() == "YoutubeWeekly-linux-x64.zip"
 
 
 # --- get_asset_download_url tests ---
 
 def test_get_asset_download_url_found():
     assets = [
-        {"name": "YoutubeWeekly-v1.1.0-win64.zip", "browser_download_url": "https://example.com/win.zip"},
-        {"name": "YoutubeWeekly-v1.1.0-linux-x64.zip", "browser_download_url": "https://example.com/linux.zip"},
+        {"name": "YoutubeWeekly-win64.zip", "browser_download_url": "https://example.com/win.zip"},
+        {"name": "YoutubeWeekly-linux-x64.zip", "browser_download_url": "https://example.com/linux.zip"},
     ]
-    with patch("app.backend.updater.get_platform_asset_name", return_value="YoutubeWeekly-v1.1.0-win64.zip"):
+    with patch("app.backend.updater.get_platform_asset_name", return_value="YoutubeWeekly-win64.zip"):
         url = get_asset_download_url(assets, "1.1.0")
     assert url == "https://example.com/win.zip"
 
 
 def test_get_asset_download_url_not_found():
     assets = [
-        {"name": "YoutubeWeekly-v1.1.0-linux-x64.zip", "browser_download_url": "https://example.com/linux.zip"},
+        {"name": "YoutubeWeekly-linux-x64.zip", "browser_download_url": "https://example.com/linux.zip"},
     ]
-    with patch("app.backend.updater.get_platform_asset_name", return_value="YoutubeWeekly-v1.1.0-win64.zip"):
+    with patch("app.backend.updater.get_platform_asset_name", return_value="YoutubeWeekly-win64.zip"):
         url = get_asset_download_url(assets, "1.1.0")
     assert url is None
 
