@@ -45,11 +45,19 @@ def wait_for_process_exit(pid, timeout=30):
 
 
 def backup_install(target_dir, exe_name):
-    """Rename existing files to .bak for rollback."""
+    """Rename existing files to .bak for rollback.
+
+    Preserves user data directories (data/) that may contain downloaded videos.
+    """
+    # Directories that contain user data and should not be touched during update
+    PRESERVE_DIRS = {"data", "logs"}
+
     backed_up = []
     for item in os.listdir(target_dir):
-        # Don't back up the bootstrap itself or existing backups
+        # Don't back up the bootstrap itself, existing backups, or user data
         if item.startswith("update_bootstrap") or item.endswith(".bak"):
+            continue
+        if item in PRESERVE_DIRS:
             continue
         src = os.path.join(target_dir, item)
         dst = src + ".bak"
