@@ -95,17 +95,18 @@ def test_find_video_url_found(monkeypatch):
                 {"id": "video3", "title": "Some other video"},
             ]
         }
-        url = find_video_url("http://example.com/channel", "15.07.2024")
+        url, match_info = find_video_url("http://example.com/channel", "15.07.2024")
         assert url == "https://www.youtube.com/watch?v=video1"
+        assert match_info["type"] == "exact"
 
 def test_find_video_url_not_found(monkeypatch):
     with patch('app.backend.downloader.yt_dlp.YoutubeDL') as MockYoutubeDL:
         MockYoutubeDL.return_value.__enter__.return_value.extract_info.return_value = {
             "entries": [
-                {"id": "video1", "title": "Video Title 14.07.2024"},
+                {"id": "video1", "title": "Video Title 10.07.2024"},
             ]
         }
-        url = find_video_url("http://example.com/channel", "15.07.2024")
+        url, _ = find_video_url("http://example.com/channel", "15.07.2024")
         assert url is None
 
 def test_find_video_url_diaspora_excluded(monkeypatch):
@@ -115,17 +116,17 @@ def test_find_video_url_diaspora_excluded(monkeypatch):
                 {"id": "video1", "title": "Video Title 15.07.2024 diaspora"},
             ]
         }
-        url = find_video_url("http://example.com/channel", "15.07.2024")
+        url, _ = find_video_url("http://example.com/channel", "15.07.2024")
         assert url is None
 
 def test_find_video_url_extraction_error(monkeypatch):
     with patch('app.backend.downloader.yt_dlp.YoutubeDL') as MockYoutubeDL:
         MockYoutubeDL.return_value.__enter__.return_value.extract_info.side_effect = Exception("Extraction failed")
-        url = find_video_url("http://example.com/channel", "15.07.2024")
+        url, _ = find_video_url("http://example.com/channel", "15.07.2024")
         assert url is None
 
 def test_find_video_url_invalid_date_format(monkeypatch):
-    url = find_video_url("http://example.com/channel", "invalid-date")
+    url, _ = find_video_url("http://example.com/channel", "invalid-date")
     assert url is None
 
 # Test for delete_old_videos
@@ -263,3 +264,28 @@ def test_get_recent_sabbaths(monkeypatch, n, expected_sabbaths):
     
     sabbaths = get_recent_sabbaths(n=n)
     assert sabbaths == expected_sabbaths
+
+
+def test_find_video_url_fuzzy_one_day_off(monkeypatch):
+    with patch('app.backend.downloader.yt_dlp.YoutubeDL') as MockYoutubeDL:
+        MockYoutubeDL.return_value.__enter__.return_value.extract_info.return_value = {
+            "entries": [
+                {"id": "video1", "title": "Video Title 14.07.2024"},  # One day before 15.07.2024
+            ]
+        }
+        url, match_info = find_video_url("http://example.com/channel", "15.07.2024")
+        assert url == "https://www.youtube.com/watch?v=video1"
+        assert match_info["type"] == "fuzzy"
+        assert "1 day" in match_info["reason"]
+
+def test_find_video_url_fuzzy_delimiter_mismatch(monkeypatch):
+    with patch('app.backend.downloader.yt_dlp.YoutubeDL') as MockYoutubeDL:
+        MockYoutubeDL.return_value.__enter__.return_value.extract_info.return_value = {
+            "entries": [
+                {"id": "video1", "title": "Video Title 15 07.2024"},  # Space instead of dot
+            ]
+        }
+        url, match_info = find_video_url("http://example.com/channel", "15.07.2024")
+        assert url == "https://www.youtube.com/watch?v=video1"
+        assert match_info["type"] == "fuzzy"
+        assert "delimiter" in match_info["reason"]

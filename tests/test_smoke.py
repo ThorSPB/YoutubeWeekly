@@ -42,7 +42,7 @@ def test_full_download_pipeline(tmp_path, monkeypatch):
                 {"id": "def456", "title": "Another 15 martie 2025 diaspora"},  # Should be excluded
             ]
         }
-        url = find_video_url("https://youtube.com/c/TestChannel", "15.03.2025")
+        url, _ = find_video_url("https://youtube.com/c/TestChannel", "15.03.2025")
         assert url == "https://www.youtube.com/watch?v=abc123"
 
         # Step 2: delete_old_videos
@@ -96,5 +96,5 @@ def test_diaspora_exclusion():
                 {"id": "vid2", "title": "Video 10.05.2025"},
             ]
         }
-        url = find_video_url("https://youtube.com/c/Test", "10.05.2025")
+        url, _ = find_video_url("https://youtube.com/c/Test", "10.05.2025")
         assert url == "https://www.youtube.com/watch?v=vid2"

@@ -248,7 +248,7 @@ def test_worker_download_channel_no_video(gui):
     channel = {"name": "Test Channel", "url": "http://example.com", "folder": "test_channel", "date_format": "%d.%m.%Y"}
 
     with patch('app.frontend.gui.get_next_saturday', return_value="15.07.2024"):
-        with patch('app.frontend.gui.find_video_url', return_value=None):
+        with patch('app.frontend.gui.find_video_url', return_value=(None, None)):
             with patch('app.frontend.gui.tk.StringVar', MagicMock):
                 gui._worker_download(channel)
                 gui._set_status.assert_any_call("No video found for Test Channel on 15.07.2024.")
@@ -264,7 +264,7 @@ def test_worker_download_channel_already_exists(gui, tmp_path):
     channel = {"name": "Test Channel", "url": "http://example.com", "folder": "test_channel", "date_format": "%d.%m.%Y"}
 
     with patch('app.frontend.gui.get_next_saturday', return_value="15.07.2024"):
-        with patch('app.frontend.gui.find_video_url', return_value="http://youtube.com/watch?v=found"):
+        with patch('app.frontend.gui.find_video_url', return_value=("http://youtube.com/watch?v=found", {"type": "exact", "title": "Found Video"})):
             with patch('app.frontend.gui.tk.StringVar', MagicMock):
                 gui._worker_download(channel)
                 gui._set_status.assert_any_call("Video for Test Channel already exists: video_15.07.2024.mp4")

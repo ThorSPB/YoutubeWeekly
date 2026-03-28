@@ -11,7 +11,7 @@ def test_find_video_url_first_channel_format(mock_yt_dlp):
             {"title": "Video for 2025-04-12", "id": "id1"}
         ]
     }
-    url = find_video_url("https://www.youtube.com/c/Channel1", "2025-04-12", date_format="%Y-%m-%d")
+    url, _ = find_video_url("https://www.youtube.com/c/Channel1", "2025-04-12", date_format="%Y-%m-%d")
     assert url == "https://www.youtube.com/watch?v=id1"
 
 @patch("app.backend.downloader.yt_dlp.YoutubeDL")
@@ -23,7 +23,7 @@ def test_find_video_url_second_channel_format(mock_yt_dlp):
             {"title": "10.05.2025 [SMV RO] - Speranta in agitatie", "id": "id2"}
         ]
     }
-    url = find_video_url("https://www.youtube.com/@ScoalaDeSabat", "10.05.2025", date_format="%d.%m.%Y")
+    url, _ = find_video_url("https://www.youtube.com/@ScoalaDeSabat", "10.05.2025", date_format="%d.%m.%Y")
     assert url == "https://www.youtube.com/watch?v=id2"
 
 @patch("app.backend.downloader.yt_dlp.YoutubeDL")
@@ -50,7 +50,7 @@ def test_find_video_url_no_matching_date(mock_yt_dlp):
             {"title": "Some other video", "id": "id4"}
         ]
     }
-    url = find_video_url("https://www.youtube.com/c/Channel1", "2025-04-12", date_format="%Y-%m-%d")
+    url, _ = find_video_url("https://www.youtube.com/c/Channel1", "2025-04-12", date_format="%Y-%m-%d")
     assert url is None
 
 @patch("app.backend.downloader.yt_dlp.YoutubeDL")
@@ -75,8 +75,8 @@ def test_integration_multi_channel_workflow(mock_yt_dlp, tmp_path):
     mock_ydl_instance.extract_info.side_effect = extract_info_side_effect
 
     # Test find_video_url for both channels
-    url1 = find_video_url("https://www.youtube.com/c/Channel1", "2025-04-12", date_format="%Y-%m-%d")
-    url2 = find_video_url("https://www.youtube.com/@ScoalaDeSabat", "10.05.2025", date_format="%d.%m.%Y")
+    url1, _ = find_video_url("https://www.youtube.com/c/Channel1", "2025-04-12", date_format="%Y-%m-%d")
+    url2, _ = find_video_url("https://www.youtube.com/@ScoalaDeSabat", "10.05.2025", date_format="%d.%m.%Y")
 
     assert url1 == "https://www.youtube.com/watch?v=id1"
     assert url2 == "https://www.youtube.com/watch?v=id2"

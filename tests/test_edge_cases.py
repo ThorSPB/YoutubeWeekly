@@ -53,7 +53,7 @@ def test_find_video_url_no_videos(mock_yt_dlp):
     mock_yt_dlp.return_value.__enter__.return_value = mock_ydl_instance
     mock_ydl_instance.extract_info.return_value = {"entries": []}
 
-    url = find_video_url("https://www.youtube.com/c/SomeChannel", "12.04.2025")
+    url, _ = find_video_url("https://www.youtube.com/c/SomeChannel", "12.04.2025")
     assert url is None
 
 @patch("app.backend.downloader.yt_dlp.YoutubeDL")
@@ -67,7 +67,7 @@ def test_find_video_url_multiple_videos_same_date(mock_yt_dlp):
         ]
     }
 
-    url = find_video_url("https://www.youtube.com/c/SomeChannel", "12.04.2025")
+    url, _ = find_video_url("https://www.youtube.com/c/SomeChannel", "12.04.2025")
     assert url == "https://www.youtube.com/watch?v=id1"
 
 @patch("app.backend.downloader.yt_dlp.YoutubeDL")
@@ -76,7 +76,7 @@ def test_find_video_url_invalid_channel(mock_yt_dlp):
     mock_yt_dlp.return_value.__enter__.return_value = mock_ydl_instance
     mock_ydl_instance.extract_info.side_effect = Exception("Invalid channel URL")
 
-    url = find_video_url("invalid_channel_url", "12.04.2025")
+    url, _ = find_video_url("invalid_channel_url", "12.04.2025")
     assert url is None
 
 # Integration test simulating full workflow
@@ -91,7 +91,7 @@ def test_integration_workflow(mock_yt_dlp, tmp_path, mock_load_protected_videos)
     }
 
     # Step 1: Find video URL
-    video_url = find_video_url("https://www.youtube.com/c/SomeChannel", "12.04.2025")
+    video_url, _ = find_video_url("https://www.youtube.com/c/SomeChannel", "12.04.2025")
     assert video_url == "https://www.youtube.com/watch?v=videoid"
 
     # Step 2: Download video

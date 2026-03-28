@@ -16,5 +16,5 @@ def test_find_video_url(mock_yt_dlp):
     channel_url = "https://www.youtube.com/c/DepartamentulIsprăvnicie"
     mock_date = datetime(2025, 4, 12)
 
-    video_url = find_video_url(channel_url, mock_date.strftime("%d.%m.%Y"))
+    video_url, _ = find_video_url(channel_url, mock_date.strftime("%d.%m.%Y"))
     assert video_url == "https://www.youtube.com/watch?v=exampleid", "Video URL did not match expected"

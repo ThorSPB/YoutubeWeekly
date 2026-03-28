@@ -574,11 +574,24 @@ class YoutubeWeeklyGUI(tk.Tk):
                 next_sat = get_next_saturday(date_format=fmt)
 
             # Step 2: Locate the video URL
-            url = find_video_url(channel["url"], next_sat, date_format=fmt)
+            url, match_info = find_video_url(channel["url"], next_sat, date_format=fmt)
             if not url:
                 self._set_status(f"No video found for {name} on {next_sat}.")
                 self._send_notification("Video Not Found", f"No video found for {name} on {next_sat}.", on_click=self.bring_to_foreground)
                 return
+
+            # If fuzzy match, ask user to confirm
+            if match_info and match_info["type"] == "fuzzy":
+                confirmed = messagebox.askyesno(
+                    "Possible Match Found",
+                    f"No exact match for {name} on {next_sat}.\n\n"
+                    f"Found a similar video:\n\"{match_info['title']}\"\n\n"
+                    f"Reason: {match_info['reason']}\n\n"
+                    f"Download this video?"
+                )
+                if not confirmed:
+                    self._set_status(f"Download cancelled for {name}.")
+                    return
 
             # Prepare channel-specific folder
             channel_folder = os.path.join(self.base_path, channel["folder"])

@@ -117,7 +117,10 @@ def test_run_automatic_checks_friday_new_sabbath(mock_download_video, mock_find_
     settings["last_sabbath_checked"] = "2025-07-12" # Previous Sabbath
     save_settings_to_path(mock_settings_file, settings)
 
-    mock_find_video_url.side_effect = ["http://video1.url", "http://video2.url"]
+    mock_find_video_url.side_effect = [
+        ("http://video1.url", {"type": "exact", "title": "Video"}),
+        ("http://video2.url", {"type": "exact", "title": "Video"}),
+    ]
     mock_download_video.return_value = None  # None means success
 
     run_automatic_checks(settings, mock_channels_data, mock_send_notification)
@@ -159,7 +162,10 @@ def test_run_automatic_checks_saturday_partial_download(mock_download_video, moc
     initial_log = {"2025-07-19": {"channel_1": "downloaded", "channel_2": "pending"}}
     save_auto_download_log(initial_log)
 
-    mock_find_video_url.side_effect = ["http://video1.url", "http://video2.url"]
+    mock_find_video_url.side_effect = [
+        ("http://video1.url", {"type": "exact", "title": "Video"}),
+        ("http://video2.url", {"type": "exact", "title": "Video"}),
+    ]
     mock_download_video.return_value = None  # None means success
 
     run_automatic_checks(settings, mock_channels_data, mock_send_notification)
