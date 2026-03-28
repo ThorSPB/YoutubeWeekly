@@ -188,6 +188,7 @@ def test_file_viewer_on_file_select(file_viewer):
     file_viewer.channel_folder = "/path/to/channel"
     file_viewer.on_file_select(None)
     assert file_viewer.selected_file_path == os.path.join("/path/to/channel", "video.mp4")
+    file_viewer.file_tree.set.assert_any_call("I001", "selected", "✓")
 
 
 def test_file_viewer_on_file_select_none(file_viewer):

@@ -133,7 +133,11 @@ def test_download_others_with_link(gui):
     with patch('app.frontend.gui.threading.Thread') as mock_thread:
         gui.download_others()
         gui._set_status.assert_called_with("Starting download...")
-        mock_thread.assert_called_once()
+        mock_thread.assert_called_once_with(
+            target=gui._worker_download_others,
+            args=(gui.others_link_var.get(),),
+            daemon=True
+        )
         mock_thread.return_value.start.assert_called_once()
 
 
@@ -143,16 +147,18 @@ def test_play_latest(gui):
     channel = {"name": "Test Channel", "url": "http://example.com", "folder": "test_channel"}
     with patch('app.frontend.gui.threading.Thread') as mock_thread:
         gui.play_latest(channel)
-        mock_thread.assert_called_once()
-        assert mock_thread.call_args.kwargs['target'] == gui._worker_play
+        mock_thread.assert_called_once_with(
+            target=gui._worker_play,
+            args=(channel,),
+            daemon=True
+        )
         mock_thread.return_value.start.assert_called_once()
 
 
 def test_play_others(gui):
     with patch('app.frontend.gui.threading.Thread') as mock_thread:
         gui.play_others()
-        mock_thread.assert_called_once()
-        assert mock_thread.call_args.kwargs['target'] == gui._worker_play_others
+        mock_thread.assert_called_once_with(target=gui._worker_play_others, daemon=True)
         mock_thread.return_value.start.assert_called_once()
 
 
