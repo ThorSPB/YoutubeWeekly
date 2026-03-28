@@ -125,7 +125,7 @@ class SettingsWindow(tk.Toplevel):
 
         ttk.Label(quality_frame, text="Default quality:", style="Dark.TLabel").pack(side="left")
         self.quality_var = tk.StringVar(value=self.settings.get("default_quality", "1080p"))
-        quality_combo = ttk.Combobox(quality_frame, textvariable=self.quality_var, values=["1080p", "720p", "480p", "mp3"], width=10, state="readonly", style="Dark.TCombobox")
+        quality_combo = ttk.Combobox(quality_frame, textvariable=self.quality_var, values=["max", "4k", "2k", "1080p", "720p", "480p", "mp3"], width=10, state="readonly", style="Dark.TCombobox")
         quality_combo.pack(side="left", padx=5)
 
         # Automatic Downloads setting
