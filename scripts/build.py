@@ -80,7 +80,20 @@ def run_tests():
 
 
 def build():
-    print("--- Building with PyInstaller ---")
+    bootstrap_spec = os.path.join(PROJECT_ROOT, 'update_bootstrap.spec')
+
+    # Build bootstrap first
+    print("--- Building update bootstrap ---")
+    result = subprocess.run(
+        [sys.executable, '-m', 'PyInstaller', bootstrap_spec, '--noconfirm'],
+        cwd=PROJECT_ROOT,
+    )
+    if result.returncode != 0:
+        print("\nERROR: Bootstrap build failed.")
+        sys.exit(1)
+
+    # Build main app
+    print("--- Building main app with PyInstaller ---")
     result = subprocess.run(
         [sys.executable, '-m', 'PyInstaller', SPEC_FILE, '--noconfirm'],
         cwd=PROJECT_ROOT,
@@ -88,6 +101,17 @@ def build():
     if result.returncode != 0:
         print("\nERROR: PyInstaller build failed.")
         sys.exit(1)
+
+    # Copy bootstrap into dist alongside main exe
+    bootstrap_name = 'update_bootstrap.exe' if sys.platform == 'win32' else 'update_bootstrap'
+    bootstrap_src = os.path.join(DIST_DIR, bootstrap_name)
+    bootstrap_dst = os.path.join(DIST_DIR, 'YoutubeWeekly', bootstrap_name)
+    if os.path.exists(bootstrap_src):
+        shutil.copy2(bootstrap_src, bootstrap_dst)
+        print(f"Copied bootstrap to {bootstrap_dst}")
+    else:
+        print(f"WARNING: Bootstrap binary not found at {bootstrap_src}")
+
     print("Build complete.\n")
 
 

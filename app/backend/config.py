@@ -20,6 +20,7 @@ def get_app_data_dir():
 
 APP_DATA_DIR = get_app_data_dir()
 CONFIG_DIR = os.path.join(APP_DATA_DIR, 'config')
+UPDATE_DIR = os.path.join(APP_DATA_DIR, 'updates')
 
 if not os.path.exists(CONFIG_DIR):
     os.makedirs(CONFIG_DIR)
