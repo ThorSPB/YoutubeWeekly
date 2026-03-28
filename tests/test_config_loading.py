@@ -54,7 +54,7 @@ def test_load_settings(mock_settings_file, monkeypatch):
     assert settings["use_mpv"] == False, "Default for 'use_mpv' should be False"
     assert "mpv_path" in settings, "Missing 'mpv_path' in settings"
     assert isinstance(settings["mpv_path"], str), "'mpv_path' is not a string"
-    assert settings["mpv_path"] == "", "Default for 'mpv_path' should be empty string"
+    # mpv_path is auto-detected from bundled executables, so don't assert specific value
     assert "mpv_fullscreen" in settings, "Missing 'mpv_fullscreen' in settings"
     assert isinstance(settings["mpv_fullscreen"], bool), "'mpv_fullscreen' is not a boolean"
     assert settings["mpv_fullscreen"] == False, "Default for 'mpv_fullscreen' should be False"
