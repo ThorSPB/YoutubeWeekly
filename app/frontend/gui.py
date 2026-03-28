@@ -260,12 +260,12 @@ class YoutubeWeeklyGUI(tk.Tk):
         bottom_frame = ttk.Frame(self, style="Dark.TFrame")
         bottom_frame.pack(pady=(5, 15), padx=20, fill="x")
 
-        # Version label + update check button (bottom left)
+        # Update check button + version label (bottom left)
+        ttk.Button(bottom_frame, text="\u21bb", command=self._check_for_updates_manual, width=2).pack(side="left")
         tk.Label(
             bottom_frame, text=f"v{__version__}",
             fg="#666666", bg="#2b2b2b", font=("Segoe UI", 8)
-        ).pack(side="left")
-        ttk.Button(bottom_frame, text="\u21bb", command=self._check_for_updates_manual, width=2).pack(side="left", padx=(2, 0))
+        ).pack(side="left", padx=(2, 0))
 
         # Help button (bottom right)
         ttk.Button(bottom_frame, text="?", command=self.open_help, width=3).pack(side="right")
@@ -349,6 +349,10 @@ class YoutubeWeeklyGUI(tk.Tk):
         y = self.winfo_y() + (self.winfo_height() - 300) // 2
         dialog.geometry(f"+{x}+{y}")
 
+        # Format markdown before displaying
+        from app.frontend.help_window import HelpWindow
+        formatted = HelpWindow.format_markdown(None, "\n".join(section_lines))
+
         from tkinter import scrolledtext
         text = scrolledtext.ScrolledText(
             dialog, wrap="word", bg="#2b2b2b", fg="white",
@@ -356,7 +360,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             padx=15, pady=10
         )
         text.pack(fill="both", expand=True)
-        text.insert("1.0", "\n".join(section_lines))
+        text.insert("1.0", formatted)
         text.config(state="disabled")
 
         ttk.Button(dialog, text="Got it!", command=dialog.destroy, width=10).pack(pady=(5, 15))
