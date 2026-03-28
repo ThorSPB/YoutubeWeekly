@@ -347,7 +347,6 @@ class SettingsWindow(tk.Toplevel):
     def _show_rollback_dialog(self):
         """Show a dialog to select a previous version to rollback to."""
         from app.backend.updater import get_available_versions, get_asset_download_url
-        from app.backend.config import get_base_path, UPDATE_DIR
 
         dialog = tk.Toplevel(self)
         dialog.title("Rollback to Previous Version")
