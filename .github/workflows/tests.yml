@@ -32,9 +32,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run unit tests (headless)
+      - name: Run unit tests
         run: |
-          python -m pytest --ignore=tests/test_gui.py --ignore=tests/test_player_logic.py --tb=short -v
+          python -m pytest --tb=short -v
 
       - name: Run dry-run scripts
         run: |
