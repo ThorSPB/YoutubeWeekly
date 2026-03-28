@@ -741,28 +741,25 @@ class YoutubeWeeklyGUI(tk.Tk):
             self.after(0, handle_finished)
     def _cleanup_update_artifacts(self):
         """Remove leftover .bak files and old update ZIPs."""
+        def _try_delete(path):
+            try:
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
+                else:
+                    os.remove(path)
+            except OSError:
+                pass
+
         if getattr(sys, 'frozen', False):
             base = get_base_path()
-            for item in os.listdir(base):
-                if item.endswith('.bak'):
-                    path = os.path.join(base, item)
-                    try:
-                        if os.path.isdir(path):
-                            shutil.rmtree(path)
-                        else:
-                            os.remove(path)
-                    except OSError:
-                        pass
+            if os.path.exists(base):
+                for item in os.listdir(base):
+                    if item.endswith('.bak'):
+                        _try_delete(os.path.join(base, item))
+
         if os.path.exists(UPDATE_DIR):
             for item in os.listdir(UPDATE_DIR):
-                path = os.path.join(UPDATE_DIR, item)
-                try:
-                    if os.path.isdir(path):
-                        shutil.rmtree(path)
-                    else:
-                        os.remove(path)
-                except OSError:
-                    pass
+                _try_delete(os.path.join(UPDATE_DIR, item))
 
     def _get_bootstrap_path(self):
         """Return path to the update bootstrap executable."""

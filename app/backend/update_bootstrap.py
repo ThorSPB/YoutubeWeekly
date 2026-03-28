@@ -24,18 +24,17 @@ def wait_for_process_exit(pid, timeout=30):
     if sys.platform == "win32":
         import ctypes
         kernel32 = ctypes.windll.kernel32
+        SYNCHRONIZE = 0x100000
+        ERROR_INVALID_PARAMETER = 87
 
     while time.time() - start < timeout:
         try:
             if sys.platform == "win32":
-                handle = kernel32.OpenProcess(0x100000, False, pid)  # SYNCHRONIZE
+                handle = kernel32.OpenProcess(SYNCHRONIZE, False, pid)
                 if handle:
                     kernel32.CloseHandle(handle)
                 else:
-                    # OpenProcess failed — only treat ERROR_INVALID_PARAMETER (87)
-                    # as "process gone". Other errors (e.g. access denied) mean
-                    # we can't be sure, so keep polling.
-                    if ctypes.get_last_error() == 87:
+                    if ctypes.get_last_error() == ERROR_INVALID_PARAMETER:
                         return True
             else:
                 os.kill(pid, 0)  # Signal 0 checks if process exists
