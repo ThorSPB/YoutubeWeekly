@@ -833,7 +833,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             with open(probe, "w") as f:
                 f.write("test")
             os.remove(probe)
-        except Exception:
+        except OSError:
             messagebox.showerror(
                 "Update Failed",
                 f"Cannot write to the installation directory:\n{base}\n\n"
@@ -892,7 +892,7 @@ class YoutubeWeeklyGUI(tk.Tk):
                 [bootstrap_path, "--zip", zip_path, "--target", base, "--exe", exe_name, "--pid", str(os.getpid())],
                 cwd=base
             )
-        except Exception as e:
+        except OSError as e:
             self.after(0, lambda: messagebox.showerror("Update Failed", f"Could not launch updater:\n{e}"))
             return
 

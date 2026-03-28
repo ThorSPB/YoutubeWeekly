@@ -23,13 +23,17 @@ def wait_for_process_exit(pid, timeout=30):
     while time.time() - start < timeout:
         try:
             if sys.platform == "win32":
-                # On Windows, os.kill with signal 0 checks existence
                 import ctypes
                 kernel32 = ctypes.windll.kernel32
                 handle = kernel32.OpenProcess(0x100000, False, pid)  # SYNCHRONIZE
-                if handle == 0:
-                    return True  # Process doesn't exist
-                kernel32.CloseHandle(handle)
+                if handle:
+                    kernel32.CloseHandle(handle)
+                else:
+                    # OpenProcess failed — only treat ERROR_INVALID_PARAMETER (87)
+                    # as "process gone". Other errors (e.g. access denied) mean
+                    # we can't be sure, so keep polling.
+                    if ctypes.get_last_error() == 87:
+                        return True
             else:
                 os.kill(pid, 0)  # Signal 0 checks if process exists
         except (OSError, ProcessLookupError):
@@ -143,7 +147,7 @@ def main():
     # Step 4: Extract new version
     try:
         extract_zip(zip_path, target_dir)
-    except Exception as e:
+    except (zipfile.BadZipFile, OSError) as e:
         restore_backup(backed_up)
         show_error("Update Failed", f"Failed to extract update: {e}\n\nYour previous version has been restored.")
         sys.exit(1)
@@ -169,7 +173,7 @@ def main():
         else:
             os.chmod(new_exe, 0o755)
             subprocess.Popen([new_exe], cwd=target_dir)
-    except Exception as e:
+    except OSError as e:
         show_error("Update Complete", f"Update installed successfully but failed to launch the app: {e}\n\nPlease start YoutubeWeekly manually.")
         sys.exit(1)
 
