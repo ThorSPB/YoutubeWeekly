@@ -755,8 +755,12 @@ class YoutubeWeeklyGUI(tk.Tk):
                         pass
         if os.path.exists(UPDATE_DIR):
             for item in os.listdir(UPDATE_DIR):
+                path = os.path.join(UPDATE_DIR, item)
                 try:
-                    os.remove(os.path.join(UPDATE_DIR, item))
+                    if os.path.isdir(path):
+                        shutil.rmtree(path)
+                    else:
+                        os.remove(path)
                 except OSError:
                     pass
 
