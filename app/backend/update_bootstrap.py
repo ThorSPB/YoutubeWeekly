@@ -217,11 +217,9 @@ def main():
         launch_args = [new_exe]
         if start_minimized:
             launch_args.append("--start-minimized")
-        if sys.platform == "win32":
-            subprocess.Popen(launch_args, cwd=target_dir)
-        else:
+        if sys.platform != "win32":
             os.chmod(new_exe, 0o755)
-            subprocess.Popen(launch_args, cwd=target_dir)
+        subprocess.Popen(launch_args, cwd=target_dir)
     except OSError as e:
         show_error("Update Complete", f"Update installed successfully but failed to launch the app: {e}\n\nPlease start YoutubeWeekly manually.")
         sys.exit(1)

@@ -1042,6 +1042,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             if silent:
                 self._send_notification("Update Failed", f"Could not launch updater: {e}")
             else:
+                self.after(0, lambda: self._set_status(f"Could not launch updater: {e}"))
                 self.after(0, lambda: messagebox.showerror("Update Failed", f"Could not launch updater:\n{e}"))
             return
 
