@@ -180,6 +180,7 @@ app/tools/**
 app/player/**
 !app/player/scripts/
 !app/player/scripts/**
+data/logs/**
 
 # macOS metadata
 .DS_Store
