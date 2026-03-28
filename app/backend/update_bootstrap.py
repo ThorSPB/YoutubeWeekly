@@ -105,12 +105,28 @@ def cleanup_backup(backed_up):
 
 
 def extract_zip(zip_path, target_dir):
-    """Extract ZIP to target directory, skipping the bootstrap binary (can't overwrite itself)."""
+    """Extract ZIP to target directory.
+
+    On Windows, the running bootstrap exe can't be overwritten but CAN be
+    renamed. We rename it to a .old suffix before extraction so the new
+    version from the ZIP takes its place. The .old file gets cleaned up
+    on next app launch.
+    """
+    # Rename the running bootstrap so the new one can be extracted
+    if sys.platform == "win32":
+        for name in os.listdir(target_dir):
+            if name.startswith("update_bootstrap") and not name.endswith(".old"):
+                src = os.path.join(target_dir, name)
+                dst = src + ".old"
+                try:
+                    if os.path.exists(dst):
+                        os.remove(dst)
+                    os.rename(src, dst)
+                except OSError:
+                    pass  # Best effort — extraction will skip if it can't overwrite
+
     with zipfile.ZipFile(zip_path, 'r') as zf:
-        for member in zf.infolist():
-            if member.filename.startswith("update_bootstrap"):
-                continue
-            zf.extract(member, target_dir)
+        zf.extractall(target_dir)
 
 
 def show_error(title, message):

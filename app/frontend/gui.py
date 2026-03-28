@@ -776,7 +776,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             base = get_base_path()
             if os.path.exists(base):
                 for item in os.listdir(base):
-                    if item.endswith('.bak'):
+                    if item.endswith('.bak') or item.endswith('.old'):
                         _try_delete(os.path.join(base, item))
 
         if os.path.exists(UPDATE_DIR):
