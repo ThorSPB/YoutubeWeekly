@@ -79,7 +79,7 @@ def run_dry_run(day_name="friday"):
              patch("app.backend.auto_downloader.download_video") as mock_download, \
              patch("app.backend.auto_downloader.delete_old_videos"):
 
-            mock_find.return_value = "https://youtube.com/watch?v=fake123"
+            mock_find.return_value = ("https://youtube.com/watch?v=fake123", {"type": "exact", "title": "Fake Video"})
             mock_download.return_value = None  # Success
 
             run_automatic_checks(settings, channels, mock_notify)

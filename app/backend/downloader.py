@@ -52,8 +52,47 @@ def format_romanian_date(date_obj):
     return f"{date_obj.day} {months[date_obj.month]} {date_obj.year}"
 
 
+import re
+
+
+def _normalize_date_in_text(text):
+    """Replace any non-digit delimiters between date components with dots.
+
+    Handles cases like '13 03.2026', '13,03,2026', '13 03 2026' -> '13.03.2026'
+    """
+    # Match date-like patterns: 1-2 digits, separator, 1-2 digits, separator, 4 digits
+    return re.sub(r'(\d{1,2})[^\d]+(\d{1,2})[^\d]+(\d{4})', r'\1.\2.\3', text)
+
+
+def _build_date_variants(date_obj):
+    """Build all date string variants for matching (exact date + nearby days).
+
+    Returns: dict mapping date_string -> offset_days (0 = exact match)
+    """
+    variants = {}
+    for offset in [0, -1, 1]:
+        d = date_obj + timedelta(days=offset)
+        # Numeric format with dots
+        numeric = f"{d.day:02d}.{d.month:02d}.{d.year}"
+        # Also try without leading zeros
+        numeric_no_pad = f"{d.day}.{d.month}.{d.year}"
+        # Romanian format
+        romanian = format_romanian_date(d).lower()
+
+        variants[numeric.lower()] = offset
+        variants[numeric_no_pad.lower()] = offset
+        variants[romanian] = offset
+    return variants
+
+
 def find_video_url(channel_url, expected_date, date_format="%d.%m.%Y"):
-    from datetime import datetime
+    """Find a video URL matching the expected date.
+
+    Returns: (url, match_info) tuple where match_info is:
+        - None if no match found (url will also be None)
+        - {"type": "exact", "title": ...} for exact date match
+        - {"type": "fuzzy", "title": ..., "reason": ...} for nearby date or delimiter mismatch
+    """
 
     ydl_opts = {
         'quiet': True,
@@ -67,28 +106,67 @@ def find_video_url(channel_url, expected_date, date_format="%d.%m.%Y"):
         expected_date_obj = datetime.strptime(expected_date, date_format).date()
     except Exception as e:
         logging.error(f"Expected date parsing error: {e}")
-        return None
+        return None, None
 
-    # Build both possible matches
-    formatted_numeric  = expected_date_obj.strftime(date_format).lower()
+    # Build exact match strings
+    formatted_numeric = expected_date_obj.strftime(date_format).lower()
     formatted_romanian = format_romanian_date(expected_date_obj).lower()
-    expected_title_parts = {formatted_numeric, formatted_romanian}
+    exact_parts = {formatted_numeric, formatted_romanian}
+
+    # Build fuzzy variants (±1 day, normalized delimiters)
+    date_variants = _build_date_variants(expected_date_obj)
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
             start_time = time.time()
             info = ydl.extract_info(channel_url + "/videos", download=False)
-            print(f"[DEBUG] yt-dlp took {time.time() - start_time:.2f} seconds to extract info.")
+            logging.debug(f"yt-dlp took {time.time() - start_time:.2f} seconds to extract info.")
             entries = info.get("entries", [])
 
-            for entry in entries[:]:
-                title = entry.get("title", "").lower()
-                # match if either format appears, and skip diaspora
-                if any(part in title for part in expected_title_parts) and "diaspora" not in title:
-                    return f"https://www.youtube.com/watch?v={entry['id']}"
+            best_fuzzy = None
+
+            for entry in entries:
+                title = entry.get("title", "")
+                title_lower = title.lower()
+
+                if "diaspora" in title_lower:
+                    continue
+
+                url = f"https://www.youtube.com/watch?v={entry['id']}"
+
+                # 1. Exact match (current behavior)
+                if any(part in title_lower for part in exact_parts):
+                    return url, {"type": "exact", "title": title}
+
+                # 2. Fuzzy match: normalize delimiters in title, then check variants
+                normalized_title = _normalize_date_in_text(title_lower)
+                for variant, offset in date_variants.items():
+                    if variant in title_lower or variant in normalized_title:
+                        reason = []
+                        if offset != 0:
+                            reason.append(f"date is off by {abs(offset)} day ({'before' if offset < 0 else 'after'} Sabbath)")
+                        if variant in normalized_title and variant not in title_lower:
+                            reason.append("delimiter mismatch in date format")
+                        if offset == 0 and variant not in exact_parts and not reason:
+                            reason.append("non-standard date format")
+                        if reason:
+                            best_fuzzy = (url, {
+                                "type": "fuzzy",
+                                "title": title,
+                                "reason": "; ".join(reason),
+                            })
+                            break
+                if best_fuzzy:
+                    break
+
+            if best_fuzzy:
+                return best_fuzzy
+
         except Exception as e:
             logging.error(f"Failed to fetch video list: {e}")
-            return None
+            return None, None
+
+    return None, None
 
 def delete_old_videos(video_folder, keep_old):
     if not keep_old:

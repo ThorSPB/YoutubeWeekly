@@ -6,7 +6,7 @@ channels = load_channels()
 
 channel_url = channels["channel_1"]["url"]
 expected_date = get_next_saturday()
-video_url = find_video_url(channel_url, expected_date)
+video_url, match_info = find_video_url(channel_url, expected_date)
 
 if video_url:
     delete_old_videos(settings["video_folder"], settings["keep_old_videos"])

@@ -102,7 +102,7 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
             folder = os.path.join(settings.get("video_folder", "data/videos"), channel_data.get("folder", channel_key))
 
             expected_date_str = datetime.strptime(current_sabbath_date, "%Y-%m-%d").strftime(date_format)
-            video_url = find_video_url(channel_url, expected_date_str, date_format=date_format)
+            video_url, match_info = find_video_url(channel_url, expected_date_str, date_format=date_format)
 
             if video_url:
                 try:

@@ -94,9 +94,9 @@ def run_dry_run(channel_filter="all"):
             mock_ydl_class.return_value.__enter__.return_value = mock_ydl
             mock_ydl.extract_info.return_value = {"entries": [fake_entries[i]]}
 
-            url = find_video_url(ch["url"], expected_date, date_format=fmt)
+            url, match_info = find_video_url(ch["url"], expected_date, date_format=fmt)
             if url:
-                print(f"  FOUND: {url}")
+                print(f"  FOUND: {url} (match: {match_info['type']})")
             else:
                 print(f"  NOT FOUND (this is a simulation error)")
                 return 1
