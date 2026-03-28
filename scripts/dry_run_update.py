@@ -56,7 +56,8 @@ def run_dry_run():
     mock_response.json.return_value = mock_release
     mock_response.raise_for_status = MagicMock()
 
-    with patch("app.backend.updater.requests.get", return_value=mock_response):
+    with patch("app.backend.updater.requests.get", return_value=mock_response), \
+         patch("app.backend.updater.__version__", "1.0.0"):
         is_new, version, url, assets = check_for_updates()
 
     if not is_new:

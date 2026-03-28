@@ -5,6 +5,7 @@ import logging
 from app.backend.config import __version__
 
 GITHUB_REPO_URL = "https://api.github.com/repos/ThorSPB/YoutubeWeekly/releases/latest"
+GITHUB_ALL_RELEASES_URL = "https://api.github.com/repos/ThorSPB/YoutubeWeekly/releases"
 
 
 def get_platform_asset_name(version=None):
@@ -48,6 +49,10 @@ def check_for_updates():
         download_url = latest_release["html_url"]
         assets = latest_release.get("assets", [])
 
+        # Skip update check when running from source (dev mode)
+        if __version__ == "dev":
+            return False, None, None, []
+
         current_version_parts = list(map(int, __version__.split('.')))
         latest_version_parts = list(map(int, latest_version.split('.')))
 
@@ -61,6 +66,48 @@ def check_for_updates():
     except (KeyError, ValueError) as e:
         logging.error(f"Unexpected response format from GitHub API: {e}")
         return False, None, None, []
+
+
+MIN_ROLLBACK_VERSION = [1, 1, 0]
+
+
+def get_available_versions():
+    """Fetch all available release versions from GitHub.
+
+    Returns: list of (version_string, assets, release_url) tuples, newest first.
+    Excludes pre-releases, the current version, and versions before v1.1.0.
+    """
+    versions = []
+    url = GITHUB_ALL_RELEASES_URL
+    try:
+        while url:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            releases = response.json()
+
+            for release in releases:
+                if release.get("prerelease") or release.get("draft"):
+                    continue
+                version = release["tag_name"].lstrip("vV")
+                if version == __version__:
+                    continue
+                try:
+                    version_parts = list(map(int, version.split('.')))
+                    if version_parts < MIN_ROLLBACK_VERSION:
+                        continue
+                except ValueError:
+                    continue
+                assets = release.get("assets", [])
+                release_url = release.get("html_url", "")
+                if get_asset_download_url(assets, version):
+                    versions.append((version, assets, release_url))
+
+            url = response.links.get('next', {}).get('url')
+
+        return versions
+    except (requests.exceptions.RequestException, KeyError, ValueError) as e:
+        logging.error(f"Failed to fetch available versions: {e}")
+        return []
 
 
 def download_update(asset_url, dest_path, progress_callback=None):

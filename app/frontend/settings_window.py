@@ -1,9 +1,10 @@
 import os
 import sys
+import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import json
-from app.backend.config import save_settings, load_default_settings
+from app.backend.config import save_settings, load_default_settings, __version__
 from app.frontend.help_window import HelpWindow
 from screeninfo import get_monitors
 from app.backend.startup_manager import add_to_startup, remove_from_startup, is_in_startup
@@ -97,146 +98,140 @@ class SettingsWindow(tk.Toplevel):
                        troughcolor="white")
 
     def create_widgets(self):
-        # Frame for better organization
-        main_frame = ttk.Frame(self, style="Dark.TFrame")
-        main_frame.pack(padx=10, pady=10, fill="both", expand=True)
+        # Notebook (tabs)
+        style = ttk.Style(self)
+        style.configure("Dark.TNotebook", background="#2b2b2b", borderwidth=0)
+        style.configure("Dark.TNotebook.Tab", background="#3c3c3c", foreground="white", padding=[10, 5])
+        style.map("Dark.TNotebook.Tab",
+                  background=[("selected", "#2b2b2b")],
+                  foreground=[("selected", "white")])
 
-        # Keep old videos
+        notebook = ttk.Notebook(self, style="Dark.TNotebook")
+        notebook.pack(padx=10, pady=(10, 0), fill="both", expand=True)
+
+        # === General Tab ===
+        general_frame = ttk.Frame(notebook, style="Dark.TFrame")
+        notebook.add(general_frame, text="General")
+
         self.keep_old_videos_var = tk.BooleanVar(value=self.settings.get("keep_old_videos", False))
-        keep_videos_check = ttk.Checkbutton(main_frame, text="Keep old videos", variable=self.keep_old_videos_var, style="Dark.TCheckbutton")
-        keep_videos_check.pack(anchor="w", pady=5)
+        ttk.Checkbutton(general_frame, text="Keep old videos", variable=self.keep_old_videos_var, style="Dark.TCheckbutton").pack(anchor="w", pady=5, padx=10)
 
-        # Video folder
-        folder_frame = ttk.Frame(main_frame, style="Dark.TFrame")
-        folder_frame.pack(fill="x", pady=5)
-        
+        folder_frame = ttk.Frame(general_frame, style="Dark.TFrame")
+        folder_frame.pack(fill="x", pady=5, padx=10)
         ttk.Label(folder_frame, text="Video folder:", style="Dark.TLabel").pack(side="left")
-        entry_width = 26 if os.name == "posix" else 30  # Adjust for macOS (posix)
         self.video_folder_var = tk.StringVar(value=self.settings.get("video_folder", "data/videos"))
-        folder_entry = ttk.Entry(folder_frame, textvariable=self.video_folder_var, width=57, style="Dark.TEntry")
-        folder_entry.pack(side="left", padx=5)
-        
-        browse_button = ttk.Button(folder_frame, text="Browse", command=self.browse_folder, style="Dark.TButton")
-        browse_button.pack(side="left")
+        ttk.Entry(folder_frame, textvariable=self.video_folder_var, width=45, style="Dark.TEntry").pack(side="left", padx=5)
+        ttk.Button(folder_frame, text="Browse", command=self.browse_folder, style="Dark.TButton").pack(side="left")
 
-        # Default quality
-        quality_frame = ttk.Frame(main_frame, style="Dark.TFrame")
-        quality_frame.pack(fill="x", pady=5)
-
+        quality_frame = ttk.Frame(general_frame, style="Dark.TFrame")
+        quality_frame.pack(fill="x", pady=5, padx=10)
         ttk.Label(quality_frame, text="Default quality:", style="Dark.TLabel").pack(side="left")
         self.quality_var = tk.StringVar(value=self.settings.get("default_quality", "1080p"))
-        quality_combo = ttk.Combobox(quality_frame, textvariable=self.quality_var, values=["max", "4k", "2k", "1080p", "720p", "480p", "mp3"], width=10, state="readonly", style="Dark.TCombobox")
-        quality_combo.pack(side="left", padx=5)
+        ttk.Combobox(quality_frame, textvariable=self.quality_var, values=["max", "4k", "2k", "1080p", "720p", "480p", "mp3"], width=10, state="readonly", style="Dark.TCombobox").pack(side="left", padx=5)
 
-        # Automatic Downloads setting
         self.enable_auto_download_var = tk.BooleanVar(value=self.settings.get("enable_auto_download", False))
-        auto_download_check = ttk.Checkbutton(main_frame, text="Enable Automatic Downloads", variable=self.enable_auto_download_var, style="Dark.TCheckbutton")
-        auto_download_check.pack(anchor="w", pady=5)
+        ttk.Checkbutton(general_frame, text="Enable Automatic Downloads", variable=self.enable_auto_download_var, style="Dark.TCheckbutton").pack(anchor="w", pady=5, padx=10)
 
-        # Notifications setting
         self.enable_notifications_var = tk.BooleanVar(value=self.settings.get("enable_notifications", True))
-        notifications_check = ttk.Checkbutton(main_frame, text="Enable Notifications", variable=self.enable_notifications_var, style="Dark.TCheckbutton")
-        notifications_check.pack(anchor="w", pady=5)
+        ttk.Checkbutton(general_frame, text="Enable Notifications", variable=self.enable_notifications_var, style="Dark.TCheckbutton").pack(anchor="w", pady=5, padx=10)
 
-        # Start with system setting
-        # Check actual Windows registry status and sync with settings
         actual_startup_enabled = is_in_startup()
         self.settings["start_with_system"] = actual_startup_enabled
         self.start_with_system_var = tk.BooleanVar(value=actual_startup_enabled)
-        start_with_system_check = ttk.Checkbutton(main_frame, text="Start with System (minimized to tray)", variable=self.start_with_system_var, style="Dark.TCheckbutton")
-        start_with_system_check.pack(anchor="w", pady=5)
+        ttk.Checkbutton(general_frame, text="Start with System (minimized to tray)", variable=self.start_with_system_var, style="Dark.TCheckbutton").pack(anchor="w", pady=5, padx=10)
 
-        # Auto-install updates setting
+        self.check_for_updates_var = tk.BooleanVar(value=self.settings.get("check_for_updates", True))
+        self.check_for_updates_var.trace_add("write", lambda *_: self._update_auto_install_state())
+        ttk.Checkbutton(general_frame, text="Check for updates on startup", variable=self.check_for_updates_var, style="Dark.TCheckbutton").pack(anchor="w", pady=5, padx=10)
+
+        # Auto-install — depends on check for updates
+        auto_install_frame = ttk.Frame(general_frame, style="Dark.TFrame")
+        auto_install_frame.pack(anchor="w", pady=(0, 5), padx=10)
+        self.auto_install_tree_label = tk.Label(
+            auto_install_frame, text="  └ ", fg="#666666", bg="#2b2b2b", font=("Consolas", 10)
+        )
+        self.auto_install_tree_label.pack(side="left")
         self.auto_install_updates_var = tk.BooleanVar(value=self.settings.get("auto_install_updates", False))
-        auto_updates_check = ttk.Checkbutton(main_frame, text="Auto-install updates on startup (when minimized to tray)", variable=self.auto_install_updates_var, style="Dark.TCheckbutton")
-        auto_updates_check.pack(anchor="w", pady=5)
+        self.auto_install_check = ttk.Checkbutton(
+            auto_install_frame, text="",
+            variable=self.auto_install_updates_var, style="Dark.TCheckbutton"
+        )
+        self.auto_install_check.pack(side="left")
+        self.auto_install_label = tk.Label(
+            auto_install_frame, text="Auto-install updates on startup",
+            fg="white", bg="#2b2b2b", font=("Segoe UI", 9)
+        )
+        self.auto_install_label.pack(side="left")
+        self.auto_install_label.bind("<Button-1>", lambda e: self.auto_install_check.invoke() if str(self.auto_install_check.cget("state")) != "disabled" else None)
+        self._update_auto_install_state()
 
-        # MPV Player setting
+        # === Player Tab ===
+        player_frame = ttk.Frame(notebook, style="Dark.TFrame")
+        notebook.add(player_frame, text="Player")
+
         self.use_mpv_var = tk.BooleanVar(value=self.settings.get("use_mpv", False))
-        mpv_check = ttk.Checkbutton(main_frame, text="Use MPV Player", variable=self.use_mpv_var, command=self.toggle_mpv_path_entry, style="Dark.TCheckbutton")
-        mpv_check.pack(anchor="w", pady=5)
+        ttk.Checkbutton(player_frame, text="Use MPV Player", variable=self.use_mpv_var, command=self.toggle_mpv_path_entry, style="Dark.TCheckbutton").pack(anchor="w", pady=5, padx=10)
 
-        # MPV Path
-        self.mpv_path_frame = ttk.Frame(main_frame, style="Dark.TFrame")
-        self.mpv_path_frame.pack(fill="x", pady=5, padx=15)
-        
+        self.mpv_path_frame = ttk.Frame(player_frame, style="Dark.TFrame")
+        self.mpv_path_frame.pack(fill="x", pady=5, padx=20)
         ttk.Label(self.mpv_path_frame, text="MPV Path:", style="Dark.TLabel").pack(side="left")
         self.mpv_path_var = tk.StringVar(value=self.settings.get("mpv_path", ""))
         self.mpv_path_entry = ttk.Entry(self.mpv_path_frame, textvariable=self.mpv_path_var, width=20, style="Dark.TEntry")
         self.mpv_path_entry.pack(side="left", expand=True, fill="x", padx=5)
-        
-        mpv_browse_button = ttk.Button(self.mpv_path_frame, text="Browse", command=self.browse_mpv_path, style="Dark.TButton")
-        mpv_browse_button.pack(side="left")
+        ttk.Button(self.mpv_path_frame, text="Browse", command=self.browse_mpv_path, style="Dark.TButton").pack(side="left")
+        self.toggle_mpv_path_entry()
 
-        self.toggle_mpv_path_entry() # Set initial state
-
-        # MPV Fullscreen setting
         self.mpv_fullscreen_var = tk.BooleanVar(value=self.settings.get("mpv_fullscreen", False))
-        mpv_fullscreen_check = ttk.Checkbutton(main_frame, text="MPV Fullscreen", variable=self.mpv_fullscreen_var, style="Dark.TCheckbutton")
-        mpv_fullscreen_check.pack(anchor="w", pady=5)
+        ttk.Checkbutton(player_frame, text="MPV Fullscreen", variable=self.mpv_fullscreen_var, style="Dark.TCheckbutton").pack(anchor="w", pady=5, padx=10)
 
-        # MPV Volume setting
-        volume_frame = ttk.Frame(main_frame, style="Dark.TFrame")
-        volume_frame.pack(fill="x", pady=5)
-        ttk.Label(volume_frame, text="MPV Volume (0-200):", style="Dark.TLabel").pack(side="left")
+        volume_frame = ttk.Frame(player_frame, style="Dark.TFrame")
+        volume_frame.pack(fill="x", pady=5, padx=10)
+        ttk.Label(volume_frame, text="Volume (0-130):", style="Dark.TLabel").pack(side="left")
         self.mpv_volume_var = tk.IntVar(value=self.settings.get("mpv_volume", 100))
         self.mpv_volume_var.trace_add("write", self._validate_mpv_volume)
-        mpv_volume_slider = ttk.Scale(volume_frame, from_=0, to=130, orient="horizontal", variable=self.mpv_volume_var)
-        mpv_volume_slider.pack(side="left", expand=True, fill="x", padx=5)
-        mpv_volume_entry = ttk.Entry(volume_frame, textvariable=self.mpv_volume_var, width=5, style="Dark.TEntry")
-        mpv_volume_entry.pack(side="left")
+        ttk.Scale(volume_frame, from_=0, to=130, orient="horizontal", variable=self.mpv_volume_var).pack(side="left", expand=True, fill="x", padx=5)
+        ttk.Entry(volume_frame, textvariable=self.mpv_volume_var, width=5, style="Dark.TEntry").pack(side="left")
 
-        # MPV Monitor selection
-        monitor_frame = ttk.Frame(main_frame, style="Dark.TFrame")
-        monitor_frame.pack(fill="x", pady=5)
-        ttk.Label(monitor_frame, text="MPV Monitor:", style="Dark.TLabel").pack(side="left")
+        monitor_frame = ttk.Frame(player_frame, style="Dark.TFrame")
+        monitor_frame.pack(fill="x", pady=5, padx=10)
+        ttk.Label(monitor_frame, text="Monitor:", style="Dark.TLabel").pack(side="left")
         self.mpv_screen_var = tk.StringVar(value=self.settings.get("mpv_screen", "Default"))
         self.monitor_options = ["Default"] + [str(i) for i, _ in enumerate(get_monitors())]
-        mpv_screen_combo = ttk.Combobox(monitor_frame, textvariable=self.mpv_screen_var, values=self.monitor_options, width=10, state="readonly", style="Dark.TCombobox")
-        mpv_screen_combo.pack(side="left", padx=5)
+        ttk.Combobox(monitor_frame, textvariable=self.mpv_screen_var, values=self.monitor_options, width=10, state="readonly", style="Dark.TCombobox").pack(side="left", padx=5)
 
-        # MPV Custom Arguments
-        custom_args_frame = ttk.Frame(main_frame, style="Dark.TFrame")
-        custom_args_frame.pack(fill="x", pady=5)
-        ttk.Label(custom_args_frame, text="MPV Custom Arguments:", style="Dark.TLabel").pack(side="left")
+        custom_args_frame = ttk.Frame(player_frame, style="Dark.TFrame")
+        custom_args_frame.pack(fill="x", pady=5, padx=10)
+        ttk.Label(custom_args_frame, text="Custom Arguments:", style="Dark.TLabel").pack(side="left")
         self.mpv_custom_args_var = tk.StringVar(value=self.settings.get("mpv_custom_args", ""))
-        mpv_custom_args_entry = ttk.Entry(custom_args_frame, textvariable=self.mpv_custom_args_var, width=40, style="Dark.TEntry")
-        mpv_custom_args_entry.pack(side="left", expand=True, fill="x", padx=5)
+        ttk.Entry(custom_args_frame, textvariable=self.mpv_custom_args_var, width=35, style="Dark.TEntry").pack(side="left", expand=True, fill="x", padx=5)
 
-        # FFmpeg Path (moved to bottom)
-        self.ffmpeg_path_frame = ttk.Frame(main_frame, style="Dark.TFrame")
-        self.ffmpeg_path_frame.pack(fill="x", pady=5)
-        
-        ttk.Label(self.ffmpeg_path_frame, text="FFmpeg Path:", style="Dark.TLabel").pack(side="left")
+        # === Advanced Tab ===
+        advanced_frame = ttk.Frame(notebook, style="Dark.TFrame")
+        notebook.add(advanced_frame, text="Advanced")
+
+        ffmpeg_frame = ttk.Frame(advanced_frame, style="Dark.TFrame")
+        ffmpeg_frame.pack(fill="x", pady=5, padx=10)
+        ttk.Label(ffmpeg_frame, text="FFmpeg Path:", style="Dark.TLabel").pack(side="left")
         self.ffmpeg_path_var = tk.StringVar(value=self.settings.get("ffmpeg_path", ""))
-        self.ffmpeg_path_entry = ttk.Entry(self.ffmpeg_path_frame, textvariable=self.ffmpeg_path_var, width=56, style="Dark.TEntry")
+        self.ffmpeg_path_entry = ttk.Entry(ffmpeg_frame, textvariable=self.ffmpeg_path_var, width=42, style="Dark.TEntry")
         self.ffmpeg_path_entry.pack(side="left", padx=5)
-        
-        ffmpeg_browse_button = ttk.Button(self.ffmpeg_path_frame, text="Browse", command=self.browse_ffmpeg_path, style="Dark.TButton")
-        ffmpeg_browse_button.pack(side="left")
+        ttk.Button(ffmpeg_frame, text="Browse", command=self.browse_ffmpeg_path, style="Dark.TButton").pack(side="left")
 
-        # Warning for FFmpeg (moved to bottom with FFmpeg setting)
-        warning_label = ttk.Label(main_frame, text="Warning: Only change FFmpeg path if you know what you're doing. Incorrect path will break downloads. Clicking \"Reset to Defaults\" will restore the original path.",
-                  foreground="red", wraplength=400, justify="left", style="Dark.TLabel")
-        warning_label.configure(foreground="red")  # Override the style for warning color
-        warning_label.pack(anchor="w", pady=(0, 10))
+        warning_label = ttk.Label(advanced_frame, text="Warning: Only change FFmpeg path if you know what you're doing.",
+                  foreground="red", wraplength=480, justify="left", style="Dark.TLabel")
+        warning_label.configure(foreground="red")
+        warning_label.pack(anchor="w", pady=(0, 10), padx=10)
 
-        # Buttons
-        button_frame = ttk.Frame(main_frame, style="Dark.TFrame")
-        button_frame.pack(side="bottom", fill="x", pady=10)
+        ttk.Button(advanced_frame, text="Rollback to Previous Version", command=self._show_rollback_dialog, style="Dark.TButton").pack(anchor="w", pady=10, padx=10)
 
-        save_button = ttk.Button(button_frame, text="Save", command=self.save_settings, style="Dark.TButton")
-        save_button.pack(side="right", padx=5)
+        # === Bottom Buttons (outside tabs) ===
+        button_frame = ttk.Frame(self, style="Dark.TFrame")
+        button_frame.pack(fill="x", padx=10, pady=10)
 
-        cancel_button = ttk.Button(button_frame, text="Cancel", command=self.on_closing, style="Dark.TButton")
-        cancel_button.pack(side="right")
-
-        reset_button = ttk.Button(button_frame, text="Reset to Defaults", command=self.reset_to_defaults, style="Dark.TButton")
-        reset_button.pack(side="left", padx=5)
-
-        # Help button
-        help_button = ttk.Button(button_frame, text="?", command=self.open_help, style="Dark.TButton", width=3)
-        help_button.pack(side="left", padx=(0, 10))
+        ttk.Button(button_frame, text="Save", command=self.save_settings, style="Dark.TButton").pack(side="right", padx=5)
+        ttk.Button(button_frame, text="Cancel", command=self.on_closing, style="Dark.TButton").pack(side="right")
+        ttk.Button(button_frame, text="Reset to Defaults", command=self.reset_to_defaults, style="Dark.TButton").pack(side="left", padx=5)
+        ttk.Button(button_frame, text="?", command=self.open_help, style="Dark.TButton", width=3).pack(side="left")
 
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
@@ -260,6 +255,15 @@ class SettingsWindow(tk.Toplevel):
     def toggle_mpv_path_entry(self):
         state = "normal" if self.use_mpv_var.get() else "disabled"
         self.mpv_path_entry.config(state=state)
+
+    def _update_auto_install_state(self):
+        """Grey out auto-install checkbox when check-for-updates is disabled."""
+        enabled = self.check_for_updates_var.get()
+        self.auto_install_check.config(state="normal" if enabled else "disabled")
+        self.auto_install_label.config(fg="white" if enabled else "#555555")
+        self.auto_install_tree_label.config(fg="#666666" if enabled else "#444444")
+        if not enabled:
+            self.auto_install_updates_var.set(False)
 
     def load_window_position(self):
         geometry = self.settings.get("settings_window_geometry")
@@ -294,6 +298,7 @@ class SettingsWindow(tk.Toplevel):
                 remove_from_startup()
         
         self.settings["start_with_system"] = new_startup_value
+        self.settings["check_for_updates"] = self.check_for_updates_var.get()
         self.settings["auto_install_updates"] = self.auto_install_updates_var.get()
         self.settings["use_mpv"] = self.use_mpv_var.get()
         self.settings["mpv_path"] = self.mpv_path_var.get()
@@ -329,6 +334,7 @@ class SettingsWindow(tk.Toplevel):
         self.quality_var.set(self.settings.get("default_quality", "1080p"))
         self.enable_auto_download_var.set(self.settings.get("enable_auto_download", False))
         self.enable_notifications_var.set(self.settings.get("enable_notifications", True))
+        self.check_for_updates_var.set(self.settings.get("check_for_updates", True))
         self.auto_install_updates_var.set(self.settings.get("auto_install_updates", False))
         self.use_mpv_var.set(self.settings.get("use_mpv", False))
         self.mpv_path_var.set(self.settings.get("mpv_path", ""))
@@ -337,3 +343,101 @@ class SettingsWindow(tk.Toplevel):
         self.mpv_screen_var.set(self.settings.get("mpv_screen", "Default"))
         self.mpv_custom_args_var.set(self.settings.get("mpv_custom_args", ""))
         self.ffmpeg_path_var.set(self.settings.get("ffmpeg_path", ""))
+
+    def _show_rollback_dialog(self):
+        """Show a dialog to select a previous version to rollback to."""
+        from app.backend.updater import get_available_versions, get_asset_download_url
+
+        dialog = tk.Toplevel(self)
+        dialog.title("Rollback to Previous Version")
+        dialog.configure(bg="#2b2b2b")
+        dialog.geometry("400x250")
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.grab_set()
+
+        dialog.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() - 400) // 2
+        y = self.winfo_y() + (self.winfo_height() - 250) // 2
+        dialog.geometry(f"+{x}+{y}")
+
+        tk.Label(
+            dialog, text=f"Current version: v{__version__}",
+            fg="white", bg="#2b2b2b", font=("Segoe UI", 10, "bold")
+        ).pack(pady=(15, 5))
+
+        tk.Label(
+            dialog, text="Loading available versions...",
+            fg="#cccccc", bg="#2b2b2b", font=("Segoe UI", 9)
+        ).pack(pady=(0, 10))
+
+        listbox_frame = tk.Frame(dialog, bg="#2b2b2b")
+        listbox_frame.pack(fill="both", expand=True, padx=20)
+
+        listbox = tk.Listbox(
+            listbox_frame, bg="#3c3c3c", fg="white", selectbackground="#0078D7",
+            font=("Segoe UI", 10), borderwidth=0, highlightthickness=0
+        )
+        listbox.pack(fill="both", expand=True)
+
+        btn_frame = tk.Frame(dialog, bg="#2b2b2b")
+        btn_frame.pack(pady=(10, 15))
+
+        rollback_btn = ttk.Button(btn_frame, text="Rollback", state="disabled", width=12)
+        rollback_btn.pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Cancel", command=dialog.destroy, width=10).pack(side="left", padx=5)
+
+        # Store versions data for selection
+        versions_data = []
+
+        def on_versions_loaded(versions):
+            if not versions:
+                listbox.insert(tk.END, "No other versions available")
+                return
+
+            versions_data.clear()
+            versions_data.extend(versions)
+            listbox.delete(0, tk.END)
+            for version, _, _ in versions:
+                listbox.insert(tk.END, f"  v{version}")
+            rollback_btn.config(state="normal")
+
+        def on_select_and_rollback():
+            selection = listbox.curselection()
+            if not selection:
+                messagebox.showwarning("No Selection", "Please select a version to rollback to.", parent=dialog)
+                return
+
+            version, assets, release_url = versions_data[selection[0]]
+            confirmed = messagebox.askyesno(
+                "Confirm Rollback",
+                f"Are you sure you want to rollback to v{version}?\n\n"
+                "Your settings and downloaded videos will be preserved.\n"
+                "The app will close and restart on the selected version.",
+                parent=dialog
+            )
+            if not confirmed:
+                return
+
+            asset_url = get_asset_download_url(assets, version)
+            if not asset_url:
+                messagebox.showerror("Rollback Failed", "No download available for this version on your platform.", parent=dialog)
+                return
+
+            dialog.destroy()
+            self.destroy()
+
+            # Trigger the rollback via the parent GUI's update mechanism
+            parent = self.master
+            if hasattr(parent, '_start_update'):
+                parent._pending_update = None
+                parent._start_update(version, release_url, assets)
+
+        rollback_btn.config(command=on_select_and_rollback)
+
+        # Load versions in background
+        def load_versions():
+            versions = get_available_versions()
+            dialog.after(0, lambda: on_versions_loaded(versions))
+
+        threading.Thread(target=load_versions, daemon=True).start()

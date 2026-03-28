@@ -260,12 +260,12 @@ class YoutubeWeeklyGUI(tk.Tk):
         bottom_frame = ttk.Frame(self, style="Dark.TFrame")
         bottom_frame.pack(pady=(5, 15), padx=20, fill="x")
 
-        # Version label + update check button (bottom left)
+        # Update check button + version label (bottom left)
+        ttk.Button(bottom_frame, text="\u21bb", command=self._check_for_updates_manual, width=2).pack(side="left")
         tk.Label(
             bottom_frame, text=f"v{__version__}",
             fg="#666666", bg="#2b2b2b", font=("Segoe UI", 8)
-        ).pack(side="left")
-        ttk.Button(bottom_frame, text="\u21bb", command=self._check_for_updates_manual, width=2).pack(side="left", padx=(2, 0))
+        ).pack(side="left", padx=(2, 0))
 
         # Help button (bottom right)
         ttk.Button(bottom_frame, text="?", command=self.open_help, width=3).pack(side="right")
@@ -290,8 +290,9 @@ class YoutubeWeeklyGUI(tk.Tk):
             daemon=True
         ).start()
 
-        # Check for updates in a separate thread
-        threading.Thread(target=self._check_for_updates_thread, daemon=True).start()
+        # Check for updates in a separate thread (if enabled)
+        if self.settings.get("check_for_updates", True):
+            threading.Thread(target=self._check_for_updates_thread, daemon=True).start()
 
         # Show changelog after an update
         if self._just_updated:
@@ -348,6 +349,10 @@ class YoutubeWeeklyGUI(tk.Tk):
         y = self.winfo_y() + (self.winfo_height() - 300) // 2
         dialog.geometry(f"+{x}+{y}")
 
+        # Format markdown before displaying
+        from app.frontend.help_window import HelpWindow
+        formatted = HelpWindow.format_markdown(None, "\n".join(section_lines))
+
         from tkinter import scrolledtext
         text = scrolledtext.ScrolledText(
             dialog, wrap="word", bg="#2b2b2b", fg="white",
@@ -355,7 +360,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             padx=15, pady=10
         )
         text.pack(fill="both", expand=True)
-        text.insert("1.0", "\n".join(section_lines))
+        text.insert("1.0", formatted)
         text.config(state="disabled")
 
         ttk.Button(dialog, text="Got it!", command=dialog.destroy, width=10).pack(pady=(5, 15))
@@ -892,8 +897,8 @@ class YoutubeWeeklyGUI(tk.Tk):
         is_minimized = "--start-minimized" in sys.argv
         auto_install = self.settings.get("auto_install_updates", False)
 
-        if auto_install and is_minimized:
-            # Silent auto-update: download and install without user interaction
+        if auto_install:
+            # Auto-update: download and install without user interaction
             self._send_notification("Update Detected", f"Installing v{latest_version} automatically...")
             self.after(0, lambda: self._start_update(latest_version, download_url, assets, silent=True))
         elif is_minimized:
@@ -1027,7 +1032,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         # Launch bootstrap and exit
         base = get_base_path()
         exe_name = os.path.basename(sys.executable)
-        should_minimize = silent or "--start-minimized" in sys.argv
+        should_minimize = "--start-minimized" in sys.argv
 
         if not silent:
             self.after(0, lambda: self._set_status("Installing update..."))
