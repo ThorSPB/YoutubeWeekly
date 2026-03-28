@@ -72,19 +72,5 @@ def test_get_executable_path_frozen(mock_sys):
     mock_sys.frozen = True
     mock_sys.executable = "/opt/YoutubeWeekly/YoutubeWeekly"
     from app.backend.startup_manager import get_executable_path
-    # Need to reimport with the mock - test the frozen branch directly
-    import app.backend.startup_manager as sm
-    original_frozen = getattr(sm.sys, 'frozen', False)
-    try:
-        sm.sys.frozen = True
-        sm.sys.executable = "/opt/YoutubeWeekly/YoutubeWeekly"
-        path = sm.get_executable_path()
-        assert path == "/opt/YoutubeWeekly/YoutubeWeekly"
-    finally:
-        if original_frozen:
-            sm.sys.frozen = original_frozen
-        else:
-            try:
-                del sm.sys.frozen
-            except AttributeError:
-                pass
+    path = get_executable_path()
+    assert path == "/opt/YoutubeWeekly/YoutubeWeekly"

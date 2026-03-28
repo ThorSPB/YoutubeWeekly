@@ -1,11 +1,14 @@
 import os
 import json
 import time
+import threading
 import yt_dlp
 import logging
 from datetime import datetime, timedelta
 from app.backend.config import load_settings, SETTINGS_FILE
 from tkinter import messagebox
+
+_settings_lock = threading.Lock()
 
 
 def load_protected_videos():
@@ -13,14 +16,15 @@ def load_protected_videos():
         return json.load(f).get("protected_videos", {})
 
 def add_protected_video(channel_folder, title):
-    with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-        settings = json.load(f)
-    protected = settings.setdefault("protected_videos", {})
-    protected.setdefault(channel_folder, [])
-    if title not in protected[channel_folder]:
-        protected[channel_folder].append(title)
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump(settings, f, indent=2)
+    with _settings_lock:
+        with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+            settings = json.load(f)
+        protected = settings.setdefault("protected_videos", {})
+        protected.setdefault(channel_folder, [])
+        if title not in protected[channel_folder]:
+            protected[channel_folder].append(title)
+            with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+                json.dump(settings, f, indent=2)
 
 def get_next_saturday(date_format="%d.%m.%Y"):
     today = datetime.today()
