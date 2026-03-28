@@ -23,25 +23,32 @@ def wait_for_process_exit(pid, timeout=30):
 
     if sys.platform == "win32":
         import ctypes
-        kernel32 = ctypes.windll.kernel32
+        kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
         SYNCHRONIZE = 0x100000
-        ERROR_INVALID_PARAMETER = 87
+        WAIT_OBJECT_0 = 0
+        WAIT_TIMEOUT = 0x102
 
-    while time.time() - start < timeout:
+        handle = kernel32.OpenProcess(SYNCHRONIZE, False, pid)
+        if not handle:
+            return True  # Can't open process — likely already gone
+
         try:
-            if sys.platform == "win32":
-                handle = kernel32.OpenProcess(SYNCHRONIZE, False, pid)
-                if handle:
-                    kernel32.CloseHandle(handle)
-                else:
-                    if ctypes.get_last_error() == ERROR_INVALID_PARAMETER:
-                        return True
-            else:
-                os.kill(pid, 0)  # Signal 0 checks if process exists
-        except (OSError, ProcessLookupError):
-            return True  # Process has exited
-        time.sleep(0.5)
-    return False  # Timeout
+            while time.time() - start < timeout:
+                result = kernel32.WaitForSingleObject(handle, 500)  # Wait 500ms
+                if result == WAIT_OBJECT_0:
+                    return True  # Process exited
+                # WAIT_TIMEOUT means still running, keep polling
+            return False  # Timeout
+        finally:
+            kernel32.CloseHandle(handle)
+    else:
+        while time.time() - start < timeout:
+            try:
+                os.kill(pid, 0)
+            except (OSError, ProcessLookupError):
+                return True
+            time.sleep(0.5)
+        return False
 
 
 def backup_install(target_dir, exe_name):
