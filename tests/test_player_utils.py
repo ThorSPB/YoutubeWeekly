@@ -65,3 +65,4 @@ def test_play_video_default_player_linux(mock_call):
     settings = {"use_mpv": False}
     error = play_video(settings, "/tmp/video.mp4")
     assert error is None
+    mock_call.assert_called_once()

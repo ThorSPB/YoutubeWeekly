@@ -34,10 +34,7 @@ def play_video(settings, file_path, script_path=None):
         if settings.get("use_mpv", False) and settings.get("mpv_path"):
             mpv_args = build_mpv_args(settings, file_path, script_path)
 
-            if os.name == 'nt':
-                process = subprocess.Popen(mpv_args, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-            else:
-                process = subprocess.Popen(mpv_args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+            process = subprocess.Popen(mpv_args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 
             stdout, stderr = process.communicate()
             if process.returncode != 0:

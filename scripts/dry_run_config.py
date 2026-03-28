@@ -8,6 +8,7 @@ import os
 import sys
 import json
 import tempfile
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -64,7 +65,6 @@ def run_dry_run():
 
     # Step 3: Save/load roundtrip
     print("\n[3/4] Testing save/load roundtrip...")
-    from unittest.mock import patch
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_settings = os.path.join(tmpdir, "settings.json")
         with open(tmp_settings, "w") as f:

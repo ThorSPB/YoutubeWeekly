@@ -10,6 +10,8 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from app.backend.startup_manager import is_in_startup, get_executable_path
+
 
 def run_dry_run():
     print("=" * 60)
@@ -17,8 +19,6 @@ def run_dry_run():
     print("=" * 60)
 
     print(f"\n  Platform: {sys.platform}")
-
-    from app.backend.startup_manager import is_in_startup, get_executable_path
 
     # Check current status
     print("\n[1/2] Checking startup registration...")

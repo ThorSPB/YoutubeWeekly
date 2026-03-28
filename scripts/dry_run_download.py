@@ -9,7 +9,6 @@ import argparse
 import os
 import sys
 import tempfile
-import json
 from unittest.mock import patch, MagicMock
 
 # Add project root to path

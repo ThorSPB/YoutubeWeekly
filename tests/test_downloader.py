@@ -145,6 +145,9 @@ def test_delete_old_videos_no_keep_old(monkeypatch, tmp_path):
     delete_old_videos(str(video_folder), keep_old=False)
     # delete_old_videos deletes ALL .mp4 files when keep_old=False (ignores protected)
     assert mock_os_remove.call_count == 2
+    called_with_files = [args[0] for args, kwargs in mock_os_remove.call_args_list]
+    assert str(video_folder / "old_video.mp4") in called_with_files
+    assert str(video_folder / "protected_video.mp4") in called_with_files
 
 def test_delete_old_videos_keep_old(monkeypatch, tmp_path):
     video_folder = tmp_path / "test_channel"

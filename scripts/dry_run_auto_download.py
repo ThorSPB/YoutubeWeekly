@@ -10,8 +10,8 @@ import os
 import sys
 import json
 import tempfile
-from unittest.mock import patch, MagicMock
-from datetime import datetime
+from unittest.mock import patch
+from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -35,7 +35,6 @@ def run_dry_run(day_name="friday"):
 
     # Build a fake date for the given weekday
     # Start from a known Monday (2025-07-14) and offset
-    from datetime import timedelta
     base_monday = datetime(2025, 7, 14)
     mock_today = base_monday + timedelta(days=weekday)
     print(f"  Simulated date: {mock_today.strftime('%A %Y-%m-%d')}")

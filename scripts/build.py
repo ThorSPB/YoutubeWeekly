@@ -97,8 +97,10 @@ def get_git_commit():
             ['git', 'rev-parse', '--short', 'HEAD'],
             capture_output=True, text=True, cwd=PROJECT_ROOT,
         )
-        return result.stdout.strip()
-    except Exception:
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+        return 'unknown'
+    except FileNotFoundError:
         return 'unknown'
 
 
@@ -120,9 +122,12 @@ def main():
         set_version(new_version)
         version = new_version
 
+    commit = get_git_commit()
+    build_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
     print(f"Building YoutubeWeekly v{version}")
-    print(f"  Commit: {get_git_commit()}")
-    print(f"  Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"  Commit: {commit}")
+    print(f"  Date: {build_date}")
 
     if not args.skip_tests:
         run_tests()
@@ -144,8 +149,8 @@ def main():
 
     print(f"\nBuild metadata:")
     print(f"  Version: {version}")
-    print(f"  Commit: {get_git_commit()}")
-    print(f"  Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"  Commit: {commit}")
+    print(f"  Date: {build_date}")
 
 
 if __name__ == '__main__':

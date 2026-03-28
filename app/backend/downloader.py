@@ -4,23 +4,32 @@ import time
 import yt_dlp
 import logging
 from datetime import datetime, timedelta
-from app.backend.config import load_settings, SETTINGS_FILE
+from app.backend.config import load_settings, SETTINGS_FILE, settings_lock
 from tkinter import messagebox
 
 
 def load_protected_videos():
-    with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f).get("protected_videos", {})
+    with settings_lock:
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f).get("protected_videos", {})
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
 
 def add_protected_video(channel_folder, title):
-    with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-        settings = json.load(f)
-    protected = settings.setdefault("protected_videos", {})
-    protected.setdefault(channel_folder, [])
-    if title not in protected[channel_folder]:
-        protected[channel_folder].append(title)
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump(settings, f, indent=2)
+    with settings_lock:
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                settings = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            settings = {}
+
+        protected = settings.setdefault("protected_videos", {})
+        protected.setdefault(channel_folder, [])
+        if title not in protected[channel_folder]:
+            protected[channel_folder].append(title)
+            with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+                json.dump(settings, f, indent=2)
 
 def get_next_saturday(date_format="%d.%m.%Y"):
     today = datetime.today()

@@ -1,4 +1,5 @@
 import pytest
+import requests
 from unittest.mock import patch, MagicMock
 from app.backend.updater import check_for_updates
 
@@ -35,7 +36,6 @@ def test_check_for_updates_up_to_date(mock_get):
 
 @patch("app.backend.updater.requests.get")
 def test_check_for_updates_network_error(mock_get):
-    import requests
     mock_get.side_effect = requests.exceptions.RequestException("Connection failed")
 
     is_new, version, url = check_for_updates()
