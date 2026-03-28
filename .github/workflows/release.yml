@@ -319,7 +319,7 @@ jobs:
     name: Build macOS (Intel)
     needs: create-release
     if: needs.create-release.outputs.version != ''
-    runs-on: macos-13
+    runs-on: macos-14
 
     steps:
       - name: Checkout code
