@@ -160,9 +160,9 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
 
         send_notification_callback(summary_title, summary_message, on_click=show_window_callback)
 
-    successful_count = sum(1 for s in download_results.values() if s == "Success")
-    if successful_count > 0:
-        send_telemetry_ping(settings, successful_count, session_type="auto")
+        successful_count = sum(1 for s in download_results.values() if s == "Success")
+        if successful_count > 0:
+            send_telemetry_ping(settings, successful_count, session_type="auto")
 
     # Save the updated log and settings
     save_auto_download_log(auto_download_log)
