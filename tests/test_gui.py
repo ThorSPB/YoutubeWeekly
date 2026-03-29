@@ -74,11 +74,7 @@ def test_load_window_position_not_exists(gui):
     ("Some message", "warning", "yellow"),
     ("Some message", "error", "red"),
     ("Some message", None, "#ffffff"),
-    # Fallback substring checks (severity=None)
-    ("Video already exists", None, "yellow"),
-    ("No video found", None, "red"),
-    ("Download complete.", None, "green"),
-    ("Error downloading.", None, "red"),
+    ("Any text without severity", None, "#ffffff"),
 ])
 def test_set_status(gui, text, severity, expected_color):
     gui._set_status(text, severity=severity)

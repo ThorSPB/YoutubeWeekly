@@ -2,7 +2,7 @@ import os
 import tkinter as tk
 from tkinter import ttk, scrolledtext
 import sys
-from app.i18n import t
+from app.i18n import t, get_language
 
 class HelpWindow(tk.Toplevel):
     def __init__(self, parent, title, help_file_path, on_close_callback=None):
@@ -85,13 +85,30 @@ class HelpWindow(tk.Toplevel):
     def load_help_content(self, help_file_path):
         """Load and display the help content from markdown file"""
         try:
-            # Try multiple paths for the help file
-            possible_paths = [
+            # Build language-specific filename (e.g., main_help_ro.md)
+            lang = get_language()
+            base_name = os.path.basename(help_file_path)
+            if lang != "en":
+                name, ext = os.path.splitext(base_name)
+                localized_name = f"{name}_{lang}{ext}"
+            else:
+                localized_name = None
+
+            # Try localized file first, then fall back to default
+            possible_paths = []
+            if localized_name:
+                possible_paths.extend([
+                    os.path.join(os.path.dirname(help_file_path), localized_name),
+                    self.resource_path(os.path.join("docs", localized_name)),
+                    os.path.join("docs", localized_name),
+                    os.path.join(os.path.dirname(__file__), "..", "..", "docs", localized_name),
+                ])
+            possible_paths.extend([
                 help_file_path,
                 self.resource_path(help_file_path),
-                os.path.join("docs", os.path.basename(help_file_path)),
-                os.path.join(os.path.dirname(__file__), "..", "..", "docs", os.path.basename(help_file_path))
-            ]
+                os.path.join("docs", base_name),
+                os.path.join(os.path.dirname(__file__), "..", "..", "docs", base_name),
+            ])
             
             content = None
             for path in possible_paths:

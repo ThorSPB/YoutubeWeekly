@@ -563,18 +563,6 @@ class YoutubeWeeklyGUI(tk.Tk):
             color = "yellow"
         elif severity == "error":
             color = "red"
-        elif severity is None:
-            # Fallback: substring checks for backwards compatibility
-            if "already exists" in text.lower():
-                color = "yellow"
-            elif "no video found" in text.lower():
-                color = "red"
-            elif "download complete" in text.lower():
-                color = "green"
-            elif "error" in text.lower():
-                color = "red"
-            else:
-                color = "#ffffff"
         else:
             color = "#ffffff"
         self.status_label.config(fg=color)
