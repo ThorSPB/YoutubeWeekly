@@ -107,8 +107,8 @@ class FeedbackWindow(tk.Toplevel):
         # Enable mousewheel scrolling only when hovering over the list
         def _on_mousewheel(event):
             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        scroll_frame.bind("<Enter>", lambda _: self.bind_all("<MouseWheel>", _on_mousewheel))
-        scroll_frame.bind("<Leave>", lambda _: self.unbind_all("<MouseWheel>"))
+        canvas.bind("<Enter>", lambda _: self.bind_all("<MouseWheel>", _on_mousewheel))
+        canvas.bind("<Leave>", lambda _: self.unbind_all("<MouseWheel>"))
 
         for thread in self.threads:
             self._create_thread_card(scroll_frame, thread)
@@ -189,8 +189,8 @@ class FeedbackWindow(tk.Toplevel):
 
         def _on_mousewheel(event):
             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        scroll_frame.bind("<Enter>", lambda _: self.bind_all("<MouseWheel>", _on_mousewheel))
-        scroll_frame.bind("<Leave>", lambda _: self.unbind_all("<MouseWheel>"))
+        canvas.bind("<Enter>", lambda _: self.bind_all("<MouseWheel>", _on_mousewheel))
+        canvas.bind("<Leave>", lambda _: self.unbind_all("<MouseWheel>"))
 
         # Original message
         msg_box = tk.Frame(scroll_frame, bg="#1c2128")
