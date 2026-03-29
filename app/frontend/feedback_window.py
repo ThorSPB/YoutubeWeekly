@@ -5,7 +5,7 @@ import threading
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
-from app.backend.feedback import submit_feedback, fetch_feedback
+from app.backend.feedback import submit_feedback, fetch_feedback, reply_to_feedback
 
 
 CATEGORIES = ["Bug Report", "Feature Request", "Positive Feedback", "Negative Feedback", "Other"]
@@ -36,7 +36,7 @@ class FeedbackWindow(tk.Toplevel):
         self.parent = parent
         self.settings = settings
         self.threads = []
-        self.screenshot_path = None
+        self.screenshot_paths = []
 
         self.title("Feedback")
         self.configure(bg="#2b2b2b")
@@ -225,6 +225,53 @@ class FeedbackWindow(tk.Toplevel):
                 tk.Label(reply_frame, text=reply.get("message", ""), fg="#c9d1d9", bg="#161b22",
                          font=("Segoe UI", 9), wraplength=470, justify="left").pack(fill="x", padx=10, pady=(0, 8))
 
+        # Reply box
+        tk.Label(scroll_frame, text="REPLY", fg="#8b949e", bg="#2b2b2b",
+                 font=("Segoe UI", 8, "bold")).pack(anchor="w", pady=(10, 3))
+        reply_text = tk.Text(scroll_frame, height=3, bg="#0d1117", fg="#c9d1d9",
+                              insertbackground="white", font=("Segoe UI", 9),
+                              relief="flat", borderwidth=1, highlightbackground="#30363d",
+                              highlightthickness=1, wrap="word")
+        reply_text.pack(fill="x", pady=(0, 5))
+
+        reply_btn = tk.Button(scroll_frame, text="Send Reply", bg="#238636", fg="white",
+                               font=("Segoe UI", 9, "bold"), relief="flat", cursor="hand2",
+                               activebackground="#2ea043", activeforeground="white")
+        reply_btn.pack(anchor="e")
+
+        def _send_reply():
+            msg = reply_text.get("1.0", "end").strip()
+            if not msg:
+                return
+            reply_btn.config(text="Sending...", state="disabled")
+            feedback_id = thread.get("id")
+
+            def _do_reply():
+                success, error = reply_to_feedback(feedback_id, msg)
+                self.after(0, lambda: _on_reply_sent(success, error))
+
+            def _on_reply_sent(success, error):
+                reply_btn.config(text="Send Reply", state="normal")
+                if success:
+                    self._set_status("Reply sent!")
+                    threading.Thread(target=self._fetch_and_reopen, args=(feedback_id,), daemon=True).start()
+                else:
+                    self._set_status(f"Failed: {error}")
+
+            threading.Thread(target=_do_reply, daemon=True).start()
+
+        reply_btn.config(command=_send_reply)
+
+    def _fetch_and_reopen(self, feedback_id):
+        """Fetch threads and reopen the detail view for a specific thread."""
+        threads = fetch_feedback()
+        self.after(0, self._on_threads_loaded, threads)
+        # Find and reopen the thread
+        for t in threads:
+            if t.get("id") == feedback_id:
+                self.after(50, lambda: self._show_thread_detail(t))
+                return
+
     # ---- New Feedback Form ----
 
     def _show_new_form(self):
@@ -255,13 +302,29 @@ class FeedbackWindow(tk.Toplevel):
                                 highlightthickness=1, wrap="word")
         self.msg_text.pack(fill="x", pady=(2, 10))
 
-        # Screenshot
-        screenshot_frame = tk.Frame(self.content, bg="#2b2b2b")
-        screenshot_frame.pack(fill="x", pady=(0, 10))
-        ttk.Button(screenshot_frame, text="Attach Screenshot", command=self._pick_screenshot).pack(side="left")
-        self.screenshot_label = tk.Label(screenshot_frame, text="No file selected",
-                                          fg="#8b949e", bg="#2b2b2b", font=("Segoe UI", 8))
-        self.screenshot_label.pack(side="left", padx=8)
+        # Screenshots
+        tk.Label(self.content, text="Screenshots", fg="#8b949e", bg="#2b2b2b",
+                 font=("Segoe UI", 9)).pack(anchor="w")
+        self.screenshot_paths = []
+
+        self.drop_frame = tk.Frame(self.content, bg="#1c2128", highlightbackground="#30363d",
+                                    highlightthickness=1, cursor="hand2")
+        self.drop_frame.pack(fill="x", pady=(2, 5), ipady=12)
+        self.drop_label = tk.Label(self.drop_frame, text="Click to add or drag && drop images here",
+                                    fg="#484f58", bg="#1c2128", font=("Segoe UI", 9))
+        self.drop_label.pack()
+        self.drop_frame.bind("<Button-1>", lambda e: self._pick_screenshots())
+        self.drop_label.bind("<Button-1>", lambda e: self._pick_screenshots())
+
+        # Try to enable drag-and-drop (requires tkinterdnd2, graceful fallback)
+        try:
+            self.drop_frame.drop_target_register("DND_Files")
+            self.drop_frame.dnd_bind("<<Drop>>", self._on_drop)
+        except (AttributeError, tk.TclError):
+            pass  # tkinterdnd2 not available, click still works
+
+        self.screenshots_list_frame = tk.Frame(self.content, bg="#2b2b2b")
+        self.screenshots_list_frame.pack(fill="x", pady=(0, 10))
 
         # Send button
         self.send_btn = tk.Button(self.content, text="Send Feedback", bg="#238636", fg="white",
@@ -270,15 +333,55 @@ class FeedbackWindow(tk.Toplevel):
                                    command=self._send_feedback)
         self.send_btn.pack(fill="x", ipady=4)
 
-    def _pick_screenshot(self):
-        path = filedialog.askopenfilename(
+    def _pick_screenshots(self):
+        paths = filedialog.askopenfilenames(
             parent=self,
-            title="Select Screenshot",
+            title="Select Screenshots",
             filetypes=[("Images", "*.png *.jpg *.jpeg *.bmp *.gif"), ("All files", "*.*")]
         )
-        if path:
-            self.screenshot_path = path
-            self.screenshot_label.config(text=os.path.basename(path), fg="#3fb950")
+        for path in paths:
+            if path and path not in self.screenshot_paths:
+                self.screenshot_paths.append(path)
+        self._update_screenshots_list()
+
+    def _on_drop(self, event):
+        """Handle drag-and-drop files."""
+        # Parse dropped file paths (may be space-separated or brace-wrapped)
+        data = event.data
+        paths = []
+        if "{" in data:
+            import re
+            paths = re.findall(r"\{([^}]+)\}", data)
+        else:
+            paths = data.split()
+        image_exts = {".png", ".jpg", ".jpeg", ".bmp", ".gif"}
+        for path in paths:
+            ext = os.path.splitext(path)[1].lower()
+            if ext in image_exts and path not in self.screenshot_paths:
+                self.screenshot_paths.append(path)
+        self._update_screenshots_list()
+
+    def _remove_screenshot(self, path):
+        if path in self.screenshot_paths:
+            self.screenshot_paths.remove(path)
+        self._update_screenshots_list()
+
+    def _update_screenshots_list(self):
+        for w in self.screenshots_list_frame.winfo_children():
+            w.destroy()
+        for path in self.screenshot_paths:
+            row = tk.Frame(self.screenshots_list_frame, bg="#2b2b2b")
+            row.pack(fill="x", pady=1)
+            tk.Label(row, text=f"📎 {os.path.basename(path)}", fg="#3fb950", bg="#2b2b2b",
+                     font=("Segoe UI", 8)).pack(side="left")
+            remove_btn = tk.Label(row, text="✕", fg="#da3633", bg="#2b2b2b",
+                                   font=("Segoe UI", 8), cursor="hand2")
+            remove_btn.pack(side="right", padx=5)
+            remove_btn.bind("<Button-1>", lambda e, p=path: self._remove_screenshot(p))
+        if self.screenshot_paths:
+            self.drop_label.config(text=f"{len(self.screenshot_paths)} image(s) attached — click to add more")
+        else:
+            self.drop_label.config(text="Click to add or drag && drop images here")
 
     def _send_feedback(self):
         message = self.msg_text.get("1.0", "end").strip()
@@ -294,7 +397,7 @@ class FeedbackWindow(tk.Toplevel):
             success, result = submit_feedback(
                 category=category,
                 message=message,
-                image_path=self.screenshot_path,
+                image_paths=self.screenshot_paths or None,
                 settings=self.settings,
             )
             self.after(0, lambda: self._on_send_complete(success, result))
@@ -305,7 +408,7 @@ class FeedbackWindow(tk.Toplevel):
         self.send_btn.config(text="Send Feedback", state="normal")
         if success:
             self._set_status("Feedback sent!")
-            self.screenshot_path = None
+            self.screenshot_paths = []
             # Refresh threads
             threading.Thread(target=self._fetch_threads, daemon=True).start()
         else:
