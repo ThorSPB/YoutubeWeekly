@@ -114,7 +114,9 @@ class FeedbackWindow(tk.Toplevel):
             self._create_thread_card(scroll_frame, thread)
 
     def _create_thread_card(self, parent, thread):
-        card = tk.Frame(parent, bg="#161b22", highlightbackground="#30363d",
+        has_new_reply = thread.get("status") == "replied"
+        border_color = "#3fb950" if has_new_reply else "#30363d"
+        card = tk.Frame(parent, bg="#161b22", highlightbackground=border_color,
                         highlightthickness=1, cursor="hand2")
         card.pack(fill="x", pady=3)
 
@@ -135,15 +137,30 @@ class FeedbackWindow(tk.Toplevel):
         tk.Label(top, text=status_text, fg=status_color, bg="#161b22",
                  font=("Segoe UI", 8)).pack(side="right")
 
-        # Message preview
-        msg = thread.get("message", "")[:80]
-        if len(thread.get("message", "")) > 80:
-            msg += "..."
-        tk.Label(card, text=msg, fg="#c9d1d9", bg="#161b22",
+        # Latest message preview (last reply or original message)
+        replies = thread.get("replies", [])
+        if replies:
+            last_reply = replies[-1]
+            is_dev = last_reply.get("is_developer", False)
+            prefix = "Dev: " if is_dev else "You: "
+            preview_text = last_reply.get("message", "")
+            preview_color = "#58a6ff" if is_dev else "#8b949e"
+        else:
+            prefix = ""
+            preview_text = thread.get("message", "")
+            preview_color = "#c9d1d9"
+
+        preview = prefix + preview_text
+        if len(preview) > 80:
+            preview = preview[:80] + "..."
+        tk.Label(card, text=preview, fg=preview_color, bg="#161b22",
                  font=("Segoe UI", 9), anchor="w", wraplength=490).pack(fill="x", padx=10, pady=(0, 4))
 
-        # Date
-        date = thread.get("created_at", "")[:16]
+        # Date (latest activity)
+        if replies:
+            date = replies[-1].get("created_at", "")[:16]
+        else:
+            date = thread.get("created_at", "")[:16]
         tk.Label(card, text=date, fg="#484f58", bg="#161b22",
                  font=("Segoe UI", 7)).pack(anchor="e", padx=10, pady=(0, 6))
 
