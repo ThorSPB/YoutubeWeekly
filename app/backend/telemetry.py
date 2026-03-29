@@ -13,7 +13,7 @@ from app.backend.config import CONFIG_DIR, __version__, load_settings
 
 TELEMETRY_URL = "https://thorsp.ddns.net/ytw-telemetry/ping"
 INSTALL_ID_FILE = os.path.join(CONFIG_DIR, "install_id")
-GEO_API_URL = "https://ip-api.com/json/?fields=city,country"
+GEO_API_URL = "http://ip-api.com/json/?fields=city,country"  # Free tier requires HTTP
 
 _location_cache = None
 _location_lock = threading.Lock()
