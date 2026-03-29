@@ -123,13 +123,14 @@ class YoutubeWeeklyGUI(tk.Tk):
         header_frame = ttk.Frame(self, style="Dark.TFrame")
         header_frame.pack(fill="x", padx=10, pady=(5, 0))
 
-        tk.Label(
+        self._header_label = tk.Label(
             header_frame,
             text=t("app_title"),
             font=(default_font[0], 14, 'bold'),
             fg="white",
             bg="#2b2b2b"
-        ).pack(side="left")
+        )
+        self._header_label.pack(side="left")
 
         ttk.Button(header_frame, text="⚙", command=self.open_settings, width=3).pack(side="right")
 
@@ -166,6 +167,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         content_frame.pack(pady=(0, 15), padx=20, fill="x", expand=True)
 
         # One download button + quality selector per channel
+        self._channel_download_btns = {}
         for channel in self.channels:
             row = ttk.Frame(content_frame, style="Dark.TFrame")
             row.pack(pady=3, anchor="w", fill="x")
@@ -195,6 +197,7 @@ class YoutubeWeeklyGUI(tk.Tk):
                 width=34
             )
             btn.pack(side="left")
+            self._channel_download_btns[channel["name"]] = btn
 
             play_btn = ttk.Button(
                 row,
@@ -238,13 +241,13 @@ class YoutubeWeeklyGUI(tk.Tk):
         others_entry.bind("<FocusIn>", lambda e: others_entry.delete(0, "end") if others_entry.get() == t("placeholder_paste_link") else None)
         others_entry.pack(side="left", padx=(0, 8))
 
-        others_btn = ttk.Button(
+        self._others_btn = ttk.Button(
             others_frame,
             text=t("btn_download"),
             command=self.download_others,
             width=12
         )
-        others_btn.pack(side="left")
+        self._others_btn.pack(side="left")
 
         play_others_btn = ttk.Button(
             others_frame,
@@ -285,7 +288,8 @@ class YoutubeWeeklyGUI(tk.Tk):
         ttk.Button(bottom_frame, text="?", command=self.open_help, width=3).pack(side="right")
 
         # Quit button (centered)
-        ttk.Button(bottom_frame, text=t("btn_quit"), command=self.on_closing, width=10).pack(expand=True)
+        self._quit_btn = ttk.Button(bottom_frame, text=t("btn_quit"), command=self.on_closing, width=10)
+        self._quit_btn.pack(expand=True)
 
         self.resizable(False, False)
         self.bind("<Configure>", self._on_resize)
@@ -480,16 +484,23 @@ class YoutubeWeeklyGUI(tk.Tk):
         new_lang = self.settings.get("language", "en")
         if new_lang != get_language():
             set_language(new_lang)
-            messagebox.showinfo(
-                t("settings_title"),
-                t("dlg_restart_for_language"),
-            )
+            self._refresh_language()
         self.base_path = self.settings.get("video_folder", "data/videos")
         # Update quality dropdowns with new default
         default_quality = self.settings.get("default_quality", "1080p")
         for var in self.channel_quality_vars.values():
             var.set(default_quality)
         self.others_quality_var.set(default_quality)
+
+    def _refresh_language(self):
+        """Update all static UI text after a language change."""
+        self.title(t("app_title"))
+        self._header_label.config(text=t("app_title"))
+        for name, btn in self._channel_download_btns.items():
+            btn.config(text=t("btn_download_channel", name=name))
+        self._others_btn.config(text=t("btn_download"))
+        self._quit_btn.config(text=t("btn_quit"))
+        # Status refreshes automatically since it uses t() at call time
 
     def open_feedback(self):
         if hasattr(self, '_feedback_win') and self._feedback_win and self._feedback_win.winfo_exists():
