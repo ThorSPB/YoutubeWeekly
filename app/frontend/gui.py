@@ -498,8 +498,8 @@ class YoutubeWeeklyGUI(tk.Tk):
                 threads = load_local_feedback()
                 unread = sum(1 for t in threads if t.get("status") == "replied")
                 self.after(0, lambda: self._update_badge(unread))
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[Feedback] Badge check failed: {e}")
         threading.Thread(target=_check, daemon=True).start()
 
     def _update_badge(self, count):

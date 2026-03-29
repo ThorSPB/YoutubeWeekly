@@ -1,6 +1,7 @@
 """In-app feedback window for YoutubeWeekly."""
 
 import os
+import re
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
@@ -282,12 +283,12 @@ class FeedbackWindow(tk.Toplevel):
     def _fetch_and_reopen(self, feedback_id):
         """Fetch threads and reopen the detail view for a specific thread."""
         threads = fetch_feedback()
-        self.after(0, self._on_threads_loaded, threads)
-        # Find and reopen the thread
-        for t in threads:
-            if t.get("id") == feedback_id:
-                self.after(50, lambda: self._show_thread_detail(t))
-                return
+        self.threads = threads
+        updated_thread = next((t for t in threads if t.get("id") == feedback_id), None)
+        if updated_thread:
+            self.after(0, lambda: self._show_thread_detail(updated_thread))
+        else:
+            self.after(0, self._on_threads_loaded, threads)
 
     # ---- New Feedback Form ----
 
@@ -367,7 +368,6 @@ class FeedbackWindow(tk.Toplevel):
         data = event.data
         paths = []
         if "{" in data:
-            import re
             paths = re.findall(r"\{([^}]+)\}", data)
         else:
             paths = data.split()

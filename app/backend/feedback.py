@@ -173,10 +173,12 @@ def reply_to_feedback(feedback_id, message):
         )
         if r.status_code == 200:
             return True, None
+        elif r.status_code == 429:
+            return False, "Rate limited. Please wait before sending another reply."
         else:
             return False, f"Server error ({r.status_code})"
     except requests.ConnectionError:
-        return False, "Could not connect to server."
+        return False, "Could not connect to server. Check your internet connection."
     except Exception as e:
         return False, str(e)
 
