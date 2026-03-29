@@ -133,7 +133,7 @@ class YoutubeWeeklyGUI(tk.Tk):
 
         # Feedback button with notification badge
         self.feedback_btn_frame = tk.Frame(header_frame, bg="#2b2b2b")
-        self.feedback_btn_frame.pack(side="right", padx=(0, 3))
+        self.feedback_btn_frame.pack(side="right", padx=(0, 5))
         ttk.Button(self.feedback_btn_frame, text="💬", command=self.open_feedback, width=3).pack()
         self.feedback_badge = tk.Label(self.feedback_btn_frame, text="", fg="white", bg="#da3633",
                                         font=("Segoe UI", 7, "bold"), padx=3, pady=0)
@@ -273,7 +273,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         bottom_frame.pack(pady=(5, 15), padx=20, fill="x")
 
         # Update check button + version label (bottom left)
-        ttk.Button(bottom_frame, text="\u21bb", command=self._check_for_updates_manual, width=2).pack(side="left")
+        ttk.Button(bottom_frame, text="\u21bb", command=self._check_for_updates_manual, width=3).pack(side="left")
         tk.Label(
             bottom_frame, text=f"v{__version__}",
             fg="#666666", bg="#2b2b2b", font=("Segoe UI", 8)
