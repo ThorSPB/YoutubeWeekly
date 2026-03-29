@@ -16,6 +16,7 @@ from datetime import datetime
 from app.frontend.settings_window import SettingsWindow
 from app.frontend.file_viewer import FileViewer
 from app.frontend.help_window import HelpWindow
+from app.frontend.feedback_window import FeedbackWindow
 from app.frontend.player_utils import play_video
 from app.backend.auto_downloader import run_automatic_checks
 from app.backend.updater import check_for_updates, get_asset_download_url, get_platform_asset_name, download_update
@@ -128,6 +129,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         ).pack(side="left")
 
         ttk.Button(header_frame, text="⚙", command=self.open_settings, width=3).pack(side="right")
+        ttk.Button(header_frame, text="💬", command=self.open_feedback, width=3).pack(side="right", padx=(0, 3))
 
         # Status label with wrapping - fixed height to prevent layout shifts
         self.status_var = tk.StringVar()
@@ -470,6 +472,12 @@ class YoutubeWeeklyGUI(tk.Tk):
         for var in self.channel_quality_vars.values():
             var.set(default_quality)
         self.others_quality_var.set(default_quality)
+
+    def open_feedback(self):
+        feedback_win = FeedbackWindow(self, self.settings)
+        feedback_win.transient(self)
+        feedback_win.grab_set()
+        feedback_win.focus_set()
 
     def open_help(self):
         """Open the main help window"""
