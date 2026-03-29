@@ -90,14 +90,14 @@ def test_play_latest_error(gui, tmp_path):
     with patch('app.frontend.gui.play_video', return_value="Player crashed"):
         with patch('app.frontend.gui.messagebox.showerror') as mock_err:
             gui._worker_play(channel)
-            gui._set_status.assert_any_call("Error playing video: Player crashed")
+            gui._set_status.assert_any_call("Error playing video: Player crashed", severity="error")
             mock_err.assert_called_once()
 
 
 def test_play_latest_no_folder(gui):
     channel = {"name": "Test Channel", "folder": "test_channel"}
     gui._worker_play(channel)
-    gui._set_status.assert_any_call("No videos downloaded for Test Channel yet.")
+    gui._set_status.assert_any_call("No videos downloaded for Test Channel yet.", severity="warning")
 
 
 def test_play_latest_empty_folder(gui, tmp_path):
@@ -105,7 +105,7 @@ def test_play_latest_empty_folder(gui, tmp_path):
     channel_folder.mkdir(parents=True)
     channel = {"name": "Test Channel", "folder": "test_channel"}
     gui._worker_play(channel)
-    gui._set_status.assert_any_call("No videos found for Test Channel.")
+    gui._set_status.assert_any_call("No videos found for Test Channel.", severity="error")
 
 
 # --- FileViewer tests ---

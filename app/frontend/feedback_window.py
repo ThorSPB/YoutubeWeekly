@@ -7,15 +7,16 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
 from app.backend.feedback import submit_feedback, fetch_feedback, reply_to_feedback
+from app.frontend.i18n import t
 
 
-CATEGORIES = ["Bug Report", "Feature Request", "Positive Feedback", "Negative Feedback", "Other"]
-CATEGORY_MAP = {
-    "Bug Report": "bug",
-    "Feature Request": "feature",
-    "Positive Feedback": "positive",
-    "Negative Feedback": "negative",
-    "Other": "other",
+CATEGORY_KEYS = ["cat_bug_report", "cat_feature_request", "cat_positive_feedback", "cat_negative_feedback", "cat_other"]
+CATEGORY_API_MAP = {
+    "cat_bug_report": "bug",
+    "cat_feature_request": "feature",
+    "cat_positive_feedback": "positive",
+    "cat_negative_feedback": "negative",
+    "cat_other": "other",
 }
 CATEGORY_COLORS = {
     "bug": "#da3633",
@@ -39,7 +40,7 @@ class FeedbackWindow(tk.Toplevel):
         self.threads = []
         self.screenshot_paths = []
 
-        self.title("Feedback")
+        self.title(t("fb_title"))
         self.configure(bg="#2b2b2b")
         self.geometry("550x480")
         self.resizable(False, False)
@@ -48,7 +49,7 @@ class FeedbackWindow(tk.Toplevel):
         self._build_ui()
 
         # Fetch threads in background
-        self._set_status("Loading feedback...")
+        self._set_status(t("fb_loading"))
         threading.Thread(target=self._fetch_threads, daemon=True).start()
 
     def _setup_styles(self):
@@ -61,9 +62,9 @@ class FeedbackWindow(tk.Toplevel):
         # Header
         header = tk.Frame(self, bg="#2b2b2b")
         header.pack(fill="x", padx=12, pady=(10, 5))
-        tk.Label(header, text="Feedback", font=("Segoe UI", 13, "bold"),
+        tk.Label(header, text=t("fb_title"), font=("Segoe UI", 13, "bold"),
                  fg="white", bg="#2b2b2b").pack(side="left")
-        ttk.Button(header, text="+ New", command=self._show_new_form, width=8).pack(side="right")
+        ttk.Button(header, text=t("fb_new"), command=self._show_new_form, width=8).pack(side="right")
 
         # Status
         self.status_var = tk.StringVar(value="")
@@ -89,7 +90,7 @@ class FeedbackWindow(tk.Toplevel):
         self._clear_content()
 
         if not self.threads:
-            tk.Label(self.content, text="No feedback yet. Click '+ New' to send feedback.",
+            tk.Label(self.content, text=t("fb_empty"),
                      fg="#8b949e", bg="#2b2b2b", font=("Segoe UI", 10)).pack(pady=40)
             return
 
@@ -134,7 +135,7 @@ class FeedbackWindow(tk.Toplevel):
         status_color = STATUS_COLORS.get(status, "#8b949e")
         status_text = "● " + status.capitalize()
         if status == "replied":
-            status_text = "● New Reply"
+            status_text = t("fb_new_reply")
         tk.Label(top, text=status_text, fg=status_color, bg="#161b22",
                  font=("Segoe UI", 8)).pack(side="right")
 
@@ -143,7 +144,7 @@ class FeedbackWindow(tk.Toplevel):
         if replies:
             last_reply = replies[-1]
             is_dev = last_reply.get("is_developer", False)
-            prefix = "Dev: " if is_dev else "You: "
+            prefix = t("fb_dev_prefix") if is_dev else t("fb_you_prefix")
             preview_text = last_reply.get("message", "")
             preview_color = "#58a6ff" if is_dev else "#8b949e"
         else:
@@ -180,7 +181,7 @@ class FeedbackWindow(tk.Toplevel):
         # Back button
         back_frame = tk.Frame(self.content, bg="#2b2b2b")
         back_frame.pack(fill="x", pady=(0, 8))
-        back_label = tk.Label(back_frame, text="← Back", fg="#58a6ff", bg="#2b2b2b",
+        back_label = tk.Label(back_frame, text=t("fb_back"), fg="#58a6ff", bg="#2b2b2b",
                  font=("Segoe UI", 9), cursor="hand2")
         back_label.pack(side="left")
         back_label.bind("<Button-1>", lambda e: self._show_thread_list())
@@ -213,7 +214,7 @@ class FeedbackWindow(tk.Toplevel):
         # Original message
         msg_box = tk.Frame(scroll_frame, bg="#1c2128")
         msg_box.pack(fill="x", pady=(0, 10))
-        tk.Label(msg_box, text="Your message:", fg="#8b949e", bg="#1c2128",
+        tk.Label(msg_box, text=t("fb_your_message"), fg="#8b949e", bg="#1c2128",
                  font=("Segoe UI", 8)).pack(anchor="w", padx=10, pady=(8, 2))
         tk.Label(msg_box, text=thread.get("message", ""), fg="#c9d1d9", bg="#1c2128",
                  font=("Segoe UI", 9), wraplength=480, justify="left").pack(fill="x", padx=10, pady=(0, 8))
@@ -221,7 +222,7 @@ class FeedbackWindow(tk.Toplevel):
         # Replies
         replies = thread.get("replies", [])
         if replies:
-            tk.Label(scroll_frame, text="REPLIES", fg="#8b949e", bg="#2b2b2b",
+            tk.Label(scroll_frame, text=t("fb_replies"), fg="#8b949e", bg="#2b2b2b",
                      font=("Segoe UI", 8, "bold")).pack(anchor="w", pady=(5, 3))
 
             for reply in replies:
@@ -231,7 +232,7 @@ class FeedbackWindow(tk.Toplevel):
                                        highlightthickness=2)
                 reply_frame.pack(fill="x", pady=3)
 
-                author = "Developer" if is_dev else "You"
+                author = t("fb_developer") if is_dev else t("fb_you")
                 author_color = "#58a6ff" if is_dev else "#8b949e"
                 meta = tk.Frame(reply_frame, bg="#161b22")
                 meta.pack(fill="x", padx=10, pady=(6, 2))
@@ -244,7 +245,7 @@ class FeedbackWindow(tk.Toplevel):
                          font=("Segoe UI", 9), wraplength=470, justify="left").pack(fill="x", padx=10, pady=(0, 8))
 
         # Reply box
-        tk.Label(scroll_frame, text="REPLY", fg="#8b949e", bg="#2b2b2b",
+        tk.Label(scroll_frame, text=t("fb_reply_section"), fg="#8b949e", bg="#2b2b2b",
                  font=("Segoe UI", 8, "bold")).pack(anchor="w", pady=(10, 3))
         reply_text = tk.Text(scroll_frame, height=3, bg="#0d1117", fg="#c9d1d9",
                               insertbackground="white", font=("Segoe UI", 9),
@@ -252,7 +253,7 @@ class FeedbackWindow(tk.Toplevel):
                               highlightthickness=1, wrap="word")
         reply_text.pack(fill="x", pady=(0, 5))
 
-        reply_btn = tk.Button(scroll_frame, text="Send Reply", bg="#238636", fg="white",
+        reply_btn = tk.Button(scroll_frame, text=t("fb_send_reply"), bg="#238636", fg="white",
                                font=("Segoe UI", 9, "bold"), relief="flat", cursor="hand2",
                                activebackground="#2ea043", activeforeground="white")
         reply_btn.pack(anchor="e")
@@ -261,7 +262,7 @@ class FeedbackWindow(tk.Toplevel):
             msg = reply_text.get("1.0", "end").strip()
             if not msg:
                 return
-            reply_btn.config(text="Sending...", state="disabled")
+            reply_btn.config(text=t("fb_sending"), state="disabled")
             feedback_id = thread.get("id")
 
             def _do_reply():
@@ -269,12 +270,12 @@ class FeedbackWindow(tk.Toplevel):
                 self.after(0, lambda: _on_reply_sent(success, error))
 
             def _on_reply_sent(success, error):
-                reply_btn.config(text="Send Reply", state="normal")
+                reply_btn.config(text=t("fb_send_reply"), state="normal")
                 if success:
-                    self._set_status("Reply sent!")
+                    self._set_status(t("fb_reply_sent"))
                     threading.Thread(target=self._fetch_and_reopen, args=(feedback_id,), daemon=True).start()
                 else:
-                    self._set_status(f"Failed: {error}")
+                    self._set_status(t("fb_failed", error=error))
 
             threading.Thread(target=_do_reply, daemon=True).start()
 
@@ -298,21 +299,22 @@ class FeedbackWindow(tk.Toplevel):
         # Back button
         back_frame = tk.Frame(self.content, bg="#2b2b2b")
         back_frame.pack(fill="x", pady=(0, 8))
-        back_label = tk.Label(back_frame, text="← Back", fg="#58a6ff", bg="#2b2b2b",
+        back_label = tk.Label(back_frame, text=t("fb_back"), fg="#58a6ff", bg="#2b2b2b",
                  font=("Segoe UI", 9), cursor="hand2")
         back_label.pack(side="left")
         back_label.bind("<Button-1>", lambda e: self._show_thread_list())
 
         # Category
-        tk.Label(self.content, text="Category", fg="#8b949e", bg="#2b2b2b",
+        tk.Label(self.content, text=t("fb_category"), fg="#8b949e", bg="#2b2b2b",
                  font=("Segoe UI", 9)).pack(anchor="w")
-        self.category_var = tk.StringVar(value=CATEGORIES[0])
+        translated_categories = [t(k) for k in CATEGORY_KEYS]
+        self.category_var = tk.StringVar(value=translated_categories[0])
         cat_combo = ttk.Combobox(self.content, textvariable=self.category_var,
-                                  values=CATEGORIES, state="readonly", width=30)
+                                  values=translated_categories, state="readonly", width=30)
         cat_combo.pack(anchor="w", pady=(2, 10))
 
         # Message
-        tk.Label(self.content, text="Message", fg="#8b949e", bg="#2b2b2b",
+        tk.Label(self.content, text=t("fb_message"), fg="#8b949e", bg="#2b2b2b",
                  font=("Segoe UI", 9)).pack(anchor="w")
         self.msg_text = tk.Text(self.content, height=8, bg="#0d1117", fg="#c9d1d9",
                                 insertbackground="white", font=("Segoe UI", 10),
@@ -321,14 +323,14 @@ class FeedbackWindow(tk.Toplevel):
         self.msg_text.pack(fill="x", pady=(2, 10))
 
         # Screenshots
-        tk.Label(self.content, text="Screenshots", fg="#8b949e", bg="#2b2b2b",
+        tk.Label(self.content, text=t("fb_screenshots"), fg="#8b949e", bg="#2b2b2b",
                  font=("Segoe UI", 9)).pack(anchor="w")
         self.screenshot_paths = []
 
         self.drop_frame = tk.Frame(self.content, bg="#1c2128", highlightbackground="#30363d",
                                     highlightthickness=1, cursor="hand2")
         self.drop_frame.pack(fill="x", pady=(2, 5), ipady=12)
-        self.drop_label = tk.Label(self.drop_frame, text="Click to add or drag && drop images here",
+        self.drop_label = tk.Label(self.drop_frame, text=t("fb_drop_hint"),
                                     fg="#484f58", bg="#1c2128", font=("Segoe UI", 9))
         self.drop_label.pack()
         self.drop_frame.bind("<Button-1>", lambda e: self._pick_screenshots())
@@ -345,7 +347,7 @@ class FeedbackWindow(tk.Toplevel):
         self.screenshots_list_frame.pack(fill="x", pady=(0, 10))
 
         # Send button
-        self.send_btn = tk.Button(self.content, text="Send Feedback", bg="#238636", fg="white",
+        self.send_btn = tk.Button(self.content, text=t("fb_send_feedback"), bg="#238636", fg="white",
                                    font=("Segoe UI", 10, "bold"), relief="flat", cursor="hand2",
                                    activebackground="#2ea043", activeforeground="white",
                                    command=self._send_feedback)
@@ -354,7 +356,7 @@ class FeedbackWindow(tk.Toplevel):
     def _pick_screenshots(self):
         paths = filedialog.askopenfilenames(
             parent=self,
-            title="Select Screenshots",
+            title=t("fb_select_screenshots"),
             filetypes=[("Images", "*.png *.jpg *.jpeg *.bmp *.gif"), ("All files", "*.*")]
         )
         for path in paths:
@@ -396,19 +398,24 @@ class FeedbackWindow(tk.Toplevel):
             remove_btn.pack(side="right", padx=5)
             remove_btn.bind("<Button-1>", lambda e, p=path: self._remove_screenshot(p))
         if self.screenshot_paths:
-            self.drop_label.config(text=f"{len(self.screenshot_paths)} image(s) attached — click to add more")
+            self.drop_label.config(text=t("fb_images_attached", count=len(self.screenshot_paths)))
         else:
-            self.drop_label.config(text="Click to add or drag && drop images here")
+            self.drop_label.config(text=t("fb_drop_hint"))
 
     def _send_feedback(self):
         message = self.msg_text.get("1.0", "end").strip()
         if not message:
-            messagebox.showwarning("Missing Message", "Please enter a message.", parent=self)
+            messagebox.showwarning(t("fb_missing_message"), t("fb_enter_message"), parent=self)
             return
 
-        category = CATEGORY_MAP.get(self.category_var.get(), "other")
-        self.send_btn.config(text="Sending...", state="disabled")
-        self._set_status("Sending feedback...")
+        selected_text = self.category_var.get()
+        category = "other"
+        for key in CATEGORY_KEYS:
+            if t(key) == selected_text:
+                category = CATEGORY_API_MAP[key]
+                break
+        self.send_btn.config(text=t("fb_sending"), state="disabled")
+        self._set_status(t("fb_sending_feedback"))
 
         def _do_send():
             success, result = submit_feedback(
@@ -422,15 +429,15 @@ class FeedbackWindow(tk.Toplevel):
         threading.Thread(target=_do_send, daemon=True).start()
 
     def _on_send_complete(self, success, result):
-        self.send_btn.config(text="Send Feedback", state="normal")
+        self.send_btn.config(text=t("fb_send_feedback"), state="normal")
         if success:
-            self._set_status("Feedback sent!")
+            self._set_status(t("fb_feedback_sent"))
             self.screenshot_paths = []
             # Refresh threads
             threading.Thread(target=self._fetch_threads, daemon=True).start()
         else:
-            self._set_status(f"Failed: {result}")
-            messagebox.showerror("Send Failed", result, parent=self)
+            self._set_status(t("fb_failed", error=result))
+            messagebox.showerror(t("fb_send_failed"), result, parent=self)
 
     # ---- Data Fetching ----
 
@@ -440,5 +447,5 @@ class FeedbackWindow(tk.Toplevel):
 
     def _on_threads_loaded(self, threads):
         self.threads = threads
-        self._set_status(f"{len(self.threads)} feedback thread(s)")
+        self._set_status(t("fb_thread_count", count=len(self.threads)))
         self._show_thread_list()

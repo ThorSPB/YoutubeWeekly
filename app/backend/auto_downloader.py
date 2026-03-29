@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from app.backend.config import load_settings, save_settings, load_channels, CONFIG_DIR
 from app.backend.downloader import find_video_url, download_video, get_next_saturday, format_romanian_date, delete_old_videos
 from app.backend.telemetry import send_telemetry_ping
+from app.frontend.i18n import t
 
 AUTO_DOWNLOAD_LOG_FILE = os.path.join(CONFIG_DIR, "auto_download_log.json")
 
@@ -90,8 +91,8 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
         if not channels_to_process:
             return
 
-        initial_message = "Starting automatic download for: " + ", ".join([ch["name"] for ch in channels_to_process])
-        send_notification_callback("Auto Download Started", initial_message)
+        initial_message = t("auto_starting_msg", channels=", ".join([ch["name"] for ch in channels_to_process]))
+        send_notification_callback(t("auto_started"), initial_message)
 
         download_results = {}
 
@@ -111,7 +112,7 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
                     if reset_progress_callback:
                         reset_progress_callback()
                     if status_callback:
-                        status_callback(f"Auto downloading {channel_name}...")
+                        status_callback(t("auto_downloading", name=channel_name))
                     
                     os.makedirs(folder, exist_ok=True)
                     delete_old_videos(folder, settings.get("keep_old_videos", False))
@@ -136,7 +137,7 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
 
         # Update status after all downloads complete
         if status_callback:
-            status_callback("Auto downloads complete.")
+            status_callback(t("auto_complete_status"))
 
         # Final summary notification
         summary_items = []
@@ -146,16 +147,16 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
         summary_message = "\n".join(summary_items)
         
         if not summary_items:
-             summary_title = "Auto Download"
-             summary_message = "All videos were already downloaded."
+             summary_title = t("auto_already_downloaded")
+             summary_message = t("auto_already_downloaded_msg")
         elif all(status == "Success" for status in download_results.values()):
-            summary_title = "Auto Download Complete"
-            summary_message = "All videos downloaded successfully."
+            summary_title = t("auto_complete")
+            summary_message = t("auto_complete_msg")
         elif any(status == "Success" for status in download_results.values()):
-            summary_title = "Auto Download Partially Complete"
+            summary_title = t("auto_partial")
             summary_message = "\n".join(summary_items)
         else:
-            summary_title = "Auto Download Failed"
+            summary_title = t("auto_failed")
             summary_message = "\n".join(summary_items)
 
         send_notification_callback(summary_title, summary_message, on_click=show_window_callback)

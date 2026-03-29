@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.4.0
+- **Romanian Language**: Full Romanian translation — switch from Settings → General → Language
+- **Language Toggle**: Choose between English and Română, applies on next restart
+
 ## v1.3.1
 - **Reply to Developer**: You can now respond to developer messages directly in the feedback window
 - **Multiple Screenshots**: Attach multiple images to your feedback

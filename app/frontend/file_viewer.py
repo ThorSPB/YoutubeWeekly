@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from app.backend.config import save_settings
 from app.frontend.player_utils import play_video
+from app.frontend.i18n import t
 
 class FileViewer(tk.Toplevel):
     def __init__(self, parent, settings, channel_name, channel_folder, on_close_callback):
@@ -15,7 +16,7 @@ class FileViewer(tk.Toplevel):
         self.geometry_key = f"file_viewer_{channel_name}_geometry"
         self.root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         self.script_path = os.path.join(self.root_dir, "app", "player", "scripts", "delayed-fullscreen.lua")
-        self.title(f"Files for {channel_name}")
+        self.title(t("fv_title", name=channel_name))
         self.load_window_position()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.configure(bg="#2b2b2b")
@@ -30,7 +31,7 @@ class FileViewer(tk.Toplevel):
         style.configure("Dark.TFrame", background="#2b2b2b")
 
         self.file_tree = ttk.Treeview(self, columns=("name", "selected"), show="headings", selectmode="browse")
-        self.file_tree.heading("name", text="File Name")
+        self.file_tree.heading("name", text=t("fv_file_name"))
         self.file_tree.heading("selected", text="✓")
         
         # Configure columns
@@ -50,13 +51,13 @@ class FileViewer(tk.Toplevel):
         button_frame.configure(style="Dark.TFrame")
         button_frame.pack(pady=5, padx=10, fill="x")
 
-        play_button = ttk.Button(button_frame, text="Play Selected", command=self.play_selected)
+        play_button = ttk.Button(button_frame, text=t("fv_play_selected"), command=self.play_selected)
         play_button.pack(side="left", expand=True, fill="x", padx=(0, 5))
 
-        delete_button = ttk.Button(button_frame, text="Delete Selected", command=self.delete_selected)
+        delete_button = ttk.Button(button_frame, text=t("fv_delete_selected"), command=self.delete_selected)
         delete_button.pack(side="left", expand=True, fill="x", padx=5)
 
-        delete_all_button = ttk.Button(button_frame, text="Delete All", command=self.delete_all)
+        delete_all_button = ttk.Button(button_frame, text=t("fv_delete_all"), command=self.delete_all)
         delete_all_button.pack(side="left", expand=True, fill="x", padx=(5, 0))
 
         open_folder_btn = ttk.Button(button_frame, text="📂", command=lambda: parent.open_folder_in_explorer(self.channel_folder))
@@ -109,33 +110,33 @@ class FileViewer(tk.Toplevel):
 
     def play_selected(self):
         if not self.selected_file_path:
-            messagebox.showwarning("No Selection", "Please select a video to play.")
+            messagebox.showwarning(t("fv_no_selection"), t("fv_select_video"))
             return
 
         error = play_video(self.settings, self.selected_file_path, self.script_path)
         if error:
-            messagebox.showerror("Playback Error", f"Could not play video:\n{error}")
+            messagebox.showerror(t("dlg_playback_error"), t("dlg_playback_failed", error=error))
 
     def delete_selected(self):
         if not self.selected_file_path:
-            messagebox.showwarning("No Selection", "Please select a file to delete.")
+            messagebox.showwarning(t("fv_no_selection"), t("fv_select_file"))
             return
 
         file_name = os.path.basename(self.selected_file_path)
-        if messagebox.askyesno("Confirm Delete", f"Are you sure you want to permanently delete {file_name}?"):
+        if messagebox.askyesno(t("fv_confirm_delete"), t("fv_confirm_delete_msg", filename=file_name)):
             try:
                 os.remove(self.selected_file_path)
                 self.selected_file_path = None
                 self.populate_files() # Refresh the list
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to delete file: {e}")
+                messagebox.showerror(t("dlg_error"), t("fv_delete_error", error=e))
 
     def delete_all(self):
         if not os.listdir(self.channel_folder):
-            messagebox.showinfo("Empty", "The folder is already empty.")
+            messagebox.showinfo(t("fv_empty"), t("fv_already_empty"))
             return
 
-        if messagebox.askyesno("Confirm Delete All", f"Are you sure you want to permanently delete ALL files in the {self.channel_name} folder? This cannot be undone."):
+        if messagebox.askyesno(t("fv_confirm_delete_all"), t("fv_confirm_delete_all_msg", name=self.channel_name)):
             try:
                 for file_name in os.listdir(self.channel_folder):
                     file_path = os.path.join(self.channel_folder, file_name)
@@ -144,4 +145,4 @@ class FileViewer(tk.Toplevel):
                 self.selected_file_path = None
                 self.populate_files() # Refresh the list
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to delete files: {e}")
+                messagebox.showerror(t("dlg_error"), t("fv_delete_all_error", error=e))

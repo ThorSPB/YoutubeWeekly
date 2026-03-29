@@ -10,6 +10,7 @@ from plyer import notification
 from PIL import Image
 import pystray
 
+from app.frontend.i18n import t, set_language, get_language
 from app.backend.config import load_channels, load_settings, save_settings
 from app.backend.downloader import find_video_url, download_video, get_next_saturday, delete_old_videos, format_romanian_date, get_recent_sabbaths
 from datetime import datetime
@@ -42,6 +43,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.configure(bg="#2b2b2b")
 
         self.settings, self.startup_warnings = load_settings()
+        set_language(self.settings.get("language", "en"))
 
         # Initialize logging
         log_folder = self.settings.get("log_folder", "data/logs")
@@ -60,7 +62,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             remove_from_startup()
 
         if self.startup_warnings:
-            messagebox.showwarning("Configuration Warnings", "\n".join(self.startup_warnings))
+            messagebox.showwarning(t("dlg_config_warnings"), "\n".join(self.startup_warnings))
 
         self.quality_options = ["max", "4k", "2k", "1080p", "720p", "480p", "mp3"]
         self.channel_quality_vars = {}
@@ -75,9 +77,9 @@ class YoutubeWeeklyGUI(tk.Tk):
 
         # Initialize and run tray icon from the start
         image = Image.open(resource_path("assets/icon4.ico"))
-        menu = (pystray.MenuItem('Show', self.show_window, default=True),
-                pystray.MenuItem('Quit', self.quit_application))
-        self.tray_icon = pystray.Icon("YoutubeWeekly", image, "YoutubeWeekly Downloader", menu)
+        menu = (pystray.MenuItem(t("tray_show"), self.show_window, default=True),
+                pystray.MenuItem(t("tray_quit"), self.quit_application))
+        self.tray_icon = pystray.Icon("YoutubeWeekly", image, t("app_title"), menu)
         self.tray_icon.run_detached()
 
         style = ttk.Style()
@@ -89,7 +91,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         style.map("TButton", background=[("active", "#555555")])
         style.configure("Dark.TFrame", background="#2b2b2b")
 
-        self.title("YoutubeWeekly Downloader")
+        self.title(t("app_title"))
         saved_geometry = self.settings.get("main_window_geometry")
         if saved_geometry:
             self.geometry(saved_geometry)
@@ -123,7 +125,7 @@ class YoutubeWeeklyGUI(tk.Tk):
 
         tk.Label(
             header_frame,
-            text="YoutubeWeekly Downloader",
+            text=t("app_title"),
             font=(default_font[0], 14, 'bold'),
             fg="white",
             bg="#2b2b2b"
@@ -143,9 +145,9 @@ class YoutubeWeeklyGUI(tk.Tk):
         # Status label with wrapping - fixed height to prevent layout shifts
         self.status_var = tk.StringVar()
         if self._just_updated:
-            self.status_var.set(f"Update complete! Now running v{__version__}.")
+            self.status_var.set(t("status_update_complete", version=__version__))
         else:
-            self.status_var.set("Ready to download weekly videos, or any custom videos. Select quality and date, then click Download.")
+            self.status_var.set(t("status_ready"))
         self.status_label = tk.Label(
             self,
             textvariable=self.status_var,
@@ -188,7 +190,7 @@ class YoutubeWeeklyGUI(tk.Tk):
 
             btn = ttk.Button(
                 row,
-                text=f"Download {channel['name']}",
+                text=t("btn_download_channel", name=channel['name']),
                 command=lambda ch=channel: self.download_for_channel(ch),
                 width=34
             )
@@ -232,13 +234,13 @@ class YoutubeWeeklyGUI(tk.Tk):
             textvariable=self.others_link_var,
             width=35,
         )
-        others_entry.insert(0, "Paste YouTube link...")
-        others_entry.bind("<FocusIn>", lambda e: others_entry.delete(0, "end") if others_entry.get() == "Paste YouTube link..." else None)
+        others_entry.insert(0, t("placeholder_paste_link"))
+        others_entry.bind("<FocusIn>", lambda e: others_entry.delete(0, "end") if others_entry.get() == t("placeholder_paste_link") else None)
         others_entry.pack(side="left", padx=(0, 8))
 
         others_btn = ttk.Button(
             others_frame,
-            text="Download",
+            text=t("btn_download"),
             command=self.download_others,
             width=12
         )
@@ -283,7 +285,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         ttk.Button(bottom_frame, text="?", command=self.open_help, width=3).pack(side="right")
 
         # Quit button (centered)
-        ttk.Button(bottom_frame, text="Quit", command=self.on_closing, width=10).pack(expand=True)
+        ttk.Button(bottom_frame, text=t("btn_quit"), command=self.on_closing, width=10).pack(expand=True)
 
         self.resizable(False, False)
         self.bind("<Configure>", self._on_resize)
@@ -346,11 +348,11 @@ class YoutubeWeeklyGUI(tk.Tk):
                 section_lines.append(line)
 
         if not section_lines:
-            section_lines = [f"## v{__version__}", "", "Updated to the latest version."]
+            section_lines = [f"## v{__version__}", "", t("dlg_updated_fallback")]
 
         # Show in a simple dialog
         dialog = tk.Toplevel(self)
-        dialog.title(f"What's New in v{__version__}")
+        dialog.title(t("dlg_whats_new", version=__version__))
         dialog.configure(bg="#2b2b2b")
         dialog.geometry("450x300")
         dialog.resizable(False, False)
@@ -375,7 +377,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         text.insert("1.0", formatted)
         text.config(state="disabled")
 
-        ttk.Button(dialog, text="Got it!", command=dialog.destroy, width=10).pack(pady=(5, 15))
+        ttk.Button(dialog, text=t("btn_got_it"), command=dialog.destroy, width=10).pack(pady=(5, 15))
 
     def center_window(self):
         self.update_idletasks()
@@ -475,6 +477,9 @@ class YoutubeWeeklyGUI(tk.Tk):
         settings_win.focus_set()
         self.wait_window(settings_win)
         self.settings, _ = load_settings() # Reload settings
+        new_lang = self.settings.get("language", "en")
+        if new_lang != get_language():
+            set_language(new_lang)
         self.base_path = self.settings.get("video_folder", "data/videos")
         # Update quality dropdowns with new default
         default_quality = self.settings.get("default_quality", "1080p")
@@ -519,7 +524,7 @@ class YoutubeWeeklyGUI(tk.Tk):
 
     def open_help(self):
         """Open the main help window"""
-        help_win = HelpWindow(self, "User Guide", "docs/main_help.md")
+        help_win = HelpWindow(self, t("help_user_title"), "docs/main_help.md")
         help_win.focus_set()
 
 
@@ -528,15 +533,25 @@ class YoutubeWeeklyGUI(tk.Tk):
             new_wrap = max(300, event.width - 40)
             self.status_label.config(wraplength=new_wrap)
 
-    def _set_status(self, text):
-        if "already exists" in text.lower():
-            color = "yellow"
-        elif "no video found" in text.lower():
-            color = "red"
-        elif "download complete" in text.lower():
+    def _set_status(self, text, severity=None):
+        if severity == "success":
             color = "green"
-        elif "error" in text.lower():
+        elif severity == "warning":
+            color = "yellow"
+        elif severity == "error":
             color = "red"
+        elif severity is None:
+            # Fallback: substring checks for backwards compatibility
+            if "already exists" in text.lower():
+                color = "yellow"
+            elif "no video found" in text.lower():
+                color = "red"
+            elif "download complete" in text.lower():
+                color = "green"
+            elif "error" in text.lower():
+                color = "red"
+            else:
+                color = "#ffffff"
         else:
             color = "#ffffff"
         self.status_label.config(fg=color)
@@ -580,7 +595,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         """Launch the download check in a background thread."""
         channel_name = channel["name"]
         if channel_name in self.downloading_channels:
-            self._set_status(f"A download for {channel_name} is already in progress.")
+            self._set_status(t("status_download_in_progress", name=channel_name))
             return
 
         self.downloading_channels.add(channel_name)
@@ -593,14 +608,14 @@ class YoutubeWeeklyGUI(tk.Tk):
                 daemon=True
             ).start()
         except Exception as e:
-            self._set_status(f"Error starting download: {e}")
+            self._set_status(t("status_error_starting", error=e), severity="error")
             if channel_name in self.downloading_channels:
                 self.downloading_channels.remove(channel_name)
 
     def download_others(self):
         """Download video from the link in the others entry to data/videos/other."""
         if "others" in self.downloading_channels:
-            self._set_status("A download for 'others' is already in progress.")
+            self._set_status(t("status_others_in_progress"))
             return
 
         self.downloading_channels.add("others")
@@ -608,11 +623,11 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.last_progress_value = 0
         link = self.others_link_var.get().strip()
         if not link:
-            self._set_status("Please enter a YouTube link.")
+            self._set_status(t("status_enter_link"), severity="warning")
             self.downloading_channels.remove("others")
             return
 
-        self._set_status("Starting download...")
+        self._set_status(t("status_starting_download"))
         try:
             threading.Thread(
                 target=self._worker_download_others,
@@ -620,7 +635,7 @@ class YoutubeWeeklyGUI(tk.Tk):
                 daemon=True
             ).start()
         except Exception as e:
-            self._set_status(f"Error starting download thread: {e}")
+            self._set_status(t("status_error_starting", error=e), severity="error")
             self.downloading_channels.remove("others")
 
     def play_others(self):
@@ -643,22 +658,22 @@ class YoutubeWeeklyGUI(tk.Tk):
         try:
             error = download_video(link, folder, self.others_quality_var.get(), progress_hook=self.progress_hook)
             if error:
-                self._set_status(f"Error downloading: {error}")
-                self._send_notification("Download Error", f"Failed to download video from link: {link}\n{error}", on_click=self.bring_to_foreground)
+                self._set_status(t("status_error_downloading", error=error), severity="error")
+                self._send_notification(t("notif_download_error"), t("notif_failed_link", link=link, error=error), on_click=self.bring_to_foreground)
                 messagebox.showerror(
-                    "Download Error",
-                    f"Failed to download video:\n{error}"
+                    t("dlg_download_error"),
+                    t("dlg_download_failed", error=error)
                 )
             else:
-                self._set_status("Download complete.")
-                self._send_notification("Download Complete", f"Finished downloading video from link: {link}", on_click=self.bring_to_foreground)
+                self._set_status(t("status_download_complete"), severity="success")
+                self._send_notification(t("notif_download_complete"), t("notif_finished_link", link=link), on_click=self.bring_to_foreground)
                 send_telemetry_ping(self.settings, 1, session_type="others", others_quality=self.others_quality_var.get())
         except Exception as e:
-            self._set_status(f"Error downloading: {e}")
-            self._send_notification("Download Error", f"Failed to download video from link: {link}\n{e}", on_click=self.bring_to_foreground)
+            self._set_status(t("status_error_downloading", error=e), severity="error")
+            self._send_notification(t("notif_download_error"), t("notif_failed_link", link=link, error=e), on_click=self.bring_to_foreground)
             messagebox.showerror(
-                "Download Error",
-                f"Failed to download video:\n{e}"
+                t("dlg_download_error"),
+                t("dlg_download_failed", error=e)
             )
         finally:
             if "others" in self.downloading_channels:
@@ -667,27 +682,27 @@ class YoutubeWeeklyGUI(tk.Tk):
     def _worker_play_others(self):
         """Worker function to find and play the latest video in the 'other' folder."""
         other_folder = os.path.join(self.base_path, "other")
-        self._set_status("Searching for latest video in Others...")
+        self._set_status(t("status_searching_latest", name="Others"))
 
         if not os.path.exists(other_folder):
-            self._set_status("No videos downloaded for Others yet.")
+            self._set_status(t("status_no_videos_yet", name="Others"), severity="warning")
             return
 
         files = [os.path.join(other_folder, f) for f in os.listdir(other_folder)]
         if not files:
-            self._set_status("No videos found for Others.")
+            self._set_status(t("status_no_videos_found", name="Others"), severity="error")
             return
 
         latest_file = max(files, key=os.path.getctime)
 
-        self._set_status(f"Playing {os.path.basename(latest_file)}...")
+        self._set_status(t("status_playing", filename=os.path.basename(latest_file)))
         script_path = resource_path("app/player/scripts/delayed-fullscreen.lua")
         error = play_video(self.settings, latest_file, script_path)
         if error:
-            self._set_status(f"Error playing video: {error}")
-            messagebox.showerror("Playback Error", f"Could not play video:\n{error}")
+            self._set_status(t("status_play_error", error=error), severity="error")
+            messagebox.showerror(t("dlg_playback_error"), t("dlg_playback_failed", error=error))
         else:
-            self._set_status(f"Launched video player for Others.")
+            self._set_status(t("status_launched_player", name="Others"))
 
     def _worker_download(self, channel):
         """Worker function that runs off the main UI thread."""
@@ -696,14 +711,14 @@ class YoutubeWeeklyGUI(tk.Tk):
             fmt = channel["date_format"]
 
             # Step 1: Find next Saturday's date or use selected date
-            self._set_status(f"Finding video for {name}...")
+            self._set_status(t("status_finding_video", name=name))
             selected_date = self.channel_date_vars.get(name, tk.StringVar()).get()
             if selected_date and selected_date != "automat":
                 try:
                     date_obj = datetime.strptime(selected_date, "%d.%m.%Y").date()
                     next_sat = date_obj.strftime(fmt)
                 except Exception as e:
-                    self._set_status(f"Date parse error: {e}")
+                    self._set_status(t("status_date_parse_error", error=e), severity="error")
                     return
             else:
                 next_sat = get_next_saturday(date_format=fmt)
@@ -711,8 +726,8 @@ class YoutubeWeeklyGUI(tk.Tk):
             # Step 2: Locate the video URL
             url, match_info = find_video_url(channel["url"], next_sat, date_format=fmt)
             if not url:
-                self._set_status(f"No video found for {name} on {next_sat}.")
-                self._send_notification("Video Not Found", f"No video found for {name} on {next_sat}.", on_click=self.bring_to_foreground)
+                self._set_status(t("status_no_video_found", name=name, date=next_sat), severity="error")
+                self._send_notification(t("notif_video_not_found"), t("status_no_video_found", name=name, date=next_sat), on_click=self.bring_to_foreground)
                 return
 
             # If fuzzy match, ask user to confirm (must run dialog on main thread)
@@ -722,11 +737,8 @@ class YoutubeWeeklyGUI(tk.Tk):
 
                 def ask_on_main_thread():
                     result[0] = messagebox.askyesno(
-                        "Possible Match Found",
-                        f"No exact match for {name} on {next_sat}.\n\n"
-                        f"Found a similar video:\n\"{match_info['title']}\"\n\n"
-                        f"Reason: {match_info['reason']}\n\n"
-                        f"Download this video?"
+                        t("dlg_possible_match"),
+                        t("dlg_possible_match_msg", name=name, date=next_sat, title=match_info['title'], reason=match_info['reason'])
                     )
                     event.set()
 
@@ -734,7 +746,7 @@ class YoutubeWeeklyGUI(tk.Tk):
                 event.wait()
 
                 if not result[0]:
-                    self._set_status(f"Download cancelled for {name}.")
+                    self._set_status(t("status_download_cancelled", name=name))
                     return
 
             # Prepare channel-specific folder
@@ -753,7 +765,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             if existing:
                 existing_titles = ", ".join(existing)
                 self._set_status(
-                    f"Video for {name} already exists: {existing_titles}"
+                    t("status_already_exists", name=name, titles=existing_titles), severity="warning"
                 )
                 return
 
@@ -763,25 +775,25 @@ class YoutubeWeeklyGUI(tk.Tk):
 
             # Step 5: Download into channel folder
             quality_pref = self.channel_quality_vars.get(name, tk.StringVar()).get()
-            self._set_status(f"Downloading from {name} ({quality_pref})...")
+            self._set_status(t("status_downloading", name=name, quality=quality_pref))
             try:
                 error = download_video(url, channel_folder, quality_pref, protect=self.settings.get("keep_old_videos", False), progress_hook=self.progress_hook)
                 if error:
-                    self._set_status(f"Error downloading {name}: {error}")
-                    self._send_notification("Download Error", f"Failed to download video for {name}: {error}", on_click=self.bring_to_foreground)
+                    self._set_status(t("status_error_downloading_name", name=name, error=error), severity="error")
+                    self._send_notification(t("notif_download_error"), t("notif_failed_name", name=name, error=error), on_click=self.bring_to_foreground)
                     messagebox.showerror(
-                        "Download Error",
-                        f"Failed to download {name}:\n{error}"
+                        t("dlg_download_error"),
+                        t("dlg_download_failed_name", name=name, error=error)
                     )
                 else:
-                    self._send_notification("Download Complete", f"Finished downloading video for {name}.", on_click=self.bring_to_foreground)
+                    self._send_notification(t("notif_download_complete"), t("notif_finished_downloading", name=name), on_click=self.bring_to_foreground)
                     send_telemetry_ping(self.settings, 1, session_type="manual")
             except Exception as e:
-                self._set_status(f"Error downloading {name}: {e}")
-                self._send_notification("Download Error", f"Failed to download video for {name}: {e}", on_click=self.bring_to_foreground)
+                self._set_status(t("status_error_downloading_name", name=name, error=e), severity="error")
+                self._send_notification(t("notif_download_error"), t("notif_failed_name", name=name, error=e), on_click=self.bring_to_foreground)
                 messagebox.showerror(
-                    "Download Error",
-                    f"Failed to download {name}:\n{e}"
+                    t("dlg_download_error"),
+                    t("dlg_download_failed_name", name=name, error=e)
                 )
         finally:
             if name in self.downloading_channels:
@@ -810,27 +822,27 @@ class YoutubeWeeklyGUI(tk.Tk):
     def _worker_play(self, channel):
         """Worker function to find and play the latest video."""
         channel_folder = os.path.join(self.base_path, channel["folder"])
-        self._set_status(f"Searching for latest video in {channel['name']}...")
+        self._set_status(t("status_searching_latest", name=channel['name']))
 
         if not os.path.exists(channel_folder):
-            self._set_status(f"No videos downloaded for {channel['name']} yet.")
+            self._set_status(t("status_no_videos_yet", name=channel['name']), severity="warning")
             return
 
         files = [os.path.join(channel_folder, f) for f in os.listdir(channel_folder)]
         if not files:
-            self._set_status(f"No videos found for {channel['name']}.")
+            self._set_status(t("status_no_videos_found", name=channel['name']), severity="error")
             return
 
         latest_file = max(files, key=os.path.getctime)
 
-        self._set_status(f"Playing {os.path.basename(latest_file)}...")
+        self._set_status(t("status_playing", filename=os.path.basename(latest_file)))
         script_path = resource_path("app/player/scripts/delayed-fullscreen.lua")
         error = play_video(self.settings, latest_file, script_path)
         if error:
-            self._set_status(f"Error playing video: {error}")
-            messagebox.showerror("Playback Error", f"Could not play video:\n{error}")
+            self._set_status(t("status_play_error", error=error), severity="error")
+            messagebox.showerror(t("dlg_playback_error"), t("dlg_playback_failed", error=error))
         else:
-            self._set_status(f"Launched video player for {channel['name']}.")
+            self._set_status(t("status_launched_player", name=channel['name']))
 
     def open_folder_in_explorer(self, folder_path):
         try:
@@ -841,7 +853,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             else:
                 subprocess.Popen(["xdg-open", folder_path])
         except Exception as e:
-            messagebox.showerror("Error", f"Could not open folder: {e}")
+            messagebox.showerror(t("dlg_error"), t("dlg_folder_error", error=e))
 
     
 
@@ -874,7 +886,7 @@ class YoutubeWeeklyGUI(tk.Tk):
                     self.last_progress_value = unified_percent
                     # Schedule UI update on the main thread
                     def update_progress():
-                        self._set_status(f"Downloading... {unified_percent:.1f}%")
+                        self._set_status(t("status_downloading_percent", percent=f"{unified_percent:.1f}"))
                         self.progress_bar.configure(value=unified_percent)
                     self.after(0, update_progress)
 
@@ -885,12 +897,12 @@ class YoutubeWeeklyGUI(tk.Tk):
                     # Ensure the bar hits 50% exactly
                     if self.last_progress_value < 50:
                         self.last_progress_value = 50
-                        self._set_status(f"Downloading... 50.0%")
+                        self._set_status(t("status_downloading_percent", percent="50.0"))
                         self.progress_bar.configure(value=50)
                 else:
                     # Ensure the bar hits 100% exactly
                     self.progress_bar.configure(value=100)
-                    self._set_status("Download complete.")
+                    self._set_status(t("status_download_complete"), severity="success")
                     # Hide progress bar after a delay
                     self.after(2000, lambda: self.progress_bar.configure(style="Invisible.Horizontal.TProgressbar"))
                     self.download_stage = 0 # Reset to idle
@@ -948,18 +960,18 @@ class YoutubeWeeklyGUI(tk.Tk):
 
         if auto_install:
             # Auto-update: show progress if window is visible, silent if minimized
-            self._send_notification("Update Detected", f"Installing v{latest_version} automatically...")
+            self._send_notification(t("notif_update_detected"), t("notif_installing_auto", version=latest_version))
             self.after(0, lambda: self._start_update(latest_version, download_url, assets, silent=is_minimized))
         elif is_minimized:
             # Minimized but not auto-install: notify, show dialog when user opens GUI
-            self._send_notification("Update Available", f"Version {latest_version} is available. Open the app to update.")
+            self._send_notification(t("notif_update_available"), t("notif_update_available_msg", version=latest_version))
         else:
             # Normal launch: show dialog immediately
             self.after(0, lambda: self._show_update_dialog(latest_version, download_url, assets))
 
     def _check_for_updates_manual(self):
         """Manually triggered update check (from refresh button)."""
-        self._set_status("Checking for updates...")
+        self._set_status(t("status_checking_updates"))
         threading.Thread(target=self._manual_update_check_thread, daemon=True).start()
 
     def _manual_update_check_thread(self):
@@ -968,12 +980,12 @@ class YoutubeWeeklyGUI(tk.Tk):
             self._pending_update = (latest_version, download_url, assets)
             self.after(0, lambda: self._show_update_dialog(latest_version, download_url, assets))
         else:
-            self.after(0, lambda: self._set_status("You're running the latest version."))
+            self.after(0, lambda: self._set_status(t("status_latest_version"), severity="success"))
 
     def _show_update_dialog(self, version, release_url, assets):
         """Show a dark-themed update dialog."""
         dialog = tk.Toplevel(self)
-        dialog.title("Update Available")
+        dialog.title(t("dlg_update_available"))
         dialog.configure(bg="#2b2b2b")
         dialog.geometry("400x160")
         dialog.resizable(False, False)
@@ -987,12 +999,12 @@ class YoutubeWeeklyGUI(tk.Tk):
         dialog.geometry(f"+{x}+{y}")
 
         tk.Label(
-            dialog, text=f"Version {version} is available!",
+            dialog, text=t("dlg_version_available", version=version),
             fg="white", bg="#2b2b2b", font=("Segoe UI", 12, "bold")
         ).pack(pady=(20, 5))
 
         tk.Label(
-            dialog, text="Would you like to update now?",
+            dialog, text=t("dlg_update_question"),
             fg="#cccccc", bg="#2b2b2b", font=("Segoe UI", 10)
         ).pack(pady=(0, 20))
 
@@ -1003,8 +1015,8 @@ class YoutubeWeeklyGUI(tk.Tk):
             dialog.destroy()
             self._start_update(version, release_url, assets)
 
-        ttk.Button(btn_frame, text="Update Now", command=on_update, width=14).pack(side="left", padx=5)
-        ttk.Button(btn_frame, text="Later", command=dialog.destroy, width=10).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text=t("dlg_update_now"), command=on_update, width=14).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text=t("dlg_later"), command=dialog.destroy, width=10).pack(side="left", padx=5)
 
     def _start_update(self, version, release_url, assets, silent=False):
         """Begin the update process: download ZIP and launch bootstrap."""
@@ -1013,10 +1025,8 @@ class YoutubeWeeklyGUI(tk.Tk):
         if not getattr(sys, 'frozen', False) or not os.path.exists(bootstrap_path):
             webbrowser.open(release_url)
             messagebox.showinfo(
-                "Manual Update Required",
-                f"This is a one-time manual update to v{version}.\n\n"
-                "Download and extract the ZIP to replace your current installation.\n"
-                "Future updates will be automatic."
+                t("dlg_manual_update"),
+                t("dlg_manual_update_msg", version=version)
             )
             return
 
@@ -1029,9 +1039,8 @@ class YoutubeWeeklyGUI(tk.Tk):
             os.remove(probe)
         except OSError:
             messagebox.showerror(
-                "Update Failed",
-                f"Cannot write to the installation directory:\n{base}\n\n"
-                "Try running the app as administrator, or move it to a user-writable location."
+                t("dlg_update_failed"),
+                t("dlg_update_no_write", path=base)
             )
             return
 
@@ -1040,15 +1049,14 @@ class YoutubeWeeklyGUI(tk.Tk):
         if not asset_url:
             webbrowser.open(release_url)
             messagebox.showinfo(
-                "Manual Download Required",
-                f"No matching download found for your platform.\n"
-                "Opening the release page in your browser."
+                t("dlg_manual_download"),
+                t("dlg_manual_download_msg")
             )
             return
 
         # Download in background thread
         if not silent:
-            self._set_status(f"Downloading update v{version}...")
+            self._set_status(t("status_downloading_update", version=version))
         threading.Thread(
             target=self._download_and_apply_update,
             args=(asset_url, version, bootstrap_path, silent),
@@ -1065,17 +1073,17 @@ class YoutubeWeeklyGUI(tk.Tk):
                 def update():
                     self.progress_bar.configure(style="Thin.Horizontal.TProgressbar")
                     self.progress_bar.configure(value=percent)
-                    self._set_status(f"Downloading update... {percent:.0f}%")
+                    self._set_status(t("status_downloading_update_percent", percent=f"{percent:.0f}"))
                 self.after(0, update)
 
         try:
             download_update(asset_url, zip_path, progress_callback=on_progress)
         except Exception as e:
             if silent:
-                self._send_notification("Update Failed", f"Auto-update download failed: {e}")
+                self._send_notification(t("notif_update_failed"), t("notif_auto_update_failed", error=e))
             else:
-                self.after(0, lambda: self._set_status(f"Update download failed: {e}"))
-                self.after(0, lambda: messagebox.showerror("Update Failed", f"Download failed:\n{e}"))
+                self.after(0, lambda: self._set_status(t("status_update_download_failed", error=e), severity="error"))
+                self.after(0, lambda: messagebox.showerror(t("dlg_update_failed"), t("dlg_update_download_failed", error=e)))
             return
 
         # Launch bootstrap and exit
@@ -1084,7 +1092,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         should_minimize = "--start-minimized" in sys.argv
 
         if not silent:
-            self.after(0, lambda: self._set_status("Installing update..."))
+            self.after(0, lambda: self._set_status(t("status_installing_update")))
 
         bootstrap_cmd = [bootstrap_path, "--zip", zip_path, "--target", base, "--exe", exe_name, "--pid", str(os.getpid())]
         if should_minimize:
@@ -1094,10 +1102,10 @@ class YoutubeWeeklyGUI(tk.Tk):
             subprocess.Popen(bootstrap_cmd, cwd=base)
         except OSError as e:
             if silent:
-                self._send_notification("Update Failed", f"Could not launch updater: {e}")
+                self._send_notification(t("notif_update_failed"), t("notif_updater_failed", error=e))
             else:
-                self.after(0, lambda: self._set_status(f"Could not launch updater: {e}"))
-                self.after(0, lambda: messagebox.showerror("Update Failed", f"Could not launch updater:\n{e}"))
+                self.after(0, lambda: self._set_status(t("status_updater_launch_failed", error=e), severity="error"))
+                self.after(0, lambda: messagebox.showerror(t("dlg_update_failed"), t("dlg_updater_failed", error=e)))
             return
 
         # Exit the app — bootstrap will take over
@@ -1142,7 +1150,7 @@ if __name__ == "__main__":
                 client_socket.sendall(b'show')
         except ConnectionRefusedError:
             # This can happen if the lock file is stale and the server is not running
-            messagebox.showerror("Error", "Could not connect to the running instance.")
+            messagebox.showerror(t("dlg_error"), t("dlg_instance_error"))
         sys.exit()
 
 

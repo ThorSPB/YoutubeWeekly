@@ -2,12 +2,13 @@ import os
 import tkinter as tk
 from tkinter import ttk, scrolledtext
 import sys
+from app.frontend.i18n import t
 
 class HelpWindow(tk.Toplevel):
     def __init__(self, parent, title, help_file_path, on_close_callback=None):
         super().__init__(parent)
         
-        self.title(f"Help - {title}")
+        self.title(t("help_title", title=title))
         self.geometry("700x500")
         self.configure(bg="#2b2b2b")
         self.on_close_callback = on_close_callback
@@ -69,7 +70,7 @@ class HelpWindow(tk.Toplevel):
         
         close_button = tk.Button(
             button_frame,
-            text="Close",
+            text=t("help_close"),
             command=self.on_closing,
             bg="#444444",
             fg="white",
@@ -100,7 +101,7 @@ class HelpWindow(tk.Toplevel):
                     break
             
             if content is None:
-                content = f"Help file not found.\n\nSearched paths:\n" + "\n".join(possible_paths)
+                content = t("help_not_found") + "\n\n" + "\n".join(possible_paths)
             
             # Simple markdown-to-text conversion
             formatted_content = self.format_markdown(content)
@@ -112,7 +113,7 @@ class HelpWindow(tk.Toplevel):
             self.text_widget.config(state=tk.DISABLED)
             
         except Exception as e:
-            error_content = f"Error loading help content:\n\n{str(e)}"
+            error_content = t("help_load_error", error=str(e))
             self.text_widget.config(state=tk.NORMAL)
             self.text_widget.delete(1.0, tk.END)
             self.text_widget.insert(1.0, error_content)
