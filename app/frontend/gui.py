@@ -66,6 +66,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.channel_quality_vars = {}
         self.channel_date_vars = {}
         self.open_file_viewers = {}
+        self._feedback_win = None
         self.download_stage = 0 # 0: idle, 1: video, 2: audio
         self.last_progress_value = 0
         self.downloading_channels = set()
@@ -482,12 +483,19 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.others_quality_var.set(default_quality)
 
     def open_feedback(self):
-        feedback_win = FeedbackWindow(self, self.settings)
-        feedback_win.transient(self)
-        feedback_win.grab_set()
-        feedback_win.focus_set()
-        self.wait_window(feedback_win)
-        # Refresh badge after closing feedback window
+        if hasattr(self, '_feedback_win') and self._feedback_win and self._feedback_win.winfo_exists():
+            self._feedback_win.destroy()
+            self._feedback_win = None
+            self._check_feedback_badge()
+            return
+        self._feedback_win = FeedbackWindow(self, self.settings)
+        self._feedback_win.transient(self)
+        self._feedback_win.protocol("WM_DELETE_WINDOW", self._on_feedback_close)
+
+    def _on_feedback_close(self):
+        if self._feedback_win and self._feedback_win.winfo_exists():
+            self._feedback_win.destroy()
+        self._feedback_win = None
         self._check_feedback_badge()
 
     def _check_feedback_badge(self):
