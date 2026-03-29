@@ -66,6 +66,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.channel_quality_vars = {}
         self.channel_date_vars = {}
         self.open_file_viewers = {}
+        self._feedback_win = None
         self.download_stage = 0 # 0: idle, 1: video, 2: audio
         self.last_progress_value = 0
         self.downloading_channels = set()
@@ -132,7 +133,7 @@ class YoutubeWeeklyGUI(tk.Tk):
 
         # Feedback button with notification badge
         self.feedback_btn_frame = tk.Frame(header_frame, bg="#2b2b2b")
-        self.feedback_btn_frame.pack(side="right", padx=(0, 3))
+        self.feedback_btn_frame.pack(side="right", padx=(0, 5))
         ttk.Button(self.feedback_btn_frame, text="💬", command=self.open_feedback, width=3).pack()
         self.feedback_badge = tk.Label(self.feedback_btn_frame, text="", fg="white", bg="#da3633",
                                         font=("Segoe UI", 7, "bold"), padx=3, pady=0)
@@ -272,7 +273,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         bottom_frame.pack(pady=(5, 15), padx=20, fill="x")
 
         # Update check button + version label (bottom left)
-        ttk.Button(bottom_frame, text="\u21bb", command=self._check_for_updates_manual, width=2).pack(side="left")
+        ttk.Button(bottom_frame, text="\u21bb", command=self._check_for_updates_manual, width=3).pack(side="left")
         tk.Label(
             bottom_frame, text=f"v{__version__}",
             fg="#666666", bg="#2b2b2b", font=("Segoe UI", 8)
@@ -482,12 +483,19 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.others_quality_var.set(default_quality)
 
     def open_feedback(self):
-        feedback_win = FeedbackWindow(self, self.settings)
-        feedback_win.transient(self)
-        feedback_win.grab_set()
-        feedback_win.focus_set()
-        self.wait_window(feedback_win)
-        # Refresh badge after closing feedback window
+        if hasattr(self, '_feedback_win') and self._feedback_win and self._feedback_win.winfo_exists():
+            self._feedback_win.destroy()
+            self._feedback_win = None
+            self._check_feedback_badge()
+            return
+        self._feedback_win = FeedbackWindow(self, self.settings)
+        self._feedback_win.transient(self)
+        self._feedback_win.protocol("WM_DELETE_WINDOW", self._on_feedback_close)
+
+    def _on_feedback_close(self):
+        if self._feedback_win and self._feedback_win.winfo_exists():
+            self._feedback_win.destroy()
+        self._feedback_win = None
         self._check_feedback_badge()
 
     def _check_feedback_badge(self):
