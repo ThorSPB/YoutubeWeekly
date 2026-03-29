@@ -358,7 +358,7 @@ class SettingsWindow(tk.Toplevel):
         dialog = tk.Toplevel(self)
         dialog.title("Rollback to Previous Version")
         dialog.configure(bg="#2b2b2b")
-        dialog.geometry("400x250")
+        dialog.geometry("400x320")
         dialog.resizable(False, False)
         dialog.transient(self)
         dialog.grab_set()
@@ -388,11 +388,16 @@ class SettingsWindow(tk.Toplevel):
         listbox.pack(fill="both", expand=True)
 
         btn_frame = tk.Frame(dialog, bg="#2b2b2b")
-        btn_frame.pack(pady=(10, 15))
+        btn_frame.pack(side="bottom", pady=(10, 15))
 
-        rollback_btn = ttk.Button(btn_frame, text="Rollback", state="disabled", width=12)
+        rollback_btn = tk.Button(btn_frame, text="Rollback", state="disabled", width=12,
+                                  bg="#238636", fg="white", font=("Segoe UI", 9, "bold"),
+                                  relief="flat", disabledforeground="#666666",
+                                  activebackground="#2ea043", activeforeground="white")
         rollback_btn.pack(side="left", padx=5)
-        ttk.Button(btn_frame, text="Cancel", command=dialog.destroy, width=10).pack(side="left", padx=5)
+        tk.Button(btn_frame, text="Cancel", command=dialog.destroy, width=10,
+                   bg="#3c3c3c", fg="white", font=("Segoe UI", 9),
+                   relief="flat", activebackground="#4c4c4c", activeforeground="white").pack(side="left", padx=5)
 
         # Store versions data for selection
         versions_data = []
