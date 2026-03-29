@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.0
+- **In-App Feedback**: Send bug reports, feature requests, or general feedback directly from the app
+- **Screenshots**: Attach screenshots to your feedback for easier troubleshooting
+- **Conversation**: See replies from the developer and track your feedback status
+- **System Info**: Hardware details are included with feedback to help diagnose issues
+
 ## v1.2.0
 - **Usage Analytics**: Anonymous usage data helps improve the app — see how many people use it and which features are popular
 - **Opt-Out**: Easily disable analytics from Settings → General → "Send anonymous usage data"
