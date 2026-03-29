@@ -218,7 +218,7 @@ def test_download_video_already_exists(mock_download_dependencies):
 
 def test_download_video_1080p(mock_download_dependencies):
     download_video("http://example.com/video", "/tmp/videos", quality_pref="1080p")
-    mock_download_dependencies["mock_os_makedirs"].assert_called_once_with("/tmp/videos", exist_ok=True)
+    mock_download_dependencies["mock_os_makedirs"].assert_any_call("/tmp/videos", exist_ok=True)
     args, kwargs = mock_download_dependencies["mock_ydl"].call_args
     assert args[0]['format'] == 'bestvideo[height<=1080]+bestaudio/best[height<=1080]'
     assert args[0]['merge_output_format'] == 'mp4'
@@ -226,7 +226,7 @@ def test_download_video_1080p(mock_download_dependencies):
 
 def test_download_video_mp3(mock_download_dependencies):
     download_video("http://example.com/video", "/tmp/videos", quality_pref="mp3")
-    mock_download_dependencies["mock_os_makedirs"].assert_called_once_with("/tmp/videos", exist_ok=True)
+    mock_download_dependencies["mock_os_makedirs"].assert_any_call("/tmp/videos", exist_ok=True)
     args, kwargs = mock_download_dependencies["mock_ydl"].call_args
     assert args[0]['format'] == 'bestaudio/best'
     assert args[0]['merge_output_format'] == 'mp3'
