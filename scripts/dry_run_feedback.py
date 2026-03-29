@@ -2,7 +2,6 @@
 
 import sys
 import os
-import time
 from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -55,7 +54,6 @@ with patch("app.backend.config.__version__", "1.2.0"):
     print("\n5. Testing screenshot compression...")
     try:
         from PIL import Image
-        import io
         # Create a test image
         img = Image.new("RGB", (1920, 1080), color=(50, 50, 80))
         test_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_test_screenshot.png")

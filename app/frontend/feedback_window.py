@@ -5,7 +5,7 @@ import threading
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
-from app.backend.feedback import submit_feedback, fetch_feedback, load_local_feedback
+from app.backend.feedback import submit_feedback, fetch_feedback
 
 
 CATEGORIES = ["Bug Report", "Feature Request", "Positive Feedback", "Negative Feedback", "Other"]
@@ -162,9 +162,10 @@ class FeedbackWindow(tk.Toplevel):
         # Back button
         back_frame = tk.Frame(self.content, bg="#2b2b2b")
         back_frame.pack(fill="x", pady=(0, 8))
-        tk.Label(back_frame, text="← Back", fg="#58a6ff", bg="#2b2b2b",
-                 font=("Segoe UI", 9), cursor="hand2").pack(side="left")
-        back_frame.winfo_children()[0].bind("<Button-1>", lambda e: self._show_thread_list())
+        back_label = tk.Label(back_frame, text="← Back", fg="#58a6ff", bg="#2b2b2b",
+                 font=("Segoe UI", 9), cursor="hand2")
+        back_label.pack(side="left")
+        back_label.bind("<Button-1>", lambda e: self._show_thread_list())
 
         # Category + status header
         header = tk.Frame(self.content, bg="#2b2b2b")
@@ -232,9 +233,10 @@ class FeedbackWindow(tk.Toplevel):
         # Back button
         back_frame = tk.Frame(self.content, bg="#2b2b2b")
         back_frame.pack(fill="x", pady=(0, 8))
-        tk.Label(back_frame, text="← Back", fg="#58a6ff", bg="#2b2b2b",
-                 font=("Segoe UI", 9), cursor="hand2").pack(side="left")
-        back_frame.winfo_children()[0].bind("<Button-1>", lambda e: self._show_thread_list())
+        back_label = tk.Label(back_frame, text="← Back", fg="#58a6ff", bg="#2b2b2b",
+                 font=("Segoe UI", 9), cursor="hand2")
+        back_label.pack(side="left")
+        back_label.bind("<Button-1>", lambda e: self._show_thread_list())
 
         # Category
         tk.Label(self.content, text="Category", fg="#8b949e", bg="#2b2b2b",
@@ -314,9 +316,9 @@ class FeedbackWindow(tk.Toplevel):
 
     def _fetch_threads(self):
         threads = fetch_feedback()
-        self.threads = threads
-        self.after(0, self._on_threads_loaded)
+        self.after(0, self._on_threads_loaded, threads)
 
-    def _on_threads_loaded(self):
+    def _on_threads_loaded(self, threads):
+        self.threads = threads
         self._set_status(f"{len(self.threads)} feedback thread(s)")
         self._show_thread_list()

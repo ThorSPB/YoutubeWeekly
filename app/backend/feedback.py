@@ -5,7 +5,6 @@ import json
 import os
 import platform
 import subprocess
-import threading
 from datetime import datetime, timezone
 
 import psutil
@@ -13,7 +12,7 @@ import requests
 from PIL import Image
 
 from app.backend.config import CONFIG_DIR, __version__
-from app.backend.telemetry import _get_install_id, _get_location
+from app.backend.telemetry import _get_install_id, _get_location, _sanitize_settings
 
 FEEDBACK_URL = "https://thorsp.ddns.net/ytw-telemetry/feedback"
 FEEDBACK_FILE = os.path.join(CONFIG_DIR, "feedback.json")
@@ -74,7 +73,7 @@ def _get_cpu_name():
             if lines:
                 return lines[0]
         elif platform.system() == "Linux":
-            with open("/proc/cpuinfo") as f:
+            with open("/proc/cpuinfo", encoding="utf-8") as f:
                 for line in f:
                     if "model name" in line:
                         return line.split(":")[1].strip()
@@ -122,7 +121,6 @@ def submit_feedback(category, message, image_path=None, settings=None):
             "country": location["country"],
         }
         if settings:
-            from app.backend.telemetry import _sanitize_settings
             form_data["settings"] = json.dumps(_sanitize_settings(settings))
 
         system_stats = get_system_stats()
@@ -171,7 +169,7 @@ def fetch_feedback():
             threads = r.json()
             save_local_feedback(threads)
             return threads
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[Feedback] Failed to fetch from server: {e}")
     # Fall back to local cache
     return load_local_feedback()
