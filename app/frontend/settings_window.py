@@ -6,7 +6,7 @@ from tkinter import ttk, filedialog, messagebox
 import json
 from app.backend.config import save_settings, load_default_settings, __version__
 from app.frontend.help_window import HelpWindow
-from app.frontend.i18n import t, get_language
+from app.i18n import t, get_language
 from screeninfo import get_monitors
 from app.backend.startup_manager import add_to_startup, remove_from_startup, is_in_startup
 

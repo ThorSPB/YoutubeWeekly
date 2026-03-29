@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from app.backend.config import save_settings
 from app.frontend.player_utils import play_video
-from app.frontend.i18n import t
+from app.i18n import t
 
 class FileViewer(tk.Toplevel):
     def __init__(self, parent, settings, channel_name, channel_folder, on_close_callback):

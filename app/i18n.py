@@ -152,6 +152,7 @@ TRANSLATIONS = {
 
         # Language
         "lbl_language": "Language:",
+        "dlg_restart_for_language": "Language will change after restarting the app.",
 
         # === Feedback Window ===
         "fb_title": "Feedback",
@@ -377,6 +378,7 @@ TRANSLATIONS = {
 
         # Language
         "lbl_language": "Limbă:",
+        "dlg_restart_for_language": "Limba se va schimba după repornirea aplicației.",
 
         # === Feedback Window ===
         "fb_title": "Feedback",
@@ -476,6 +478,6 @@ def t(key, **kwargs):
     if kwargs:
         try:
             text = text.format(**kwargs)
-        except (KeyError, IndexError):
-            pass
+        except (KeyError, IndexError) as e:
+            print(f"[i18n] Formatting error for key '{key}': {e}")
     return text

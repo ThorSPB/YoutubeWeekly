@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
 from app.backend.feedback import submit_feedback, fetch_feedback, reply_to_feedback
-from app.frontend.i18n import t
+from app.i18n import t
 
 
 CATEGORY_KEYS = ["cat_bug_report", "cat_feature_request", "cat_positive_feedback", "cat_negative_feedback", "cat_other"]
@@ -409,11 +409,8 @@ class FeedbackWindow(tk.Toplevel):
             return
 
         selected_text = self.category_var.get()
-        category = "other"
-        for key in CATEGORY_KEYS:
-            if t(key) == selected_text:
-                category = CATEGORY_API_MAP[key]
-                break
+        reverse_map = {t(k): v for k, v in CATEGORY_API_MAP.items()}
+        category = reverse_map.get(selected_text, "other")
         self.send_btn.config(text=t("fb_sending"), state="disabled")
         self._set_status(t("fb_sending_feedback"))
 

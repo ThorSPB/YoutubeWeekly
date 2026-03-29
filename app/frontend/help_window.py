@@ -2,7 +2,7 @@ import os
 import tkinter as tk
 from tkinter import ttk, scrolledtext
 import sys
-from app.frontend.i18n import t
+from app.i18n import t
 
 class HelpWindow(tk.Toplevel):
     def __init__(self, parent, title, help_file_path, on_close_callback=None):

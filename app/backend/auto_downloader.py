@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from app.backend.config import load_settings, save_settings, load_channels, CONFIG_DIR
 from app.backend.downloader import find_video_url, download_video, get_next_saturday, format_romanian_date, delete_old_videos
 from app.backend.telemetry import send_telemetry_ping
-from app.frontend.i18n import t
+from app.i18n import t
 
 AUTO_DOWNLOAD_LOG_FILE = os.path.join(CONFIG_DIR, "auto_download_log.json")
 

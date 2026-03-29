@@ -10,7 +10,7 @@ from plyer import notification
 from PIL import Image
 import pystray
 
-from app.frontend.i18n import t, set_language, get_language
+from app.i18n import t, set_language, get_language
 from app.backend.config import load_channels, load_settings, save_settings
 from app.backend.downloader import find_video_url, download_video, get_next_saturday, delete_old_videos, format_romanian_date, get_recent_sabbaths
 from datetime import datetime
@@ -480,6 +480,10 @@ class YoutubeWeeklyGUI(tk.Tk):
         new_lang = self.settings.get("language", "en")
         if new_lang != get_language():
             set_language(new_lang)
+            messagebox.showinfo(
+                t("settings_title"),
+                t("dlg_restart_for_language"),
+            )
         self.base_path = self.settings.get("video_folder", "data/videos")
         # Update quality dropdowns with new default
         default_quality = self.settings.get("default_quality", "1080p")
