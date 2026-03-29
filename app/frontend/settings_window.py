@@ -165,6 +165,12 @@ class SettingsWindow(tk.Toplevel):
         self.auto_install_label.bind("<Button-1>", lambda e: self.auto_install_check.invoke() if str(self.auto_install_check.cget("state")) != "disabled" else None)
         self._update_auto_install_state()
 
+        # Telemetry opt-in
+        self.send_telemetry_var = tk.BooleanVar(value=self.settings.get("send_telemetry", True))
+        ttk.Checkbutton(general_frame, text="Send anonymous usage data", variable=self.send_telemetry_var, style="Dark.TCheckbutton").pack(anchor="w", pady=(10, 0), padx=10)
+        tk.Label(general_frame, text="Helps improve the app. No personal data is collected.",
+                 fg="#666666", bg="#2b2b2b", font=("Segoe UI", 8)).pack(anchor="w", padx=28)
+
         # === Player Tab ===
         player_frame = ttk.Frame(notebook, style="Dark.TFrame")
         notebook.add(player_frame, text="Player")
@@ -300,6 +306,7 @@ class SettingsWindow(tk.Toplevel):
         self.settings["start_with_system"] = new_startup_value
         self.settings["check_for_updates"] = self.check_for_updates_var.get()
         self.settings["auto_install_updates"] = self.auto_install_updates_var.get()
+        self.settings["send_telemetry"] = self.send_telemetry_var.get()
         self.settings["use_mpv"] = self.use_mpv_var.get()
         self.settings["mpv_path"] = self.mpv_path_var.get()
         self.settings["ffmpeg_path"] = self.ffmpeg_path_var.get()
