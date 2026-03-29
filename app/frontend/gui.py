@@ -22,6 +22,7 @@ from app.backend.updater import check_for_updates, get_asset_download_url, get_p
 from app.backend.config import get_base_path, UPDATE_DIR, __version__
 from app.backend.startup_manager import is_in_startup, add_to_startup, remove_from_startup
 from app.backend.logger import setup_logger
+from app.backend.telemetry import send_telemetry_ping
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
@@ -605,6 +606,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             else:
                 self._set_status("Download complete.")
                 self._send_notification("Download Complete", f"Finished downloading video from link: {link}", on_click=self.bring_to_foreground)
+                send_telemetry_ping(self.settings, 1, session_type="others", others_quality=self.others_quality_var.get())
         except Exception as e:
             self._set_status(f"Error downloading: {e}")
             self._send_notification("Download Error", f"Failed to download video from link: {link}\n{e}", on_click=self.bring_to_foreground)
@@ -727,6 +729,7 @@ class YoutubeWeeklyGUI(tk.Tk):
                     )
                 else:
                     self._send_notification("Download Complete", f"Finished downloading video for {name}.", on_click=self.bring_to_foreground)
+                    send_telemetry_ping(self.settings, 1, session_type="manual")
             except Exception as e:
                 self._set_status(f"Error downloading {name}: {e}")
                 self._send_notification("Download Error", f"Failed to download video for {name}: {e}", on_click=self.bring_to_foreground)
