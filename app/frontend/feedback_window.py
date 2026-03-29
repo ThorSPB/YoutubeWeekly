@@ -104,11 +104,11 @@ class FeedbackWindow(tk.Toplevel):
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        # Enable mousewheel scrolling
+        # Enable mousewheel scrolling only when hovering over the list
         def _on_mousewheel(event):
             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
-        self.bind("<Destroy>", lambda e: canvas.unbind_all("<MouseWheel>"), add=True)
+        scroll_frame.bind("<Enter>", lambda _: self.bind_all("<MouseWheel>", _on_mousewheel))
+        scroll_frame.bind("<Leave>", lambda _: self.unbind_all("<MouseWheel>"))
 
         for thread in self.threads:
             self._create_thread_card(scroll_frame, thread)
@@ -147,12 +147,12 @@ class FeedbackWindow(tk.Toplevel):
         tk.Label(card, text=date, fg="#484f58", bg="#161b22",
                  font=("Segoe UI", 7)).pack(anchor="e", padx=10, pady=(0, 6))
 
-        # Click handler
-        card.bind("<Button-1>", lambda e, t=thread: self._show_thread_detail(t))
-        for child in card.winfo_children():
-            child.bind("<Button-1>", lambda e, t=thread: self._show_thread_detail(t))
-            for subchild in child.winfo_children():
-                subchild.bind("<Button-1>", lambda e, t=thread: self._show_thread_detail(t))
+        # Click handler — bind recursively to all children
+        def _bind_click(widget):
+            widget.bind("<Button-1>", lambda e, t=thread: self._show_thread_detail(t))
+            for child in widget.winfo_children():
+                _bind_click(child)
+        _bind_click(card)
 
     # ---- Thread Detail View ----
 
@@ -188,7 +188,8 @@ class FeedbackWindow(tk.Toplevel):
 
         def _on_mousewheel(event):
             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        scroll_frame.bind("<Enter>", lambda _: self.bind_all("<MouseWheel>", _on_mousewheel))
+        scroll_frame.bind("<Leave>", lambda _: self.unbind_all("<MouseWheel>"))
 
         # Original message
         msg_box = tk.Frame(scroll_frame, bg="#1c2128")
