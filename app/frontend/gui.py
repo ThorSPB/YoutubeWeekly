@@ -901,9 +901,9 @@ class YoutubeWeeklyGUI(tk.Tk):
         auto_install = self.settings.get("auto_install_updates", False)
 
         if auto_install:
-            # Auto-update: download and install without user interaction
+            # Auto-update: show progress if window is visible, silent if minimized
             self._send_notification("Update Detected", f"Installing v{latest_version} automatically...")
-            self.after(0, lambda: self._start_update(latest_version, download_url, assets, silent=True))
+            self.after(0, lambda: self._start_update(latest_version, download_url, assets, silent=is_minimized))
         elif is_minimized:
             # Minimized but not auto-install: notify, show dialog when user opens GUI
             self._send_notification("Update Available", f"Version {latest_version} is available. Open the app to update.")
