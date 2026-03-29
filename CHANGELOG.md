@@ -16,8 +16,10 @@
 - **Auto-Updates on Startup**: Automatically install updates when running in system tray
 - **Update Check Button**: Check for updates anytime with the ↻ button
 - **Post-Update Changelog**: See what's new after each update
+- **Update Status**: "Update complete!" message shown on first launch after an update
 
 ## v1.1.1
+- **Version Display**: Current version shown in the bottom-left corner of the app
 - **Video Path Fix**: Video folder path now resets correctly when app is moved to a new location
 - **Auto-Update Fixes**: Improved reliability of the update process on Windows
 
@@ -25,6 +27,7 @@
 - **Auto-Updates**: The app now updates itself automatically — just click "Update Now" when prompted
 - **Higher Quality Options**: Added max, 4K, and 2K quality options alongside existing 1080p/720p/480p/mp3
 - **Smarter Video Matching**: Handles common title errors (wrong date by 1 day, formatting issues) and asks for confirmation
+- **Version Display**: Current version is now shown in the bottom-left corner
 
 ## v1.0.4
 - Initial public release
