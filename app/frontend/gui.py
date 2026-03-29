@@ -232,14 +232,15 @@ class YoutubeWeeklyGUI(tk.Tk):
         others_combo.pack(side="left", padx=(0, 5))
 
         self.others_link_var = tk.StringVar()
-        others_entry = ttk.Entry(
+        self._others_entry = ttk.Entry(
             others_frame,
             textvariable=self.others_link_var,
             width=35,
         )
-        others_entry.insert(0, t("placeholder_paste_link"))
-        others_entry.bind("<FocusIn>", lambda e: others_entry.delete(0, "end") if others_entry.get() == t("placeholder_paste_link") else None)
-        others_entry.pack(side="left", padx=(0, 8))
+        self._others_placeholder = t("placeholder_paste_link")
+        self._others_entry.insert(0, self._others_placeholder)
+        self._others_entry.bind("<FocusIn>", lambda e: self._others_entry.delete(0, "end") if self._others_entry.get() == self._others_placeholder else None)
+        self._others_entry.pack(side="left", padx=(0, 8))
 
         self._others_btn = ttk.Button(
             others_frame,
@@ -500,7 +501,14 @@ class YoutubeWeeklyGUI(tk.Tk):
             btn.config(text=t("btn_download_channel", name=name))
         self._others_btn.config(text=t("btn_download"))
         self._quit_btn.config(text=t("btn_quit"))
-        # Status refreshes automatically since it uses t() at call time
+        # Refresh status message if it's the default ready message
+        old_placeholder = self._others_placeholder
+        self._others_placeholder = t("placeholder_paste_link")
+        if self._others_entry.get() == old_placeholder:
+            self._others_entry.delete(0, "end")
+            self._others_entry.insert(0, self._others_placeholder)
+        # Reset status to translated ready message
+        self._set_status(t("status_ready"))
 
     def open_feedback(self):
         if hasattr(self, '_feedback_win') and self._feedback_win and self._feedback_win.winfo_exists():
