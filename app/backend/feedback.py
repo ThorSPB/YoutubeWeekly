@@ -107,7 +107,7 @@ def get_system_stats():
         return {}
 
 
-def submit_feedback(category, message, image_path=None, settings=None):
+def submit_feedback(category, message, image_paths=None, settings=None):
     """Submit feedback to server. Returns (success, feedback_id or error message)."""
     try:
         location = _get_location()
@@ -127,12 +127,14 @@ def submit_feedback(category, message, image_path=None, settings=None):
         if system_stats:
             form_data["system_stats"] = json.dumps(system_stats)
 
-        files = None
-        if image_path and os.path.exists(image_path):
-            img_bytes = compress_screenshot(image_path)
-            files = {"screenshot": ("screenshot.jpg", img_bytes, "image/jpeg")}
+        files = []
+        if image_paths:
+            for i, path in enumerate(image_paths):
+                if path and os.path.exists(path):
+                    img_bytes = compress_screenshot(path)
+                    files.append(("screenshots", (f"screenshot_{i}.jpg", img_bytes, "image/jpeg")))
 
-        r = requests.post(FEEDBACK_URL, data=form_data, files=files, timeout=15)
+        r = requests.post(FEEDBACK_URL, data=form_data, files=files or None, timeout=15)
         if r.status_code == 200:
             data = r.json()
             feedback_id = data.get("feedback_id")
@@ -143,7 +145,7 @@ def submit_feedback(category, message, image_path=None, settings=None):
                 "id": feedback_id,
                 "category": category,
                 "message": message,
-                "has_image": image_path is not None,
+                "has_image": bool(image_paths),
                 "status": "sent",
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "replies": [],
@@ -152,6 +154,27 @@ def submit_feedback(category, message, image_path=None, settings=None):
             return True, feedback_id
         elif r.status_code == 429:
             return False, "Rate limited. Please wait before sending more feedback."
+        else:
+            return False, f"Server error ({r.status_code})"
+    except requests.ConnectionError:
+        return False, "Could not connect to server. Check your internet connection."
+    except Exception as e:
+        return False, str(e)
+
+
+def reply_to_feedback(feedback_id, message):
+    """Send a user reply to a feedback thread. Returns (success, error message or None)."""
+    try:
+        install_id = _get_install_id()
+        r = requests.post(
+            f"{FEEDBACK_URL}/{feedback_id}/reply",
+            json={"install_id": install_id, "message": message},
+            timeout=10,
+        )
+        if r.status_code == 200:
+            return True, None
+        elif r.status_code == 429:
+            return False, "Rate limited. Please wait before sending another reply."
         else:
             return False, f"Server error ({r.status_code})"
     except requests.ConnectionError:

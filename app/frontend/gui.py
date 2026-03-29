@@ -129,7 +129,15 @@ class YoutubeWeeklyGUI(tk.Tk):
         ).pack(side="left")
 
         ttk.Button(header_frame, text="⚙", command=self.open_settings, width=3).pack(side="right")
-        ttk.Button(header_frame, text="💬", command=self.open_feedback, width=3).pack(side="right", padx=(0, 3))
+
+        # Feedback button with notification badge
+        self.feedback_btn_frame = tk.Frame(header_frame, bg="#2b2b2b")
+        self.feedback_btn_frame.pack(side="right", padx=(0, 3))
+        ttk.Button(self.feedback_btn_frame, text="💬", command=self.open_feedback, width=3).pack()
+        self.feedback_badge = tk.Label(self.feedback_btn_frame, text="", fg="white", bg="#da3633",
+                                        font=("Segoe UI", 7, "bold"), padx=3, pady=0)
+        # Badge initially hidden, shown when there are unread replies
+        self._check_feedback_badge()
 
         # Status label with wrapping - fixed height to prevent layout shifts
         self.status_var = tk.StringVar()
@@ -478,6 +486,28 @@ class YoutubeWeeklyGUI(tk.Tk):
         feedback_win.transient(self)
         feedback_win.grab_set()
         feedback_win.focus_set()
+        self.wait_window(feedback_win)
+        # Refresh badge after closing feedback window
+        self._check_feedback_badge()
+
+    def _check_feedback_badge(self):
+        """Check for unread developer replies and show/hide badge."""
+        def _check():
+            try:
+                from app.backend.feedback import load_local_feedback
+                threads = load_local_feedback()
+                unread = sum(1 for t in threads if t.get("status") == "replied")
+                self.after(0, lambda: self._update_badge(unread))
+            except Exception as e:
+                print(f"[Feedback] Badge check failed: {e}")
+        threading.Thread(target=_check, daemon=True).start()
+
+    def _update_badge(self, count):
+        if count > 0:
+            self.feedback_badge.config(text=str(count))
+            self.feedback_badge.place(relx=1.0, rely=0.0, anchor="ne", x=2, y=-2)
+        else:
+            self.feedback_badge.place_forget()
 
     def open_help(self):
         """Open the main help window"""

@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.3.1
+- **Reply to Developer**: You can now respond to developer messages directly in the feedback window
+- **Multiple Screenshots**: Attach multiple images to your feedback
+- **Notification Badge**: A red badge on the 💬 button shows when the developer has replied
+- **Improved Thread View**: See the latest message in each thread and green highlights for new replies
+- **Scroll Fix**: Mouse scroll now works properly anywhere in the feedback window
+- **Rollback Fix**: Version rollback button is now properly visible
+
 ## v1.3.0
 - **In-App Feedback**: Send bug reports, feature requests, or general feedback directly from the app
 - **Screenshots**: Attach screenshots to your feedback for easier troubleshooting
