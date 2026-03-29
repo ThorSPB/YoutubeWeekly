@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.2.0
+- **Usage Analytics**: Anonymous usage data helps improve the app — see how many people use it and which features are popular
+- **Opt-Out**: Easily disable analytics from Settings → General → "Send anonymous usage data"
+- **Others Tracking**: "Others" custom URL downloads now tracked separately with quality selection
+- **Privacy First**: Location is resolved on your device — your IP address is never sent to us
+
 ## v1.1.3
 - **Version Rollback**: Roll back to any previous version from Settings → Advanced → Rollback
 - **Auto-Install Updates**: New setting to automatically install updates on startup (no popup, just updates)
