@@ -97,6 +97,33 @@ def get_default_executable_paths():
 
     return {"mpv_path": mpv_path, "ffmpeg_path": ffmpeg_path}, warnings
 
+def _merge_missing_defaults(settings):
+    """Add keys present in bundled defaults but missing from the user's settings.
+
+    Migrates a settings file from older app versions: never overwrites existing
+    user values, never removes keys. Returns True if any key was added so the
+    caller can persist the merged result.
+    """
+    defaults = load_default_settings()
+    if not defaults:
+        return False
+
+    # Window geometries and bundled exe paths are runtime-only; defaults file
+    # may carry stale values for them, so skip those keys during migration.
+    skip_keys = {"mpv_path", "ffmpeg_path"}
+
+    added = False
+    for key, default_value in defaults.items():
+        if key in skip_keys:
+            continue
+        if key.endswith("_geometry"):
+            continue
+        if key not in settings:
+            settings[key] = default_value
+            added = True
+    return added
+
+
 def load_settings():
     with settings_lock:
         try:
@@ -104,6 +131,11 @@ def load_settings():
                 settings = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
             settings = {}
+
+    if _merge_missing_defaults(settings):
+        with settings_lock:
+            with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(settings, f, indent=2)
 
     default_paths, warnings = get_default_executable_paths()
 

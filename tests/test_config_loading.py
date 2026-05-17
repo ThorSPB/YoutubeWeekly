@@ -107,3 +107,56 @@ def test_load_channels():
     channels = load_channels()
     assert "channel_1" in channels, "Missing 'channel_1' in channels"
     assert "url" in channels["channel_1"], "Channel URL is missing"
+
+
+def test_load_settings_merges_missing_default_keys(tmp_path, monkeypatch):
+    """v1.0.4-era settings file gets new keys filled in from bundled defaults."""
+    legacy_path = tmp_path / "settings.json"
+    legacy_settings = {
+        "keep_old_videos": False,
+        "video_folder": "data/videos",
+        "default_quality": "1080p",
+        "enable_auto_download": True,
+        "enable_notifications": True,
+        "use_mpv": False,
+        "mpv_fullscreen": True,
+    }
+    with open(legacy_path, "w") as f:
+        json.dump(legacy_settings, f)
+    monkeypatch.setattr("app.backend.config.SETTINGS_FILE", str(legacy_path))
+
+    settings, _ = load_settings()
+
+    # Keys added in later versions should now be present
+    assert "check_for_updates" in settings
+    assert "auto_install_updates" in settings
+    assert "send_telemetry" in settings
+
+    # Existing user values must be preserved
+    assert settings["default_quality"] == "1080p"
+    assert settings["enable_auto_download"] is True
+
+    # The merged result should have been persisted to disk
+    with open(legacy_path, "r") as f:
+        on_disk = json.load(f)
+    assert "check_for_updates" in on_disk
+    assert "send_telemetry" in on_disk
+
+
+def test_load_settings_no_write_when_nothing_to_merge(tmp_path, monkeypatch):
+    """Already-complete settings file is not rewritten on load."""
+    from app.backend.config import load_default_settings
+
+    complete_path = tmp_path / "settings.json"
+    full = dict(load_default_settings())
+    full["default_quality"] = "720p"  # mark to ensure user value survives
+    with open(complete_path, "w") as f:
+        json.dump(full, f)
+    monkeypatch.setattr("app.backend.config.SETTINGS_FILE", str(complete_path))
+
+    mtime_before = complete_path.stat().st_mtime_ns
+    settings, _ = load_settings()
+    mtime_after = complete_path.stat().st_mtime_ns
+
+    assert mtime_after == mtime_before, "load_settings rewrote the file when no migration was needed"
+    assert settings["default_quality"] == "720p"

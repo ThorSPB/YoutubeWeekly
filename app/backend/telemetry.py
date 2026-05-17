@@ -65,6 +65,7 @@ def _sanitize_settings(settings):
         "auto_install_updates",
         "use_mpv",
         "mpv_fullscreen",
+        "language",
     ]
     return {k: settings.get(k) for k in keys if k in settings}
 
