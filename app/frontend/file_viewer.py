@@ -95,6 +95,7 @@ class FileViewer(tk.Toplevel):
             self.file_tree.delete(i)
 
         files = [f for f in os.listdir(self.channel_folder) if os.path.isfile(os.path.join(self.channel_folder, f))]
+        files.sort(key=lambda f: os.path.getmtime(os.path.join(self.channel_folder, f)), reverse=True)
         for file in files:
             self.file_tree.insert("", tk.END, values=(file, ""))
 
