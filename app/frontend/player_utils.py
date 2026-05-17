@@ -3,6 +3,8 @@ import sys
 import subprocess
 import shlex
 
+from app.i18n import t
+
 
 def build_mpv_args(settings, file_path, script_path=None):
     """Build the argument list for launching mpv."""
@@ -15,8 +17,12 @@ def build_mpv_args(settings, file_path, script_path=None):
     if settings.get("mpv_volume") is not None:
         mpv_args.append(f"--volume={settings.get('mpv_volume')}")
 
-    if settings.get("mpv_screen") != "Default":
-        mpv_args.append(f"--screen={settings.get('mpv_screen')}")
+    # Only pass --screen when a specific monitor index is selected. The default
+    # is represented by anything that isn't a numeric index (empty string from
+    # newer saves, legacy "Default", or translated labels like "Implicit").
+    mpv_screen = str(settings.get("mpv_screen", "") or "")
+    if mpv_screen.isdigit():
+        mpv_args.append(f"--screen={mpv_screen}")
 
     custom_args = settings.get("mpv_custom_args", "").strip()
     if custom_args:
@@ -38,7 +44,7 @@ def play_video(settings, file_path, script_path=None):
 
             stdout, stderr = process.communicate()
             if process.returncode != 0:
-                return stderr.decode().strip() if stderr else "Unknown MPV error."
+                return stderr.decode().strip() if stderr else t("err_mpv_unknown")
         else:
             if os.name == 'nt':
                 os.startfile(file_path)

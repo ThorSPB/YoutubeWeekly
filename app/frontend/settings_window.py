@@ -210,8 +210,11 @@ class SettingsWindow(tk.Toplevel):
         monitor_frame = ttk.Frame(player_frame, style="Dark.TFrame")
         monitor_frame.pack(fill="x", pady=5, padx=10)
         ttk.Label(monitor_frame, text=t("lbl_monitor"), style="Dark.TLabel").pack(side="left")
-        self.mpv_screen_var = tk.StringVar(value=self.settings.get("mpv_screen", t("lbl_monitor_default")))
-        self.monitor_options = [t("lbl_monitor_default")] + [str(i) for i, _ in enumerate(get_monitors())]
+        default_label = t("lbl_monitor_default")
+        self.monitor_options = [default_label] + [str(i) for i, _ in enumerate(get_monitors())]
+        stored_screen = str(self.settings.get("mpv_screen", "") or "")
+        initial_screen = stored_screen if stored_screen in self.monitor_options[1:] else default_label
+        self.mpv_screen_var = tk.StringVar(value=initial_screen)
         ttk.Combobox(monitor_frame, textvariable=self.mpv_screen_var, values=self.monitor_options, width=10, state="readonly", style="Dark.TCombobox").pack(side="left", padx=5)
 
         custom_args_frame = ttk.Frame(player_frame, style="Dark.TFrame")
@@ -322,7 +325,8 @@ class SettingsWindow(tk.Toplevel):
         self.settings["ffmpeg_path"] = self.ffmpeg_path_var.get()
         self.settings["mpv_fullscreen"] = self.mpv_fullscreen_var.get()
         self.settings["mpv_volume"] = self.mpv_volume_var.get()
-        self.settings["mpv_screen"] = self.mpv_screen_var.get()
+        screen_value = self.mpv_screen_var.get()
+        self.settings["mpv_screen"] = screen_value if screen_value.isdigit() else ""
         self.settings["mpv_custom_args"] = self.mpv_custom_args_var.get()
         self.settings["settings_window_geometry"] = self.geometry()
 
@@ -357,7 +361,10 @@ class SettingsWindow(tk.Toplevel):
         self.mpv_path_var.set(self.settings.get("mpv_path", ""))
         self.mpv_fullscreen_var.set(self.settings.get("mpv_fullscreen", False))
         self.mpv_volume_var.set(self.settings.get("mpv_volume", 100))
-        self.mpv_screen_var.set(self.settings.get("mpv_screen", t("lbl_monitor_default")))
+        stored_screen = str(self.settings.get("mpv_screen", "") or "")
+        self.mpv_screen_var.set(
+            stored_screen if stored_screen in self.monitor_options[1:] else t("lbl_monitor_default")
+        )
         self.mpv_custom_args_var.set(self.settings.get("mpv_custom_args", ""))
         self.ffmpeg_path_var.set(self.settings.get("ffmpeg_path", ""))
 

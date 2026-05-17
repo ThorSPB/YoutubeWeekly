@@ -18,6 +18,12 @@ CATEGORY_API_MAP = {
     "cat_negative_feedback": "negative",
     "cat_other": "other",
 }
+API_TO_CAT_KEY = {v: k for k, v in CATEGORY_API_MAP.items()}
+STATUS_KEY_MAP = {
+    "sent": "fb_status_sent",
+    "replied": "fb_new_reply",
+    "read": "fb_status_read",
+}
 CATEGORY_COLORS = {
     "bug": "#da3633",
     "feature": "#8957e5",
@@ -128,14 +134,13 @@ class FeedbackWindow(tk.Toplevel):
 
         cat = thread.get("category", "other")
         cat_color = CATEGORY_COLORS.get(cat, "#8b949e")
-        tk.Label(top, text=cat.upper(), fg=cat_color, bg="#161b22",
+        cat_label = t(API_TO_CAT_KEY.get(cat, "cat_other")).upper()
+        tk.Label(top, text=cat_label, fg=cat_color, bg="#161b22",
                  font=("Segoe UI", 8, "bold")).pack(side="left")
 
         status = thread.get("status", "sent")
         status_color = STATUS_COLORS.get(status, "#8b949e")
-        status_text = "● " + status.capitalize()
-        if status == "replied":
-            status_text = t("fb_new_reply")
+        status_text = t(STATUS_KEY_MAP.get(status, "fb_status_sent"))
         tk.Label(top, text=status_text, fg=status_color, bg="#161b22",
                  font=("Segoe UI", 8)).pack(side="right")
 
@@ -191,7 +196,8 @@ class FeedbackWindow(tk.Toplevel):
         header.pack(fill="x", pady=(0, 8))
         cat = thread.get("category", "other")
         cat_color = CATEGORY_COLORS.get(cat, "#8b949e")
-        tk.Label(header, text=cat.upper(), fg=cat_color, bg="#2b2b2b",
+        cat_label = t(API_TO_CAT_KEY.get(cat, "cat_other")).upper()
+        tk.Label(header, text=cat_label, fg=cat_color, bg="#2b2b2b",
                  font=("Segoe UI", 10, "bold")).pack(side="left")
         tk.Label(header, text=thread.get("created_at", "")[:16], fg="#484f58", bg="#2b2b2b",
                  font=("Segoe UI", 9)).pack(side="right")

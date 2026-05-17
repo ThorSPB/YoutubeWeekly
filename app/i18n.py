@@ -12,6 +12,7 @@ TRANSLATIONS = {
         "btn_download_channel": "Download {name}",
         "btn_quit": "Quit",
         "placeholder_paste_link": "Paste YouTube link...",
+        "lbl_others_section": "Others",
 
         # Tray
         "tray_show": "Show",
@@ -56,6 +57,7 @@ TRANSLATIONS = {
         "dlg_download_failed_name": "Failed to download {name}:\n{error}",
         "dlg_playback_error": "Playback Error",
         "dlg_playback_failed": "Could not play video:\n{error}",
+        "err_mpv_unknown": "Unknown MPV error.",
         "dlg_error": "Error",
         "dlg_folder_error": "Could not open folder: {error}",
         "dlg_update_available": "Update Available",
@@ -161,6 +163,8 @@ TRANSLATIONS = {
         "fb_loading": "Loading feedback...",
         "fb_empty": "No feedback yet. Click '+ New' to send feedback.",
         "fb_new_reply": "● New Reply",
+        "fb_status_sent": "● Sent",
+        "fb_status_read": "● Read",
         "fb_dev_prefix": "Dev: ",
         "fb_you_prefix": "You: ",
         "fb_your_message": "Your message:",
@@ -238,6 +242,7 @@ TRANSLATIONS = {
         "btn_download_channel": "Descarcă {name}",
         "btn_quit": "Ieșire",
         "placeholder_paste_link": "Lipește link YouTube...",
+        "lbl_others_section": "Altele",
 
         # Tray
         "tray_show": "Afișează",
@@ -282,6 +287,7 @@ TRANSLATIONS = {
         "dlg_download_failed_name": "Descărcarea {name} a eșuat:\n{error}",
         "dlg_playback_error": "Eroare de redare",
         "dlg_playback_failed": "Nu s-a putut reda videoclipul:\n{error}",
+        "err_mpv_unknown": "Eroare MPV necunoscută.",
         "dlg_error": "Eroare",
         "dlg_folder_error": "Nu s-a putut deschide folderul: {error}",
         "dlg_update_available": "Actualizare disponibilă",
@@ -387,6 +393,8 @@ TRANSLATIONS = {
         "fb_loading": "Se încarcă feedback-ul...",
         "fb_empty": "Nu există feedback încă. Apasă '+ Nou' pentru a trimite.",
         "fb_new_reply": "● Răspuns nou",
+        "fb_status_sent": "● Trimis",
+        "fb_status_read": "● Citit",
         "fb_dev_prefix": "Dev: ",
         "fb_you_prefix": "Tu: ",
         "fb_your_message": "Mesajul tău:",

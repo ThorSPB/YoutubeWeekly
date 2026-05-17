@@ -7,16 +7,19 @@ from app.frontend.player_utils import play_video
 from app.i18n import t
 
 class FileViewer(tk.Toplevel):
-    def __init__(self, parent, settings, channel_name, channel_folder, on_close_callback):
+    def __init__(self, parent, settings, channel_name, channel_folder, on_close_callback, display_name=None):
         super().__init__(parent)
         self.settings = settings
         self.channel_name = channel_name
+        # display_name is what the user sees; channel_name stays stable so the
+        # geometry settings key doesn't shift when the UI language changes.
+        self.display_name = display_name or channel_name
         self.channel_folder = channel_folder # Store channel_folder
         self.on_close_callback = on_close_callback # Store callback
         self.geometry_key = f"file_viewer_{channel_name}_geometry"
         self.root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         self.script_path = os.path.join(self.root_dir, "app", "player", "scripts", "delayed-fullscreen.lua")
-        self.title(t("fv_title", name=channel_name))
+        self.title(t("fv_title", name=self.display_name))
         self.load_window_position()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.configure(bg="#2b2b2b")
@@ -136,7 +139,7 @@ class FileViewer(tk.Toplevel):
             messagebox.showinfo(t("fv_empty"), t("fv_already_empty"))
             return
 
-        if messagebox.askyesno(t("fv_confirm_delete_all"), t("fv_confirm_delete_all_msg", name=self.channel_name)):
+        if messagebox.askyesno(t("fv_confirm_delete_all"), t("fv_confirm_delete_all_msg", name=self.display_name)):
             try:
                 for file_name in os.listdir(self.channel_folder):
                     file_path = os.path.join(self.channel_folder, file_name)

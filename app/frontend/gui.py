@@ -661,7 +661,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         if other_folder in self.open_file_viewers and self.open_file_viewers[other_folder].winfo_exists():
             self.open_file_viewers[other_folder].on_closing()
         else:
-            file_viewer_win = FileViewer(self, self.settings, "Others", other_folder, self._on_file_viewer_close)
+            file_viewer_win = FileViewer(self, self.settings, "Others", other_folder, self._on_file_viewer_close, display_name=t("lbl_others_section"))
             self.open_file_viewers[other_folder] = file_viewer_win
 
     def _worker_download_others(self, link):
@@ -693,15 +693,16 @@ class YoutubeWeeklyGUI(tk.Tk):
     def _worker_play_others(self):
         """Worker function to find and play the latest video in the 'other' folder."""
         other_folder = os.path.join(self.base_path, "other")
-        self._set_status(t("status_searching_latest", name="Others"))
+        others_label = t("lbl_others_section")
+        self._set_status(t("status_searching_latest", name=others_label))
 
         if not os.path.exists(other_folder):
-            self._set_status(t("status_no_videos_yet", name="Others"), severity="warning")
+            self._set_status(t("status_no_videos_yet", name=others_label), severity="warning")
             return
 
         files = [os.path.join(other_folder, f) for f in os.listdir(other_folder)]
         if not files:
-            self._set_status(t("status_no_videos_found", name="Others"), severity="error")
+            self._set_status(t("status_no_videos_found", name=others_label), severity="error")
             return
 
         latest_file = max(files, key=os.path.getctime)
@@ -713,7 +714,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             self._set_status(t("status_play_error", error=error), severity="error")
             messagebox.showerror(t("dlg_playback_error"), t("dlg_playback_failed", error=error))
         else:
-            self._set_status(t("status_launched_player", name="Others"))
+            self._set_status(t("status_launched_player", name=others_label))
 
     def _worker_download(self, channel):
         """Worker function that runs off the main UI thread."""
