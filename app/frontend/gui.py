@@ -52,13 +52,14 @@ class YoutubeWeeklyGUI(tk.Tk):
         # Clean up any leftover update artifacts and detect post-update
         self._just_updated = self._cleanup_update_artifacts()
 
-        # Synchronize startup setting with Windows Registry
-        app_should_start_with_system = self.settings.get("start_with_system", False)
-        is_currently_in_startup = is_in_startup()
-
-        if app_should_start_with_system and not is_currently_in_startup:
+        # Synchronize startup registration with the user's stored intent.
+        # When enabled, re-register unconditionally so the registry value
+        # points at the current install — an existing entry from a previous
+        # version may still reference a folder that no longer exists after
+        # an update.
+        if self.settings.get("start_with_system", False):
             add_to_startup()
-        elif not app_should_start_with_system and is_currently_in_startup:
+        elif is_in_startup():
             remove_from_startup()
 
         if self.startup_warnings:
