@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.4.0
+- **Romanian Language**: Full Romanian translation — switch from Settings → General → Language
+- **Language Toggle**: Choose between English and Română, applies immediately
+- **Start with System Fix**: After updating from older versions, the app sometimes wouldn't actually start on boot even though the setting was on — fixed, now refreshes itself on every launch
+- **Sort by Date**: Downloaded video lists are now sorted newest-first instead of alphabetically — much better for the Others folder
+- **Settings Migration**: New settings from app updates now appear automatically without needing to open the settings window
+
 ## v1.3.1
 - **Reply to Developer**: You can now respond to developer messages directly in the feedback window
 - **Multiple Screenshots**: Attach multiple images to your feedback

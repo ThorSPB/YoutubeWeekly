@@ -23,6 +23,7 @@ def gui(monkeypatch):
             "main_window_geometry": "500x300+50+50",
             "enable_notifications": True,
             "keep_old_videos": False,
+            "language": "en",
         }
         g.base_path = g.settings["video_folder"]
         g.status_var = MagicMock()
@@ -68,15 +69,15 @@ def test_load_window_position_not_exists(gui):
 
 # --- Status label tests ---
 
-@pytest.mark.parametrize("text, expected_color", [
-    ("Video already exists", "yellow"),
-    ("No video found", "red"),
-    ("Download complete.", "green"),
-    ("Error downloading.", "red"),
-    ("Some other message", "#ffffff"),
+@pytest.mark.parametrize("text, severity, expected_color", [
+    ("Some message", "success", "green"),
+    ("Some message", "warning", "yellow"),
+    ("Some message", "error", "red"),
+    ("Some message", None, "#ffffff"),
+    ("Any text without severity", None, "#ffffff"),
 ])
-def test_set_status(gui, text, expected_color):
-    gui._set_status(text)
+def test_set_status(gui, text, severity, expected_color):
+    gui._set_status(text, severity=severity)
     gui.status_label.config.assert_called_once_with(fg=expected_color)
     gui.status_var.set.assert_called_once_with(text)
     gui.update_idletasks.assert_called_once()
@@ -125,7 +126,7 @@ def test_download_others_no_link(gui):
     gui.others_link_var.get.return_value = ""
     gui._set_status = MagicMock()
     gui.download_others()
-    gui._set_status.assert_called_with("Please enter a YouTube link.")
+    gui._set_status.assert_called_with("Please enter a YouTube link.", severity="warning")
 
 
 def test_download_others_with_link(gui):
@@ -168,7 +169,7 @@ def test_worker_play_others_no_folder(gui, monkeypatch):
     gui._set_status = MagicMock()
     monkeypatch.setattr(os.path, "exists", lambda x: False)
     gui._worker_play_others()
-    gui._set_status.assert_any_call("No videos downloaded for Others yet.")
+    gui._set_status.assert_any_call("No videos downloaded for Others yet.", severity="warning")
 
 
 def test_worker_play_others_no_files(gui, tmp_path):
@@ -177,7 +178,7 @@ def test_worker_play_others_no_files(gui, tmp_path):
     gui.base_path = str(tmp_path)
     gui._set_status = MagicMock()
     gui._worker_play_others()
-    gui._set_status.assert_any_call("No videos found for Others.")
+    gui._set_status.assert_any_call("No videos found for Others.", severity="error")
 
 
 def test_worker_play_others_success(gui, tmp_path):
@@ -203,7 +204,7 @@ def test_worker_play_others_error(gui, tmp_path):
     with patch('app.frontend.gui.play_video', return_value="Playback error"):
         with patch('app.frontend.gui.messagebox.showerror') as mock_err:
             gui._worker_play_others()
-            gui._set_status.assert_any_call("Error playing video: Playback error")
+            gui._set_status.assert_any_call("Error playing video: Playback error", severity="error")
             mock_err.assert_called_once()
 
 
@@ -228,7 +229,7 @@ def test_worker_download_others_success(gui, tmp_path):
 
     with patch('app.frontend.gui.download_video', return_value=None):
         gui._worker_download_others("http://youtube.com/watch?v=test")
-        gui._set_status.assert_any_call("Download complete.")
+        gui._set_status.assert_any_call("Download complete.", severity="success")
 
 
 def test_worker_download_others_error(gui, tmp_path):
@@ -239,7 +240,7 @@ def test_worker_download_others_error(gui, tmp_path):
     with patch('app.frontend.gui.download_video', return_value="Download failed"):
         with patch('app.frontend.gui.messagebox.showerror'):
             gui._worker_download_others("http://youtube.com/watch?v=test")
-            gui._set_status.assert_any_call("Error downloading: Download failed")
+            gui._set_status.assert_any_call("Error downloading: Download failed", severity="error")
 
 
 def test_worker_download_channel_no_video(gui):
@@ -251,7 +252,7 @@ def test_worker_download_channel_no_video(gui):
         with patch('app.frontend.gui.find_video_url', return_value=(None, None)):
             with patch('app.frontend.gui.tk.StringVar', MagicMock):
                 gui._worker_download(channel)
-                gui._set_status.assert_any_call("No video found for Test Channel on 15.07.2024.")
+                gui._set_status.assert_any_call("No video found for Test Channel on 15.07.2024.", severity="error")
                 gui._send_notification.assert_called()
 
 
@@ -267,7 +268,7 @@ def test_worker_download_channel_already_exists(gui, tmp_path):
         with patch('app.frontend.gui.find_video_url', return_value=("http://youtube.com/watch?v=found", {"type": "exact", "title": "Found Video"})):
             with patch('app.frontend.gui.tk.StringVar', MagicMock):
                 gui._worker_download(channel)
-                gui._set_status.assert_any_call("Video for Test Channel already exists: video_15.07.2024.mp4")
+                gui._set_status.assert_any_call("Video for Test Channel already exists: video_15.07.2024.mp4", severity="warning")
 
 
 # --- Open folder tests ---

@@ -20,5 +20,6 @@
   "check_for_updates": true,
   "auto_install_updates": false,
   "send_telemetry": true,
+  "language": "en",
   "last_sabbath_checked": "2025-08-16"
 }

@@ -2,12 +2,13 @@ import os
 import tkinter as tk
 from tkinter import ttk, scrolledtext
 import sys
+from app.i18n import t, get_language
 
 class HelpWindow(tk.Toplevel):
     def __init__(self, parent, title, help_file_path, on_close_callback=None):
         super().__init__(parent)
         
-        self.title(f"Help - {title}")
+        self.title(t("help_title", title=title))
         self.geometry("700x500")
         self.configure(bg="#2b2b2b")
         self.on_close_callback = on_close_callback
@@ -69,7 +70,7 @@ class HelpWindow(tk.Toplevel):
         
         close_button = tk.Button(
             button_frame,
-            text="Close",
+            text=t("help_close"),
             command=self.on_closing,
             bg="#444444",
             fg="white",
@@ -84,13 +85,30 @@ class HelpWindow(tk.Toplevel):
     def load_help_content(self, help_file_path):
         """Load and display the help content from markdown file"""
         try:
-            # Try multiple paths for the help file
-            possible_paths = [
+            # Build language-specific filename (e.g., main_help_ro.md)
+            lang = get_language()
+            base_name = os.path.basename(help_file_path)
+            if lang != "en":
+                name, ext = os.path.splitext(base_name)
+                localized_name = f"{name}_{lang}{ext}"
+            else:
+                localized_name = None
+
+            # Try localized file first, then fall back to default
+            possible_paths = []
+            if localized_name:
+                possible_paths.extend([
+                    os.path.join(os.path.dirname(help_file_path), localized_name),
+                    self.resource_path(os.path.join("docs", localized_name)),
+                    os.path.join("docs", localized_name),
+                    os.path.join(os.path.dirname(__file__), "..", "..", "docs", localized_name),
+                ])
+            possible_paths.extend([
                 help_file_path,
                 self.resource_path(help_file_path),
-                os.path.join("docs", os.path.basename(help_file_path)),
-                os.path.join(os.path.dirname(__file__), "..", "..", "docs", os.path.basename(help_file_path))
-            ]
+                os.path.join("docs", base_name),
+                os.path.join(os.path.dirname(__file__), "..", "..", "docs", base_name),
+            ])
             
             content = None
             for path in possible_paths:
@@ -100,7 +118,7 @@ class HelpWindow(tk.Toplevel):
                     break
             
             if content is None:
-                content = f"Help file not found.\n\nSearched paths:\n" + "\n".join(possible_paths)
+                content = t("help_not_found") + "\n\n" + "\n".join(possible_paths)
             
             # Simple markdown-to-text conversion
             formatted_content = self.format_markdown(content)
@@ -112,7 +130,7 @@ class HelpWindow(tk.Toplevel):
             self.text_widget.config(state=tk.DISABLED)
             
         except Exception as e:
-            error_content = f"Error loading help content:\n\n{str(e)}"
+            error_content = t("help_load_error", error=str(e))
             self.text_widget.config(state=tk.NORMAL)
             self.text_widget.delete(1.0, tk.END)
             self.text_widget.insert(1.0, error_content)
