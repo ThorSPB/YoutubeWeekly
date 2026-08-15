@@ -30,6 +30,11 @@ Folosește secțiunea de jos pentru a descărca orice videoclip YouTube:
 - Activează din Setări → „Activează descărcarea automată"
 - Descarcă pentru sâmbăta următoare fără intervenție manuală
 
+### Videoclipuri corectate
+- Uneori un canal încarcă un videoclip cu data greșită în titlu, iar aplicația nu îl poate găsi
+- În acest caz, dezvoltatorul poate indica aplicației videoclipul corect — se descarcă singur, fără actualizare
+- Dacă o corectare apare după ce aplicația a descărcat deja videoclipul pentru sâmbăta respectivă, îl înlocuiește automat
+
 ### Integrare cu sistemul
 - **Bara de sistem**: Aplicația se minimizează în bara de sistem (apasă pentru a restaura)
 - **Notificări**: Primești notificare când descărcările se finalizează

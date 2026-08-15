@@ -30,6 +30,11 @@ Use the bottom section to download any YouTube video:
 - Enable in Settings → "Enable Automatic Downloads"
 - Downloads for next Saturday without manual intervention
 
+### Corrected Videos
+- Sometimes a channel uploads a video with the wrong date in the title, and the app can't find it
+- When that happens, the developer can point the app straight at the correct video — it downloads by itself, no update needed
+- If a correction arrives after the app already downloaded that Sabbath's video, the app replaces it automatically
+
 ### System Integration
 - **System Tray**: App minimizes to system tray (click to restore)
 - **Notifications**: Get notified when downloads complete
