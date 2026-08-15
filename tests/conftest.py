@@ -28,6 +28,12 @@ def isolate_overrides(tmp_path, monkeypatch):
         "unexpected network call: patch app.backend.overrides.requests in this test"
     )
     monkeypatch.setattr(overrides, "requests", blocked)
+
+    # Telemetry too: test_auto_downloader drives run_automatic_checks without
+    # stubbing send_telemetry_ping, so with a real version stamped in (as the
+    # release workflow does) the suite posts live pings to the server.
+    import app.backend.telemetry as telemetry
+    monkeypatch.setattr(telemetry, "requests", blocked)
     monkeypatch.setattr(overrides, "OVERRIDES_CACHE_FILE", str(tmp_path / "overrides.json"))
     monkeypatch.setattr(overrides, "OVERRIDE_STATE_FILE", str(tmp_path / "override_state.json"))
     monkeypatch.setattr(overrides, "_ping_version", None)

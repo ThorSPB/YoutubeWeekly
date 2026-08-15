@@ -70,10 +70,25 @@ def _sanitize_settings(settings):
     return {k: settings.get(k) for k in keys if k in settings}
 
 
+def _is_ci():
+    """True when running on a build agent rather than a user's machine.
+
+    The release workflow stamps the real version into config.py before running
+    the test suite, which defeats the `__version__ == "dev"` guard below. The
+    tests exercise run_automatic_checks without stubbing this function, so every
+    release used to register each build runner as a brand-new install — ten fake
+    users and twenty phantom downloads across v1.3.1 to v1.5.0, counted as real
+    on the dashboard.
+    """
+    return any(os.environ.get(v) for v in ("CI", "GITHUB_ACTIONS", "BUILD_NUMBER"))
+
+
 def send_telemetry_ping(settings, videos_downloaded, session_type="manual",
                         others_quality=None):
     """Fire-and-forget telemetry ping. Runs in a daemon thread, never blocks."""
     if __version__ == "dev":
+        return
+    if _is_ci():
         return
     if not settings.get("send_telemetry", True):
         return
