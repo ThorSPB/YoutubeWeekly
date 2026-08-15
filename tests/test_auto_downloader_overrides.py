@@ -17,11 +17,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.backend.auto_downloader import (
-    APPLIED_OVERRIDES_KEY,
     load_auto_download_log,
     run_automatic_checks,
     save_auto_download_log,
 )
+from app.backend.overrides import load_applied_overrides, save_applied_overrides
 
 SABBATH = "2026-08-15"       # Saturday
 SABBATH_DATE_STR = "15.08.2026"
@@ -235,8 +235,7 @@ def test_force_fires_only_once_per_edit(env, channels, on_day):
     first = run_producing(channels, manifest, folder, "corrected.mp4")
     assert first.call_count == 1
 
-    log = load_auto_download_log()
-    record = log[SABBATH][APPLIED_OVERRIDES_KEY]["scoala_de_sabat"]
+    record = load_applied_overrides(SABBATH)["scoala_de_sabat"]
     assert record["sig"] == "1:2026-08-14 10:00:00"
     assert record["file"] == "corrected.mp4"
 
@@ -376,7 +375,7 @@ def test_override_download_is_not_re_run_on_the_next_launch(env, channels, on_da
          patch("app.backend.auto_downloader.download_override", side_effect=create_file):
         run_automatic_checks({}, channels, MagicMock())
 
-    record = load_auto_download_log()[SABBATH][APPLIED_OVERRIDES_KEY]["scoala_de_sabat"]
+    record = load_applied_overrides(SABBATH)["scoala_de_sabat"]
     assert record["file"] == "Studiu 15.08.2021.mp4"
 
     # Second launch: same manifest, file still present -> nothing happens
@@ -388,13 +387,10 @@ def test_override_download_is_not_re_run_on_the_next_launch(env, channels, on_da
 def test_deleting_the_override_video_requeues_it(env, channels, on_day):
     on_day(FRIDAY)
     save_auto_download_log({
-        SABBATH: {
-            "colecta": "downloaded",
-            "scoala_de_sabat": "downloaded",
-            APPLIED_OVERRIDES_KEY: {
-                "scoala_de_sabat": {"sig": "1:2026-08-14 10:00:00", "file": "gone.mp4"},
-            },
-        }
+        SABBATH: {"colecta": "downloaded", "scoala_de_sabat": "downloaded"},
+    })
+    save_applied_overrides(SABBATH, {
+        "scoala_de_sabat": {"sig": "1:2026-08-14 10:00:00", "file": "gone.mp4"},
     })
     (env["video_folder"] / "colecta" / f"Studiu {SABBATH_DATE_STR}.mp4").write_text("x")
 
@@ -429,4 +425,4 @@ def test_a_failing_override_is_recorded_as_an_error(env, channels, on_day):
     log = load_auto_download_log()
     assert log[SABBATH]["scoala_de_sabat"] == "error"
     # and it stays unapplied, so the next run retries it
-    assert "scoala_de_sabat" not in log[SABBATH].get(APPLIED_OVERRIDES_KEY, {})
+    assert "scoala_de_sabat" not in load_applied_overrides(SABBATH)

@@ -162,10 +162,15 @@ matcher can't bridge a five-year gap.
 - **Force runs on any weekday.** The Fri/Sat gate still governs normal checks, but
   a force override is an explicit operator instruction, so it is honoured
   immediately rather than waiting for the window.
-- **Applied-once bookkeeping**: `auto_download_log.json` gains an
-  `_applied_overrides` key per Sabbath, `{channel: {"sig": "<id>:<updated_at>",
-  "file": "<downloaded filename>"}}`. The signature stops a force override
-  re-downloading on every check; it re-fires only when the override is edited.
+- **Applied-once bookkeeping**: `CONFIG_DIR/override_state.json`, shaped
+  `{sabbath: {channel: {"sig": "<id>:<updated_at>", "file": "<filename>"}}}` and
+  pruned to the current Sabbath. Deliberately **not** inside
+  `auto_download_log.json`: that file's contract is `{date: {channel: status}}`
+  and consumers (`scripts/dry_run_auto_download.py`) iterate every key as a
+  channel — storing bookkeeping there broke CI on all five platforms.
+  `load_auto_download_log()` now strips `_`-prefixed keys defensively.
+  The signature stops a force override re-downloading on every check; it
+  re-fires only when the override is edited.
   The filename matters because **an override's video is named after whatever it
   points at, which by definition does not carry the right date** — the existing
   file-existence pre-check matches on the date and would otherwise judge the

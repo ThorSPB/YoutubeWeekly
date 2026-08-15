@@ -9,23 +9,35 @@ from app.backend.overrides import (
     download_override,
     fetch_overrides,
     get_override,
+    load_applied_overrides,
     override_signature,
+    save_applied_overrides,
 )
 from app.backend.telemetry import send_telemetry_ping
 from app.i18n import t
 
 AUTO_DOWNLOAD_LOG_FILE = os.path.join(CONFIG_DIR, "auto_download_log.json")
 
-# Key inside a Sabbath's log entry holding the override signature applied per
-# channel. Prefixed so it can never collide with a channel folder name.
-APPLIED_OVERRIDES_KEY = "_applied_overrides"
-
 def load_auto_download_log():
+    """Load the per-Sabbath channel statuses.
+
+    The file's contract is strictly {date: {channel: status}} — consumers such as
+    scripts/dry_run_auto_download.py iterate every key as a channel. Underscore-
+    prefixed keys are stripped on read so a log written by an older build that
+    stored bookkeeping here can't break them.
+    """
     try:
         with open(AUTO_DOWNLOAD_LOG_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            log = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
+
+    if isinstance(log, dict):
+        for date_key, channels in log.items():
+            if isinstance(channels, dict):
+                for k in [k for k in channels if k.startswith("_")]:
+                    del channels[k]
+    return log
 
 def save_auto_download_log(log_data):
     with open(AUTO_DOWNLOAD_LOG_FILE, "w", encoding="utf-8") as f:
@@ -96,9 +108,7 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
     # Overrides for the *current* Sabbath only — never a past one. Cached and
     # ETag-guarded, so this is a 304 unless something actually changed.
     overrides, _ = fetch_overrides()
-    applied_overrides = auto_download_log[current_sabbath_date].setdefault(
-        APPLIED_OVERRIDES_KEY, {}
-    )
+    applied_overrides = load_applied_overrides(current_sabbath_date)
 
     # Pre-check: Verify existence of downloaded files
     for channel_data in channels:
@@ -172,6 +182,7 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
 
         if not channels_to_process:
             save_auto_download_log(auto_download_log)
+            save_applied_overrides(current_sabbath_date, applied_overrides)
             return
 
         initial_message = t("auto_starting_msg", channels=", ".join([ch["name"] for ch in channels_to_process]))
@@ -301,5 +312,6 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
 
     # Save the updated log and settings
     save_auto_download_log(auto_download_log)
+    save_applied_overrides(current_sabbath_date, applied_overrides)
     settings["last_sabbath_checked"] = current_sabbath_date
     save_settings(settings)

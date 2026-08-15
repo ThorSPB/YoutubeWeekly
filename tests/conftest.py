@@ -29,5 +29,6 @@ def isolate_overrides(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(overrides, "requests", blocked)
     monkeypatch.setattr(overrides, "OVERRIDES_CACHE_FILE", str(tmp_path / "overrides.json"))
+    monkeypatch.setattr(overrides, "OVERRIDE_STATE_FILE", str(tmp_path / "override_state.json"))
     monkeypatch.setattr(overrides, "_ping_version", None)
     monkeypatch.setattr(overrides, "_current_version", None)

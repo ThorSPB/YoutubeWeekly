@@ -50,6 +50,11 @@ from app.backend.config import CONFIG_DIR
 OVERRIDES_URL = "https://thorsp.ddns.net/ytw-telemetry/overrides"
 OVERRIDES_CACHE_FILE = os.path.join(CONFIG_DIR, "overrides.json")
 
+# Which override produced which file, per Sabbath. Deliberately NOT stored in
+# auto_download_log.json: that file's contract is {date: {channel: status}}, and
+# anything else in there gets iterated as if it were a channel.
+OVERRIDE_STATE_FILE = os.path.join(CONFIG_DIR, "override_state.json")
+
 # Poll cadence. Overrides only matter for the current Sabbath, so we check often
 # on Friday/Saturday and rarely otherwise. Roughly 115 requests per client per
 # week, nearly all of them 304s.
@@ -106,6 +111,32 @@ def save_cache(cache):
             logging.warning(f"[Overrides] Could not write cache: {e}")
     with _version_lock:
         _current_version = cache.get("version", 0)
+
+
+def load_applied_overrides(sabbath_date):
+    """Which override was applied for each channel this Sabbath.
+
+    Returns ``{channel: {"sig": ..., "file": ...}}``. The signature stops a force
+    override re-firing on every check; the filename is how the caller recognises
+    the downloaded video, whose name does not carry the Sabbath's date.
+    """
+    try:
+        with open(OVERRIDE_STATE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        entry = data.get(sabbath_date)
+        return entry if isinstance(entry, dict) else {}
+    except (FileNotFoundError, json.JSONDecodeError, IOError, OSError):
+        return {}
+
+
+def save_applied_overrides(sabbath_date, applied):
+    """Persist this Sabbath's records, discarding every earlier Sabbath."""
+    try:
+        os.makedirs(os.path.dirname(OVERRIDE_STATE_FILE), exist_ok=True)
+        with open(OVERRIDE_STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump({sabbath_date: applied}, f, indent=2)
+    except (IOError, OSError) as e:
+        logging.warning(f"[Overrides] Could not write override state: {e}")
 
 
 def note_ping_version(version):
