@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.5.0
+- **Video Overrides**: When a channel uploads a video with the wrong date in the title, the app can no longer find it. The developer can now point the app straight at the correct video, and it downloads normally — no update or reinstall needed
+- **Self-Hosted Videos**: An override can also serve a video file hosted directly, not just a YouTube link
+- **Corrections While Running**: The app now notices a correction published after it started, instead of only checking once at launch. A forced correction replaces a video already downloaded for that Sabbath
+- **Light on the Network**: Checks are cheap (a few hundred bytes when nothing changed), frequent only on Friday and Saturday, and slow the rest of the week
+
 ## v1.4.0
 - **Romanian Language**: Full Romanian translation — switch from Settings → General → Language
 - **Language Toggle**: Choose between English and Română, applies immediately

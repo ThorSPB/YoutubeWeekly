@@ -43,6 +43,7 @@ def run_dry_run(day_name="friday"):
         # Setup mock settings
         settings_path = os.path.join(tmpdir, "settings.json")
         log_path = os.path.join(tmpdir, "auto_download_log.json")
+        override_state_path = os.path.join(tmpdir, "override_state.json")
         video_dir = os.path.join(tmpdir, "videos")
         os.makedirs(video_dir)
 
@@ -77,10 +78,15 @@ def run_dry_run(day_name="friday"):
              patch("app.backend.auto_downloader.AUTO_DOWNLOAD_LOG_FILE", log_path), \
              patch("app.backend.auto_downloader.find_video_url") as mock_find, \
              patch("app.backend.auto_downloader.download_video") as mock_download, \
-             patch("app.backend.auto_downloader.delete_old_videos"):
+             patch("app.backend.auto_downloader.delete_old_videos"), \
+             patch("app.backend.auto_downloader.fetch_overrides") as mock_overrides, \
+             patch("app.backend.overrides.OVERRIDE_STATE_FILE", override_state_path):
 
             mock_find.return_value = ("https://youtube.com/watch?v=fake123", {"type": "exact", "title": "Fake Video"})
             mock_download.return_value = None  # Success
+            # Stubbed like every other external: this dry run must not depend on
+            # the override server being reachable, nor on what it happens to serve.
+            mock_overrides.return_value = ([], False)
 
             run_automatic_checks(settings, channels, mock_notify)
 

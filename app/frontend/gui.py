@@ -2,6 +2,7 @@ import os
 import sys
 import shutil
 import threading
+import time
 import webbrowser
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -19,7 +20,15 @@ from app.frontend.file_viewer import FileViewer
 from app.frontend.help_window import HelpWindow
 from app.frontend.feedback_window import FeedbackWindow
 from app.frontend.player_utils import play_video
-from app.backend.auto_downloader import run_automatic_checks
+from app.backend.auto_downloader import run_automatic_checks, get_current_sabbath_date
+from app.backend.overrides import (
+    clear_channel_videos,
+    download_override,
+    fetch_overrides,
+    get_override,
+    is_stale,
+    should_poll,
+)
 from app.backend.updater import check_for_updates, get_asset_download_url, get_platform_asset_name, download_update
 from app.backend.config import get_base_path, UPDATE_DIR, __version__
 from app.backend.startup_manager import is_in_startup, add_to_startup, remove_from_startup
@@ -39,6 +48,8 @@ def resource_path(relative_path):
 class YoutubeWeeklyGUI(tk.Tk):
     def __init__(self):
         super().__init__()
+        # Created first: background threads and _perform_quit both rely on it.
+        self._shutdown = threading.Event()
         self.iconbitmap(resource_path("assets/icon4.ico"))
         self.configure(bg="#2b2b2b")
 
@@ -300,6 +311,21 @@ class YoutubeWeeklyGUI(tk.Tk):
         # This ensures self.progress_hook exists when it's passed to the threads
         
         # Run automatic checks in a separate thread
+        self._run_auto_checks()
+
+        # Watch for video overrides published by the server
+        threading.Thread(target=self._override_watch_loop, daemon=True).start()
+
+        # Check for updates in a separate thread (if enabled)
+        if self.settings.get("check_for_updates", True):
+            threading.Thread(target=self._check_for_updates_thread, daemon=True).start()
+
+        # Show changelog after an update
+        if self._just_updated:
+            self.after(500, self._show_changelog)
+
+    def _run_auto_checks(self):
+        """Kick off the automatic download check on a worker thread."""
         threading.Thread(
             target=run_automatic_checks,
             args=(self.settings, self.channels, self._send_notification, self.progress_hook, self.show_window),
@@ -310,13 +336,36 @@ class YoutubeWeeklyGUI(tk.Tk):
             daemon=True
         ).start()
 
-        # Check for updates in a separate thread (if enabled)
-        if self.settings.get("check_for_updates", True):
-            threading.Thread(target=self._check_for_updates_thread, daemon=True).start()
+    def _override_watch_loop(self):
+        """Notice overrides published after this session's first check.
 
-        # Show changelog after an update
-        if self._just_updated:
-            self.after(500, self._show_changelog)
+        Without this, an app left running in the tray would never learn that the
+        operator corrected this Sabbath's video — the startup check is the only
+        thing that ever looks.
+
+        Kept deliberately quiet on the network: the manifest is a conditional
+        GET (an unchanged poll is a bodyless 304), the cadence is fast only on
+        Friday and Saturday, and a telemetry ping we were sending anyway can
+        flag staleness for free — which short-circuits the wait.
+        """
+        last_poll = time.time()  # the startup check already fetched the manifest
+
+        while not self._shutdown.wait(60):
+            now = time.time()
+            if not (is_stale() or should_poll(last_poll, now)):
+                continue
+
+            last_poll = now
+            try:
+                _overrides, changed = fetch_overrides()
+            except Exception:
+                continue
+
+            if changed:
+                # run_automatic_checks decides what the change actually means:
+                # a force override replaces this Sabbath's video, a fallback
+                # only fills a gap.
+                self._run_auto_checks()
 
     def _show_changelog(self):
         """Show the changelog for the current version after an update."""
@@ -472,6 +521,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.after(0, self._perform_quit)
 
     def _perform_quit(self):
+        self._shutdown.set()  # stop the override watcher
         if self.tray_icon is not None and self.tray_icon.visible:
             self.tray_icon.stop()
         self.destroy()
@@ -736,12 +786,32 @@ class YoutubeWeeklyGUI(tk.Tk):
             else:
                 next_sat = get_next_saturday(date_format=fmt)
 
-            # Step 2: Locate the video URL
-            url, match_info = find_video_url(channel["url"], next_sat, date_format=fmt)
-            if not url:
-                self._set_status(t("status_no_video_found", name=name, date=next_sat), severity="error")
-                self._send_notification(t("notif_video_not_found"), t("status_no_video_found", name=name, date=next_sat), on_click=self.bring_to_foreground)
-                return
+            # Step 2: An override for this Sabbath, if the operator set one.
+            # Overrides only ever apply to the current Sabbath, so a manual
+            # download of an older date ignores them entirely.
+            try:
+                iso_date = datetime.strptime(next_sat, fmt).date().isoformat()
+            except ValueError:
+                iso_date = None
+
+            override = None
+            if iso_date and iso_date == get_current_sabbath_date():
+                override, _changed = fetch_overrides()
+                override = get_override(channel["folder"], iso_date, override)
+
+            forced = override if (override and override.get("force")) else None
+
+            # Step 3: Locate the video URL (skipped when a force override wins)
+            url, match_info = (None, None)
+            if not forced:
+                url, match_info = find_video_url(channel["url"], next_sat, date_format=fmt)
+                if not url and not override:
+                    self._set_status(t("status_no_video_found", name=name, date=next_sat), severity="error")
+                    self._send_notification(t("notif_video_not_found"), t("status_no_video_found", name=name, date=next_sat), on_click=self.bring_to_foreground)
+                    return
+
+            # Nothing found by search, but a fallback override is available
+            source_override = forced or (override if not url else None)
 
             # If fuzzy match, ask user to confirm (must run dialog on main thread)
             if match_info and match_info["type"] == "fuzzy":
@@ -766,31 +836,45 @@ class YoutubeWeeklyGUI(tk.Tk):
             channel_folder = os.path.join(self.base_path, channel["folder"])
             os.makedirs(channel_folder, exist_ok=True)
 
-            # Step 3: Check if that exact video is already downloaded
+            keep_old = self.settings.get("keep_old_videos", False)
             numeric = next_sat.lower()
             date_obj = datetime.strptime(next_sat, fmt).date()
             romanian = format_romanian_date(date_obj).lower()
 
-            existing = [
-                f for f in os.listdir(channel_folder)
-                if numeric in f.lower() or romanian in f.lower()
-            ]
-            if existing:
-                existing_titles = ", ".join(existing)
-                self._set_status(
-                    t("status_already_exists", name=name, titles=existing_titles), severity="warning"
-                )
-                return
+            # Step 4: Check if that exact video is already downloaded.
+            # A force override deliberately replaces it, so it skips this.
+            if not forced:
+                existing = [
+                    f for f in os.listdir(channel_folder)
+                    if numeric in f.lower() or romanian in f.lower()
+                ]
+                if existing:
+                    existing_titles = ", ".join(existing)
+                    self._set_status(
+                        t("status_already_exists", name=name, titles=existing_titles), severity="warning"
+                    )
+                    return
 
-            # Step 4: Delete previous (in channel folder) only if no custom date selected
-            if not selected_date or selected_date == "automat":
-                delete_old_videos(channel_folder, keep_old=self.settings.get("keep_old_videos", False))
+            # Step 5: Clear what this download replaces
+            if forced:
+                clear_channel_videos(channel_folder, [numeric, romanian] if keep_old else None)
+            elif not selected_date or selected_date == "automat":
+                delete_old_videos(channel_folder, keep_old=keep_old)
 
-            # Step 5: Download into channel folder
+            # Step 6: Download into channel folder
             quality_pref = self.channel_quality_vars.get(name, tk.StringVar()).get()
-            self._set_status(t("status_downloading", name=name, quality=quality_pref))
+            if source_override:
+                self._set_status(t("status_downloading_override", name=name))
+            else:
+                self._set_status(t("status_downloading", name=name, quality=quality_pref))
             try:
-                error = download_video(url, channel_folder, quality_pref, protect=self.settings.get("keep_old_videos", False), progress_hook=self.progress_hook)
+                if source_override:
+                    error = download_override(
+                        source_override, channel_folder, quality_pref,
+                        progress_hook=self.progress_hook, protect=keep_old,
+                    )
+                else:
+                    error = download_video(url, channel_folder, quality_pref, protect=keep_old, progress_hook=self.progress_hook)
                 if error:
                     self._set_status(t("status_error_downloading_name", name=name, error=error), severity="error")
                     self._send_notification(t("notif_download_error"), t("notif_failed_name", name=name, error=error), on_click=self.bring_to_foreground)

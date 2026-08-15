@@ -63,6 +63,7 @@ The build bundles config defaults from `config/`, platform binaries for mpv/ffmp
   - `updater.py`: Talks to the GitHub releases API (`ThorSPB/YoutubeWeekly`). Provides current-release check, paginated listing of available versions for rollback (`MIN_ROLLBACK_VERSION = 1.1.0`), and asset downloader with progress callback. Per-platform asset selection (`win64`, `macos-arm64`, `macos-intel`, `linux-x64`).
   - `update_bootstrap.py`: External process that swaps a downloaded ZIP over the running install. Uses `WaitForSingleObject` on Windows for reliable exit detection; renames the running bootstrap before extraction so it can update itself.
   - `telemetry.py`: Anonymous usage analytics. Persistent install ID in `CONFIG_DIR/install_id`. Geo lookup happens **on the client** via `ip-api.com` (HTTP, free tier) — only the resolved `city`/`country` are sent, never the IP. Posts to `https://thorsp.ddns.net/ytw-telemetry/ping`. Gated on `send_telemetry` setting.
+  - `overrides.py`: Server-driven video overrides. When a channel titles a video with the wrong date (a wrong *year*, typically) the date matcher can't find it, so the operator publishes an override from the telemetry dashboard pointing at the right video. Two modes: **fallback** (used only when the app's own search finds nothing) and **force** (beats the search, and replaces a video already downloaded for that Sabbath). Sources are a link (yt-dlp) or a video file hosted on the Pi (streamed over HTTP with yt-dlp-shaped progress events). Discovery is a conditional GET against `https://thorsp.ddns.net/ytw-telemetry/overrides` — an unchanged poll is a bodyless 304. Identity-free (no install ID), so it runs regardless of the telemetry opt-out. See "Video Overrides" below.
   - `feedback.py`: In-app feedback. Local thread cache at `CONFIG_DIR/feedback.json`. Screenshots compressed to JPEG (≤500 KB, max 1280×720) before upload. Posts to `https://thorsp.ddns.net/ytw-telemetry/feedback`. Reuses install ID + sanitized settings from telemetry module so a single anonymous identity links pings and feedback.
   - `logger.py`: Logging setup with timestamped log files.
   - `startup_manager.py`: Cross-platform startup management (dispatches to OS-specific modules).
@@ -139,6 +140,59 @@ Videos with "diaspora" in the title are excluded. The fuzzy matcher (since v1.1.
 - Per-channel download with quality selector. Supported qualities (since v1.1.0): `max`, `4K`, `2K`, `1080p`, `720p`, `480p`, `mp3`.
 - Date selector: "automat" (next Saturday) or a specific past Sabbath date (last 30 Saturdays).
 - "Others" section: paste any YouTube URL to download into the `other/` folder. Tracked separately in telemetry (since v1.2.0) so quality selection there is metered independently.
+
+### Video Overrides
+A safety valve for the case the date matcher structurally cannot handle: the
+uploader typed the wrong date. Real example (2026-08-15): ScoalaDeSabat titled
+that Sabbath's video `15.08.2021 [SMV RO] - Centrul de ucenicie`. Right day and
+month, wrong year — `find_video_url` returns `None`, and the ±1-day fuzzy
+matcher can't bridge a five-year gap.
+
+- **Scope**: an override always targets **one channel and one Sabbath**, and only
+  ever applies to the client's *current* Sabbath (`get_current_sabbath_date()` —
+  today if today is Saturday, otherwise the coming Saturday). It never applies
+  retroactively to a past week. One override per channel (`UNIQUE(channel_key,
+  sabbath_date)` server-side); the channels resolve independently, so one can be
+  forced while the other goes through normal search.
+- **Precedence** in `run_automatic_checks`:
+  1. a pending **force** override — wins outright, and deletes the video already
+     on disk for that Sabbath (respecting `keep_old_videos` for *other* weeks)
+  2. otherwise the normal `find_video_url` search
+  3. otherwise the override as a **fallback**, when the search found nothing
+- **Force runs on any weekday.** The Fri/Sat gate still governs normal checks, but
+  a force override is an explicit operator instruction, so it is honoured
+  immediately rather than waiting for the window.
+- **Applied-once bookkeeping**: `CONFIG_DIR/override_state.json`, shaped
+  `{sabbath: {channel: {"sig": "<id>:<updated_at>", "file": "<filename>"}}}` and
+  pruned to the current Sabbath. Deliberately **not** inside
+  `auto_download_log.json`: that file's contract is `{date: {channel: status}}`
+  and consumers (`scripts/dry_run_auto_download.py`) iterate every key as a
+  channel — storing bookkeeping there broke CI on all five platforms.
+  `load_auto_download_log()` now strips `_`-prefixed keys defensively.
+  The signature stops a force override re-downloading on every check; it
+  re-fires only when the override is edited.
+  The filename matters because **an override's video is named after whatever it
+  points at, which by definition does not carry the right date** — the existing
+  file-existence pre-check matches on the date and would otherwise judge the
+  video missing and re-download forever.
+- **Discovery without polling spam**: `GET /overrides` is guarded by an ETag over
+  a server-side version counter that only moves on a mutation, so an unchanged
+  poll is a bodyless 304 (~150 bytes). The client polls every 30 min on Fri/Sat
+  and every 6 h otherwise (~115 requests/client/week). On top of that, `/ping`
+  responses carry the current version (`ov`), so a telemetry ping the client was
+  sending anyway flags staleness for free and short-circuits the wait.
+- **GUI**: `_override_watch_loop` runs the poll and re-runs the automatic checks
+  when the manifest changes — without it, an app sitting in the tray all week
+  would never learn about a correction, since the startup check is the only
+  thing that looks.
+- **Server**: `overrides` + `meta` tables in `ytw-telemetry`, admin UI at
+  `/ytw-telemetry/overrides-dashboard` (LAN/VPN only, nginx `allow`/`deny`).
+  Hosted files live in `ytw-telemetry/data/override_files/` and are served by
+  **nginx directly** (`/ytw-telemetry/override-file/`), not Flask — gunicorn runs
+  a single worker and streaming a multi-GB file through it would stall telemetry
+  for everyone. nginx needs traverse permission on `/home/thorsp`, granted as an
+  ACL (`setfacl -m u:www-data:x /home/thorsp`) rather than `chmod o+x`, so
+  `www-data` can traverse but not list the home directory.
 
 ### Video Player Integration
 - Default: System default video player (`os.startfile` on Windows, `xdg-open` on Linux, `open` on macOS)

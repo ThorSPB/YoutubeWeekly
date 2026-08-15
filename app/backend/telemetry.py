@@ -93,7 +93,15 @@ def send_telemetry_ping(settings, videos_downloaded, session_type="manual",
                 "others_quality": others_quality,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
-            requests.post(TELEMETRY_URL, json=payload, timeout=5)
+            r = requests.post(TELEMETRY_URL, json=payload, timeout=5)
+            # The response advertises the current override-manifest version, so
+            # a ping we were sending anyway tells us for free whether our cached
+            # manifest is stale. Imported lazily to avoid a circular import.
+            try:
+                from app.backend.overrides import note_ping_version
+                note_ping_version(r.json().get("ov"))
+            except Exception:
+                pass
         except Exception:
             pass
 
