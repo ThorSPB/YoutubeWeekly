@@ -48,7 +48,12 @@ import requests
 from app.backend.config import CONFIG_DIR
 from app.backend.progress import PROGRESS_PLAN_STATUS
 
-OVERRIDES_URL = "https://thorsp.ddns.net/ytw-telemetry/overrides"
+# thorsp.net, not thorsp.ddns.net: same nginx, same certificate (the cert
+# covers thorsp.ddns.net, thorsp.net and www.thorsp.net), but a real domain
+# rather than a DDNS hostname. Builds already in the field keep calling the
+# thorsp.ddns.net form, so **that hostname has to keep working indefinitely**
+# - it cannot be retired once a release has shipped with it baked in.
+OVERRIDES_URL = "https://thorsp.net/ytw-telemetry/overrides"
 OVERRIDES_CACHE_FILE = os.path.join(CONFIG_DIR, "overrides.json")
 
 # Which override produced which file, per Sabbath. Deliberately NOT stored in
