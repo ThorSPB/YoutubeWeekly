@@ -46,6 +46,7 @@ from urllib.parse import unquote, urlparse
 import requests
 
 from app.backend.config import CONFIG_DIR
+from app.backend.progress import PROGRESS_PLAN_STATUS
 
 OVERRIDES_URL = "https://thorsp.ddns.net/ytw-telemetry/overrides"
 OVERRIDES_CACHE_FILE = os.path.join(CONFIG_DIR, "overrides.json")
@@ -319,6 +320,18 @@ def download_hosted_file(override, folder, progress_hook=None):
             total = r.headers.get("Content-Length")
             total = int(total) if total and total.isdigit() else None
             downloaded = 0
+
+            if progress_hook:
+                # One stream, already merged - say so, or a UI that assumes the
+                # yt-dlp video+audio pair waits forever for a second stream.
+                try:
+                    progress_hook({
+                        "status": PROGRESS_PLAN_STATUS,
+                        "streams": 1,
+                        "total_bytes": total,
+                    })
+                except Exception:
+                    pass
 
             with open(part_path, "wb") as f:
                 for chunk in r.iter_content(chunk_size=DOWNLOAD_CHUNK):

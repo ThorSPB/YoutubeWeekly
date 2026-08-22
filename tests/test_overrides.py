@@ -438,3 +438,25 @@ def test_clear_channel_videos_spares_excluded(tmp_path):
     assert deleted == ["Studiu 15.08.2026.mp4"]
     assert produced.exists()
     assert not stale.exists()
+
+
+def test_hosted_file_announces_a_single_stream_plan(tmp_path, monkeypatch):
+    """A UI that assumes yt-dlp's video+audio pair would wait forever otherwise."""
+    from app.backend.progress import PROGRESS_PLAN_STATUS
+
+    mod = MagicMock()
+    mod.get.return_value = FakeStream([b"a" * 50], headers={"Content-Length": "50"})
+    monkeypatch.setattr(overrides, "requests", mod)
+
+    events = []
+    download_hosted_file(make_override(kind="file", filename="v.mp4"),
+                         str(tmp_path), progress_hook=events.append)
+
+    plans = [e for e in events if e["status"] == PROGRESS_PLAN_STATUS]
+    assert len(plans) == 1
+    assert plans[0]["streams"] == 1
+    assert plans[0]["total_bytes"] == 50
+    # and it arrives before any bytes are reported
+    assert events.index(plans[0]) < next(
+        i for i, e in enumerate(events) if e["status"] == "downloading"
+    )

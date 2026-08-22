@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+- **Accurate Progress Bar**: The bar now tracks how many bytes are actually left, instead of giving the video and the audio half each. A 1080p download's audio is a small part of the total, so the bar no longer crawls and then jumps
+- **Progress Bar No Longer Sticks at 50%**: Downloads that come as a single file — an mp3, or a video served directly by the developer — used to leave the bar stuck at half forever, even though the download had finished. Fixed
+- **Failed Downloads Stop Looking Like Frozen Ones**: When a download fails, the progress bar is now cleared away instead of being left part-filled on screen
+- **Download Button Keeps Your Video Too**: The same fix as the automatic download — pressing Download no longer deletes last week's video before fetching the new one, so a failure can't leave you with nothing
+
 ## v1.5.1
 - **Downloads Work Again**: YouTube changed something in August that the app's downloader couldn't handle any more, so every download failed. Updated it — downloads work again
 - **Your Video Stays Until the New One Arrives**: The app used to delete last week's video *before* fetching the new one, so a failed download left you with nothing at all. It now only removes the old video once the new one is safely downloaded

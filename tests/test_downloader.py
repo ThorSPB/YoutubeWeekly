@@ -15,6 +15,9 @@ from app.backend.downloader import (
     is_partial_download,
     list_playable_files,
     purge_partial_downloads,
+    build_download_plan,
+    folder_snapshot,
+    newly_downloaded_file,
 )
 
 # Fixture for mocking settings.json
@@ -391,3 +394,67 @@ def test_download_video_failure_purges_partials(tmp_path, monkeypatch):
     assert "403" in error
     assert not part.exists(), "the partial must not be left behind to be played"
     assert survivor.exists(), "a failure must not touch the existing video"
+
+
+# ---------------------------------------------------------------------------
+# Sizing a download up front, so a progress bar can be weighted by real bytes
+# ---------------------------------------------------------------------------
+
+def _ydl_returning(info):
+    ydl = MagicMock()
+    ydl.extract_info.return_value = info
+    return ydl
+
+
+def test_build_download_plan_sums_a_merge():
+    ydl = _ydl_returning({"requested_formats": [
+        {"format_id": "399", "filesize": 29410017},
+        {"format_id": "251", "filesize": 4167744},
+    ]})
+    assert build_download_plan(ydl, "u") == {"streams": 2, "total_bytes": 33577761}
+
+
+def test_build_download_plan_handles_a_single_format():
+    ydl = _ydl_returning({"format_id": "251", "filesize": 4167744})
+    assert build_download_plan(ydl, "u") == {"streams": 1, "total_bytes": 4167744}
+
+
+def test_build_download_plan_accepts_approximate_sizes():
+    ydl = _ydl_returning({"requested_formats": [
+        {"filesize_approx": 100}, {"filesize": 20},
+    ]})
+    assert build_download_plan(ydl, "u") == {"streams": 2, "total_bytes": 120}
+
+
+def test_build_download_plan_gives_up_rather_than_guessing():
+    """A partial total would make the bar lie, so return nothing instead."""
+    ydl = _ydl_returning({"requested_formats": [
+        {"filesize": 100}, {"format_id": "251"},   # size unknown
+    ]})
+    assert build_download_plan(ydl, "u") is None
+
+
+def test_build_download_plan_never_raises():
+    """A cosmetic progress bar must never be able to fail a download."""
+    ydl = MagicMock()
+    ydl.extract_info.side_effect = Exception("network went away")
+    assert build_download_plan(ydl, "u") is None
+    assert build_download_plan(_ydl_returning(None), "u") is None
+    # Shapes that would blow up naive attribute access
+    assert build_download_plan(_ydl_returning({"requested_formats": "nonsense"}), "u") is None
+    assert build_download_plan(_ydl_returning({"requested_formats": [None]}), "u") is None
+    assert build_download_plan(_ydl_returning({}), "u") is None
+    assert build_download_plan(_ydl_returning({"filesize": 0}), "u") is None
+
+
+def test_folder_snapshot_and_newly_downloaded_file(tmp_path):
+    before = folder_snapshot(str(tmp_path))
+    assert before == set()
+    (tmp_path / "small.mp4").write_bytes(b"x" * 10)
+    (tmp_path / "big.mp4").write_bytes(b"x" * 100)
+    (tmp_path / "half.mp4.part").write_bytes(b"x" * 1000)
+
+    # Largest non-partial wins; the .part is ignored even though it is biggest.
+    assert newly_downloaded_file(str(tmp_path), before) == "big.mp4"
+    assert newly_downloaded_file(str(tmp_path), folder_snapshot(str(tmp_path))) is None
+    assert folder_snapshot(str(tmp_path / "nope")) == set()
