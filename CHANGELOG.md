@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- **Sharper App Icon**: The icon shipped at a single small size, so Windows stretched it for shortcuts, folder views and notifications — it looked fuzzy nearly everywhere. It now includes every size Windows asks for, up to 256px
+
 ## v1.6.0
 - **Progress Bar No Longer Sticks at 50%**: Downloads that come as a single file — an mp3, or a video served directly by the developer — used to leave the bar stuck at half forever, even though the download had finished. Fixed
 - **Accurate Progress Bar**: The bar now tracks how many bytes are actually left, instead of giving the video and the audio half each. A 1080p download's audio is a small part of the total, so the bar no longer crawls and then jumps

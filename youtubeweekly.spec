@@ -4,6 +4,13 @@ PyInstaller spec file for YoutubeWeekly.
 Build with: pyinstaller youtubeweekly.spec
 """
 import os
+import sys
+
+# The .ico carries every size Windows asks for (16-256) and the .icns is the
+# high-resolution master both are generated from - see scripts/build_icon.py.
+# macOS wants the .icns natively rather than a converted .ico.
+APP_ICON = os.path.join("app", "frontend", "assets",
+                        "icon4.icns" if sys.platform == "darwin" else "icon4.ico")
 
 block_cipher = None
 
@@ -58,7 +65,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
-    icon="app/frontend/assets/icon4.ico",
+    icon=APP_ICON,
 )
 
 coll = COLLECT(
