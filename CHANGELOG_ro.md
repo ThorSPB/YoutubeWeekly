@@ -1,17 +1,17 @@
 # Istoric versiuni
 
-## Unreleased
-- **Descărcările respectă setarea ta de calitate**: Când dezvoltatorul oferă un videoclip direct (folosit când titlurile de pe YouTube împiedică găsirea lui), acesta vine acum în calitatea aleasă de tine, în loc de cea mai mare de fiecare dată
+## v1.6.0
+- **Bara nu mai rămâne blocată la 50%**: Descărcările care vin ca un singur fișier — un mp3 sau un video servit direct de dezvoltator — lăsau bara blocată la jumătate pentru totdeauna, chiar dacă descărcarea se terminase. Rezolvat
+- **Bară de progres corectă**: Bara urmărește acum câți octeți au rămas de fapt, în loc să dea câte o jumătate imaginii și sunetului. La o descărcare 1080p sunetul este o parte mică din total, așa că bara nu mai avansează greu și apoi sare brusc
+- **Descărcările eșuate nu mai par blocate**: Când o descărcare eșuează, bara de progres este acum ascunsă, în loc să rămână pe ecran umplută pe jumătate
+- **Butonul Descarcă îți păstrează și el videoclipul**: Aceeași corecție ca la descărcarea automată — apăsarea butonului Descarcă nu mai șterge videoclipul de săptămâna trecută înainte de a-l aduce pe cel nou, așa că o eroare nu te mai poate lăsa fără nimic
 - **Notele de lansare acoperă tot ce ai ratat**: Actualizarea peste mai multe versiuni afișa doar notele celei mai recente lansări — un salt de la 1.4.0 la 1.5.1 ascundea tot ce s-a schimbat în 1.5.0. Acum vezi fiecare lansare de la versiunea pe care o aveai
 - **Note de lansare în română**: Notele de lansare sunt acum traduse și urmează setarea de limbă a aplicației
 - **Buton pentru notele de lansare**: Setări → Avansat → Note de lansare deschide istoricul complet într-un cititor cu derulare
-- **Pictograma aplicației pe fiecare fereastră**: Ferestrele de setări, de foldere și de ajutor afișau o pictogramă generică în loc de cea a aplicației. Rezolvat
 - **Se deschide în față după actualizare**: Actualizarea în timp ce aplicația era pe ecran o readucea minimizată în bara de sistem. Acum revine așa cum ai lăsat-o — iar o actualizare care se instalează singură în timp ce aplicația stă în bara de sistem rămâne acolo și îți arată notele la următoarea deschidere
 - **Coloană pentru tipul fișierului**: Vizualizările de foldere au acum o coloană proprie Tip, ca să poți distinge întotdeauna un MP4 de un MP3 fără să lărgești fereastra
-- **Bară de progres corectă**: Bara urmărește acum câți octeți au rămas de fapt, în loc să dea câte o jumătate imaginii și sunetului. La o descărcare 1080p sunetul este o parte mică din total, așa că bara nu mai avansează greu și apoi sare brusc
-- **Bara nu mai rămâne blocată la 50%**: Descărcările care vin ca un singur fișier — un mp3 sau un video servit direct de dezvoltator — lăsau bara blocată la jumătate pentru totdeauna, chiar dacă descărcarea se terminase. Rezolvat
-- **Descărcările eșuate nu mai par blocate**: Când o descărcare eșuează, bara de progres este acum ascunsă, în loc să rămână pe ecran umplută pe jumătate
-- **Butonul Descarcă îți păstrează și el videoclipul**: Aceeași corecție ca la descărcarea automată — apăsarea butonului Descarcă nu mai șterge videoclipul de săptămâna trecută înainte de a-l aduce pe cel nou, așa că o eroare nu te mai poate lăsa fără nimic
+- **Pictograma aplicației pe fiecare fereastră**: Ferestrele de setări, de foldere și de ajutor afișau o pictogramă generică în loc de cea a aplicației. Rezolvat
+- **Descărcările respectă setarea ta de calitate**: Când dezvoltatorul oferă un videoclip direct (folosit când titlurile de pe YouTube împiedică găsirea lui), acesta vine acum în calitatea aleasă de tine, în loc de cea mai mare de fiecare dată
 
 ## v1.5.1
 - **Descărcările funcționează din nou**: YouTube a schimbat ceva în august, iar componenta de descărcare a aplicației nu mai făcea față, așa că toate descărcările eșuau. A fost actualizată — descărcările funcționează din nou

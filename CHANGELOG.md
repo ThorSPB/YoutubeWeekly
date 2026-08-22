@@ -1,17 +1,17 @@
 # Changelog
 
-## Unreleased
-- **Downloads Match Your Quality Setting**: When the developer serves a video directly (used when YouTube titles break the app's search), it now comes in the quality you picked instead of always the largest one
+## v1.6.0
+- **Progress Bar No Longer Sticks at 50%**: Downloads that come as a single file — an mp3, or a video served directly by the developer — used to leave the bar stuck at half forever, even though the download had finished. Fixed
+- **Accurate Progress Bar**: The bar now tracks how many bytes are actually left, instead of giving the video and the audio half each. A 1080p download's audio is a small part of the total, so the bar no longer crawls and then jumps
+- **Failed Downloads Stop Looking Like Frozen Ones**: When a download fails, the progress bar is now cleared away instead of being left part-filled on screen
+- **Download Button Keeps Your Video Too**: The same fix as the automatic download — pressing Download no longer deletes last week's video before fetching the new one, so a failure can't leave you with nothing
 - **Release Notes Cover Everything You Missed**: Updating across more than one version used to show only the newest release's notes — skipping from 1.4.0 to 1.5.1 hid everything 1.5.0 changed. Now you see every release since the one you were running
 - **Release Notes in Romanian**: The release notes are now translated, and follow the app's language setting
 - **Release Notes Button**: Settings → Advanced → Release Notes opens the full history in a scrollable reader
-- **App Icon on Every Window**: Settings, folder views and help windows showed a generic icon instead of the app's own. Fixed
 - **Opens in Front After Updating**: Updating while the app was on screen used to bring it back minimized to the tray. It now returns the way you left it — and an update that installs itself while the app sits in the tray stays there, showing you the notes when you next open it
 - **File Type Column**: Folder views now have their own Type column, so you can always tell an MP4 from an MP3 without widening the window
-- **Accurate Progress Bar**: The bar now tracks how many bytes are actually left, instead of giving the video and the audio half each. A 1080p download's audio is a small part of the total, so the bar no longer crawls and then jumps
-- **Progress Bar No Longer Sticks at 50%**: Downloads that come as a single file — an mp3, or a video served directly by the developer — used to leave the bar stuck at half forever, even though the download had finished. Fixed
-- **Failed Downloads Stop Looking Like Frozen Ones**: When a download fails, the progress bar is now cleared away instead of being left part-filled on screen
-- **Download Button Keeps Your Video Too**: The same fix as the automatic download — pressing Download no longer deletes last week's video before fetching the new one, so a failure can't leave you with nothing
+- **App Icon on Every Window**: Settings, folder views and help windows showed a generic icon instead of the app's own. Fixed
+- **Downloads Match Your Quality Setting**: When the developer serves a video directly (used when YouTube titles break the app's search), it now comes in the quality you picked instead of always the largest one
 
 ## v1.5.1
 - **Downloads Work Again**: YouTube changed something in August that the app's downloader couldn't handle any more, so every download failed. Updated it — downloads work again
