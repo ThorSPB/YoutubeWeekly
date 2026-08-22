@@ -1,6 +1,7 @@
 # Istoric versiuni
 
 ## Unreleased
+- **Descărcările respectă setarea ta de calitate**: Când dezvoltatorul oferă un videoclip direct (folosit când titlurile de pe YouTube împiedică găsirea lui), acesta vine acum în calitatea aleasă de tine, în loc de cea mai mare de fiecare dată
 - **Notele de lansare acoperă tot ce ai ratat**: Actualizarea peste mai multe versiuni afișa doar notele celei mai recente lansări — un salt de la 1.4.0 la 1.5.1 ascundea tot ce s-a schimbat în 1.5.0. Acum vezi fiecare lansare de la versiunea pe care o aveai
 - **Note de lansare în română**: Notele de lansare sunt acum traduse și urmează setarea de limbă a aplicației
 - **Buton pentru notele de lansare**: Setări → Avansat → Note de lansare deschide istoricul complet într-un cititor cu derulare

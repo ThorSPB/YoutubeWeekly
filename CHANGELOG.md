@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- **Downloads Match Your Quality Setting**: When the developer serves a video directly (used when YouTube titles break the app's search), it now comes in the quality you picked instead of always the largest one
 - **Release Notes Cover Everything You Missed**: Updating across more than one version used to show only the newest release's notes — skipping from 1.4.0 to 1.5.1 hid everything 1.5.0 changed. Now you see every release since the one you were running
 - **Release Notes in Romanian**: The release notes are now translated, and follow the app's language setting
 - **Release Notes Button**: Settings → Advanced → Release Notes opens the full history in a scrollable reader
