@@ -205,11 +205,18 @@ def test_force_replaces_an_already_downloaded_video(env, channels, on_day):
     stale.write_text("wrong video")
     save_auto_download_log({SABBATH: {"colecta": "downloaded", "scoala_de_sabat": "downloaded"}})
 
-    _find, _dl_video, dl_override = run(
-        channels, [override("scoala_de_sabat", force=True)], find_result=nothing_found
+    # The download has to actually land a file: replacing what is on disk is
+    # only safe once the replacement exists. A mock that downloads nothing is
+    # indistinguishable from a failed download, and must NOT delete anything -
+    # that is covered by test_a_failed_download_keeps_the_existing_video.
+    replacement = folder / f"Corectat {SABBATH_DATE_STR}.mp4"
+    dl_override = run_producing(
+        channels, [override("scoala_de_sabat", force=True)],
+        folder, replacement.name, find_result=nothing_found,
     )
 
     assert not stale.exists(), "the superseded video should have been deleted"
+    assert replacement.exists(), "the replacement it just fetched must survive"
     assert dl_override.call_count == 1
     assert load_auto_download_log()[SABBATH]["scoala_de_sabat"] == "downloaded"
 
@@ -291,10 +298,18 @@ def test_force_keeps_other_weeks_when_keep_old_is_on(env, channels, on_day, tmp_
     last_week.write_text("keep me")
     save_auto_download_log({SABBATH: {"colecta": "downloaded", "scoala_de_sabat": "downloaded"}})
 
-    run(channels, [override("scoala_de_sabat", force=True)], find_result=nothing_found)
+    # The replacement carries this Sabbath's date too, so it is in the blast
+    # radius of the date-scoped clear - it survives only because the file the
+    # download just produced is excluded.
+    replacement = folder / f"Corectat {SABBATH_DATE_STR}.mp4"
+    run_producing(
+        channels, [override("scoala_de_sabat", force=True)],
+        folder, replacement.name, find_result=nothing_found,
+    )
 
     assert not this_week.exists()
     assert last_week.exists(), "keep_old_videos must still protect other weeks"
+    assert replacement.exists(), "the replacement it just fetched must survive"
 
 
 # ---------------------------------------------------------------------------
@@ -426,3 +441,78 @@ def test_a_failing_override_is_recorded_as_an_error(env, channels, on_day):
     assert log[SABBATH]["scoala_de_sabat"] == "error"
     # and it stays unapplied, so the next run retries it
     assert "scoala_de_sabat" not in load_applied_overrides(SABBATH)
+
+
+# ---------------------------------------------------------------------------
+# Failure safety
+#
+# Regression for the 2026-08-22 church outage: the bundled yt-dlp had gone
+# stale and 403'd every download, but the app deleted last week's video *before
+# attempting* the new one. The folder ended up empty - the previous video gone
+# and nothing to replace it - minutes before the service.
+# ---------------------------------------------------------------------------
+
+def _run_with_download_result(channels, result, manifest=None):
+    """Run the checks with download_video returning `result` (None = success)."""
+    with patch("app.backend.auto_downloader.fetch_overrides",
+               return_value=(manifest or [], False)), \
+         patch("app.backend.auto_downloader.find_video_url") as find, \
+         patch("app.backend.auto_downloader.download_video",
+               return_value=result) as dl_video:
+        find.side_effect = found()
+        run_automatic_checks({}, channels, MagicMock())
+        return dl_video
+
+
+def test_a_failed_download_keeps_the_existing_video(env, channels, on_day):
+    on_day(FRIDAY)
+    folder = env["video_folder"] / "scoala_de_sabat"
+    last_week = folder / "Studiu 08.08.2026.mp4"
+    last_week.write_text("last week's video")
+
+    dl_video = _run_with_download_result(
+        channels, "ERROR: unable to download video data: HTTP Error 403: Forbidden"
+    )
+
+    assert dl_video.called, "the download was attempted"
+    assert last_week.exists(), (
+        "a failed download must not destroy the video already on disk - "
+        "better last week's video than an empty folder"
+    )
+    assert load_auto_download_log()[SABBATH]["scoala_de_sabat"] == "error"
+
+
+def test_a_successful_download_still_clears_the_old_video(env, channels, on_day):
+    """The fix must not turn keep_old_videos=False into a hoarder."""
+    on_day(FRIDAY)
+    folder = env["video_folder"] / "scoala_de_sabat"
+    last_week = folder / "Studiu 08.08.2026.mp4"
+    last_week.write_text("last week's video")
+    this_week = folder / f"Studiu {SABBATH_DATE_STR}.mp4"
+
+    def create(url, dest, *a, **k):
+        if str(dest) == str(folder):
+            this_week.write_text("this week's video")
+        return None
+
+    with patch("app.backend.auto_downloader.fetch_overrides", return_value=([], False)), \
+         patch("app.backend.auto_downloader.find_video_url") as find, \
+         patch("app.backend.auto_downloader.download_video", side_effect=create):
+        find.side_effect = found()
+        run_automatic_checks({}, channels, MagicMock())
+
+    assert this_week.exists(), "the new video is here"
+    assert not last_week.exists(), "and the old one was cleared once it was safe"
+    assert load_auto_download_log()[SABBATH]["scoala_de_sabat"] == "downloaded"
+
+
+def test_a_stale_part_file_is_cleared_before_the_retry(env, channels, on_day):
+    """A leftover partial otherwise blocks the retry and plays without sound."""
+    on_day(FRIDAY)
+    folder = env["video_folder"] / "scoala_de_sabat"
+    stale_part = folder / f"Studiu {SABBATH_DATE_STR}.f137.mp4.part"
+    stale_part.write_text("half a video-only stream")
+
+    _run_with_download_result(channels, None)
+
+    assert not stale_part.exists(), "the partial is cleared before downloading"

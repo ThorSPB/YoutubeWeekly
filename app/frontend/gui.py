@@ -13,7 +13,11 @@ import pystray
 
 from app.i18n import t, set_language, get_language
 from app.backend.config import load_channels, load_settings, save_settings
-from app.backend.downloader import find_video_url, download_video, get_next_saturday, delete_old_videos, format_romanian_date, get_recent_sabbaths
+from app.backend.downloader import (
+    find_video_url, download_video, get_next_saturday, delete_old_videos,
+    format_romanian_date, get_recent_sabbaths, is_partial_download,
+    list_playable_files,
+)
 from datetime import datetime
 from app.frontend.settings_window import SettingsWindow
 from app.frontend.file_viewer import FileViewer
@@ -751,7 +755,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             self._set_status(t("status_no_videos_yet", name=others_label), severity="warning")
             return
 
-        files = [os.path.join(other_folder, f) for f in os.listdir(other_folder)]
+        files = [os.path.join(other_folder, f) for f in list_playable_files(other_folder)]
         if not files:
             self._set_status(t("status_no_videos_found", name=others_label), severity="error")
             return
@@ -846,7 +850,8 @@ class YoutubeWeeklyGUI(tk.Tk):
             if not forced:
                 existing = [
                     f for f in os.listdir(channel_folder)
-                    if numeric in f.lower() or romanian in f.lower()
+                    if (numeric in f.lower() or romanian in f.lower())
+                    and not is_partial_download(f)
                 ]
                 if existing:
                     existing_titles = ", ".join(existing)
@@ -925,7 +930,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             self._set_status(t("status_no_videos_yet", name=channel['name']), severity="warning")
             return
 
-        files = [os.path.join(channel_folder, f) for f in os.listdir(channel_folder)]
+        files = [os.path.join(channel_folder, f) for f in list_playable_files(channel_folder)]
         if not files:
             self._set_status(t("status_no_videos_found", name=channel['name']), severity="error")
             return

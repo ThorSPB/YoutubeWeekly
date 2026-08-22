@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.5.1
+- **Downloads Work Again**: YouTube changed something in August that the app's downloader couldn't handle any more, so every download failed. Updated it — downloads work again
+- **Your Video Stays Until the New One Arrives**: The app used to delete last week's video *before* fetching the new one, so a failed download left you with nothing at all. It now only removes the old video once the new one is safely downloaded
+- **No More Silent Videos**: A download that stopped halfway left behind a file with picture but no sound, and the app offered it as if it were finished. Unfinished downloads are now cleaned up and never listed or played
+- **Retries Actually Retry**: A leftover half-finished file used to make the app think the video was already downloaded, so it refused to try again. Fixed
+
 ## v1.5.0
 - **Video Overrides**: When a channel uploads a video with the wrong date in the title, the app can no longer find it. The developer can now point the app straight at the correct video, and it downloads normally — no update or reinstall needed
 - **Self-Hosted Videos**: An override can also serve a video file hosted directly, not just a YouTube link

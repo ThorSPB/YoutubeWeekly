@@ -3,6 +3,7 @@ import sys
 import tkinter as tk
 from tkinter import ttk, messagebox
 from app.backend.config import save_settings
+from app.backend.downloader import list_playable_files
 from app.frontend.player_utils import play_video
 from app.i18n import t
 
@@ -94,7 +95,7 @@ class FileViewer(tk.Toplevel):
         for i in self.file_tree.get_children():
             self.file_tree.delete(i)
 
-        files = [f for f in os.listdir(self.channel_folder) if os.path.isfile(os.path.join(self.channel_folder, f))]
+        files = list_playable_files(self.channel_folder)
         files.sort(key=lambda f: os.path.getmtime(os.path.join(self.channel_folder, f)), reverse=True)
         for file in files:
             self.file_tree.insert("", tk.END, values=(file, ""))
