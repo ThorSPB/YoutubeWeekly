@@ -11,7 +11,12 @@ import requests
 
 from app.backend.config import CONFIG_DIR, __version__, load_settings
 
-TELEMETRY_URL = "https://thorsp.ddns.net/ytw-telemetry/ping"
+# thorsp.net, not thorsp.ddns.net: same nginx, same certificate (the cert
+# covers thorsp.ddns.net, thorsp.net and www.thorsp.net), but a real domain
+# rather than a DDNS hostname. Builds already in the field keep calling the
+# thorsp.ddns.net form, so **that hostname has to keep working indefinitely**
+# - it cannot be retired once a release has shipped with it baked in.
+TELEMETRY_URL = "https://thorsp.net/ytw-telemetry/ping"
 INSTALL_ID_FILE = os.path.join(CONFIG_DIR, "install_id")
 GEO_API_URL = "http://ip-api.com/json/?fields=city,country"  # Free tier requires HTTP
 

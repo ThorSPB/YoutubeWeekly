@@ -62,9 +62,9 @@ The build bundles config defaults from `config/`, platform binaries for mpv/ffmp
   - `auto_downloader.py`: Automatic download scheduling for upcoming Sabbath (Fri/Sat).
   - `updater.py`: Talks to the GitHub releases API (`ThorSPB/YoutubeWeekly`). Provides current-release check, paginated listing of available versions for rollback (`MIN_ROLLBACK_VERSION = 1.1.0`), and asset downloader with progress callback. Per-platform asset selection (`win64`, `macos-arm64`, `macos-intel`, `linux-x64`).
   - `update_bootstrap.py`: External process that swaps a downloaded ZIP over the running install. Uses `WaitForSingleObject` on Windows for reliable exit detection; renames the running bootstrap before extraction so it can update itself.
-  - `telemetry.py`: Anonymous usage analytics. Persistent install ID in `CONFIG_DIR/install_id`. Geo lookup happens **on the client** via `ip-api.com` (HTTP, free tier) — only the resolved `city`/`country` are sent, never the IP. Posts to `https://thorsp.ddns.net/ytw-telemetry/ping`. Gated on `send_telemetry` setting.
-  - `overrides.py`: Server-driven video overrides. When a channel titles a video with the wrong date (a wrong *year*, typically) the date matcher can't find it, so the operator publishes an override from the telemetry dashboard pointing at the right video. Two modes: **fallback** (used only when the app's own search finds nothing) and **force** (beats the search, and replaces a video already downloaded for that Sabbath). Sources are a link (yt-dlp) or a video file hosted on the Pi (streamed over HTTP with yt-dlp-shaped progress events). Discovery is a conditional GET against `https://thorsp.ddns.net/ytw-telemetry/overrides` — an unchanged poll is a bodyless 304. Identity-free (no install ID), so it runs regardless of the telemetry opt-out. See "Video Overrides" below.
-  - `feedback.py`: In-app feedback. Local thread cache at `CONFIG_DIR/feedback.json`. Screenshots compressed to JPEG (≤500 KB, max 1280×720) before upload. Posts to `https://thorsp.ddns.net/ytw-telemetry/feedback`. Reuses install ID + sanitized settings from telemetry module so a single anonymous identity links pings and feedback.
+  - `telemetry.py`: Anonymous usage analytics. Persistent install ID in `CONFIG_DIR/install_id`. Geo lookup happens **on the client** via `ip-api.com` (HTTP, free tier) — only the resolved `city`/`country` are sent, never the IP. Posts to `https://thorsp.net/ytw-telemetry/ping`. Gated on `send_telemetry` setting.
+  - `overrides.py`: Server-driven video overrides. When a channel titles a video with the wrong date (a wrong *year*, typically) the date matcher can't find it, so the operator publishes an override from the telemetry dashboard pointing at the right video. Two modes: **fallback** (used only when the app's own search finds nothing) and **force** (beats the search, and replaces a video already downloaded for that Sabbath). Sources are a link (yt-dlp) or a video file hosted on the Pi (streamed over HTTP with yt-dlp-shaped progress events). Discovery is a conditional GET against `https://thorsp.net/ytw-telemetry/overrides` — an unchanged poll is a bodyless 304. Identity-free (no install ID), so it runs regardless of the telemetry opt-out. See "Video Overrides" below.
+  - `feedback.py`: In-app feedback. Local thread cache at `CONFIG_DIR/feedback.json`. Screenshots compressed to JPEG (≤500 KB, max 1280×720) before upload. Posts to `https://thorsp.net/ytw-telemetry/feedback`. Reuses install ID + sanitized settings from telemetry module so a single anonymous identity links pings and feedback.
   - `progress.py`: Download-progress model — see Key Design Patterns #3. No tkinter import, so headless callers and tests can use it.
   - `changelog.py`: Locates the changelog (localized `CHANGELOG_<lang>.md` first, English as fallback), splits it into `## ` sections and works out which are **new to this user**. `notes_since(content, previous, current)` is inclusive of the current version and exclusive of the one they had, so a 1.4.0 → 1.5.1 jump shows the 1.5.0 notes too; `all_notes()` backs the Settings → Advanced → Release Notes reader. Non-version headings (`## Unreleased`) are parsed but excluded from both.
   - `logger.py`: Logging setup with timestamped log files.
@@ -219,6 +219,9 @@ matcher can't bridge a five-year gap.
 - Optional: Integrated mpv with custom arguments
 - Supports fullscreen (via Lua script), volume (0–130), screen selection, and arbitrary mpv args
 
+### Server hostname
+The app calls `https://thorsp.net/ytw-telemetry/...` (telemetry, feedback, overrides). It used to use `thorsp.ddns.net`, and **releases already in the field still do** — both names resolve to the same nginx and are on the same certificate, so that hostname must keep working indefinitely rather than being retired. Admin pages (`/login`, `/feedback-dashboard`, `/feedback-detail/`, `/user/`, `/feedback/image/`) are restricted to LAN + WireGuard; the client API paths are deliberately public.
+
 ### Update Checking
 - On startup, queries the GitHub releases API for newer versions
 - Compares semantic version from `config.__version__` against the latest tag (skipped when `__version__ == "dev"`)
@@ -232,7 +235,7 @@ matcher can't bridge a five-year gap.
 - Threaded conversation view with the developer; reply support; unread badge
 - Up to multiple screenshots per message (drag-and-drop)
 - System info (OS, version, hardware via `psutil`) is included with each thread to help diagnose issues
-- Local cache at `CONFIG_DIR/feedback.json`; server at `https://thorsp.ddns.net/ytw-telemetry/feedback`
+- Local cache at `CONFIG_DIR/feedback.json`; server at `https://thorsp.net/ytw-telemetry/feedback`
 
 ## Configuration Files
 
