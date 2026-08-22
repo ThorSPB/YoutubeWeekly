@@ -3,7 +3,11 @@ import os
 from datetime import datetime, timedelta
 
 from app.backend.config import load_settings, save_settings, load_channels, CONFIG_DIR
-from app.backend.downloader import find_video_url, download_video, get_next_saturday, format_romanian_date, delete_old_videos, purge_partial_downloads
+from app.backend.downloader import (
+    find_video_url, download_video, get_next_saturday, format_romanian_date,
+    delete_old_videos, purge_partial_downloads, folder_snapshot,
+    newly_downloaded_file,
+)
 from app.backend.overrides import (
     clear_channel_videos,
     download_override,
@@ -61,24 +65,10 @@ def _expected_date_strings(current_sabbath_date, date_format):
     return [expected.lower(), romanian.lower()]
 
 
-def _folder_snapshot(folder):
-    """Filenames currently in a folder, for diffing what a download produced."""
-    try:
-        return set(os.listdir(folder))
-    except OSError:
-        return set()
-
-
-def _downloaded_filename(folder, before):
-    """The file a download just created, ignoring partials."""
-    new = [
-        f for f in _folder_snapshot(folder) - before
-        if not f.endswith((".part", ".ytdl", ".temp"))
-    ]
-    if not new:
-        return None
-    # Largest wins if yt-dlp left intermediate artifacts behind.
-    return max(new, key=lambda f: os.path.getsize(os.path.join(folder, f)))
+# Both live in downloader now, so the manual-download path in the GUI shares
+# exactly this logic rather than carrying its own copy.
+_folder_snapshot = folder_snapshot
+_downloaded_filename = newly_downloaded_file
 
 
 def run_automatic_checks(initial_settings, channels, send_notification_callback,
@@ -299,6 +289,10 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
         # Update status after all downloads complete
         if status_callback:
             status_callback(t("auto_complete_status"))
+        # Put the progress bar away. Without this a run whose last channel
+        # failed leaves it frozen mid-bar, looking like a hung download.
+        if reset_progress_callback:
+            reset_progress_callback()
 
         # Final summary notification
         summary_items = []

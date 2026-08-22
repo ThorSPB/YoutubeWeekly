@@ -4,6 +4,7 @@ import sys
 from unittest.mock import patch, MagicMock, call
 import tkinter as tk
 from app.frontend.gui import YoutubeWeeklyGUI
+from app.backend.progress import DownloadProgress
 
 
 @pytest.fixture
@@ -32,8 +33,7 @@ def gui(monkeypatch):
         g.tray_icon = MagicMock()
         g.downloading_channels = set()
         g.open_file_viewers = {}
-        g.download_stage = 0
-        g.last_progress_value = 0
+        g._progress = DownloadProgress()
 
         g.channel_quality_vars = {"Test Channel": MagicMock()}
         g.channel_quality_vars["Test Channel"].get.return_value = "1080p"
@@ -286,3 +286,93 @@ def test_open_others_folder(gui):
         gui.open_others_folder()
         mock_fv.assert_called_once()
         assert mock_fv.call_args.args[2] == "Others"
+
+
+# ---------------------------------------------------------------------------
+# The Download button: what it deletes, and when.
+#
+# Regression for the same bug fixed in the automatic path - the folder was
+# cleared *before* the download was attempted, so a failure left nothing at all.
+# ---------------------------------------------------------------------------
+
+def _test_channel():
+    return {"name": "Test Channel", "url": "http://example.com",
+            "folder": "test_channel", "date_format": "%d.%m.%Y"}
+
+
+def _manual_download_patches():
+    return (
+        patch('app.frontend.gui.get_next_saturday', return_value="15.07.2024"),
+        patch('app.frontend.gui.find_video_url',
+              return_value=("http://y/watch?v=x", {"type": "exact", "title": "V"})),
+        patch('app.frontend.gui.tk.StringVar', MagicMock),
+    )
+
+
+def test_manual_download_failure_keeps_the_existing_video(gui, tmp_path):
+    gui.base_path = str(tmp_path)
+    gui._set_status = MagicMock()
+    gui._send_notification = MagicMock()
+    folder = tmp_path / "test_channel"
+    folder.mkdir()
+    last_week = folder / "Studiu 08.07.2024.mp4"
+    last_week.write_text("last week")
+
+    sat, find, sv = _manual_download_patches()
+    with sat, find, sv, \
+         patch('app.frontend.gui.messagebox.showerror'), \
+         patch('app.frontend.gui.download_video',
+               return_value="ERROR: unable to download video data: HTTP Error 403: Forbidden"):
+        gui._worker_download(_test_channel())
+
+    assert last_week.exists(), (
+        "a failed manual download must not delete the video already on disk"
+    )
+
+
+def test_manual_download_success_clears_the_old_video(gui, tmp_path):
+    """The fix must not turn keep_old_videos=False into a hoarder."""
+    import os as _os
+    gui.base_path = str(tmp_path)
+    gui._set_status = MagicMock()
+    gui._send_notification = MagicMock()
+    folder = tmp_path / "test_channel"
+    folder.mkdir()
+    last_week = folder / "Studiu 08.07.2024.mp4"
+    last_week.write_text("last week")
+    this_week = folder / "Studiu 15.07.2024.mp4"
+
+    def create(url, dest, *a, **k):
+        with open(_os.path.join(dest, this_week.name), "w") as f:
+            f.write("this week")
+        return None
+
+    sat, find, sv = _manual_download_patches()
+    with sat, find, sv, \
+         patch('app.frontend.gui.download_video', side_effect=create), \
+         patch('app.frontend.gui.send_telemetry_ping'):
+        gui._worker_download(_test_channel())
+
+    assert this_week.exists(), "the new video is here"
+    assert not last_week.exists(), "and the old one went, once it was safe"
+
+
+def test_manual_download_clears_a_stale_partial_first(gui, tmp_path):
+    gui.base_path = str(tmp_path)
+    gui._set_status = MagicMock()
+    gui._send_notification = MagicMock()
+    folder = tmp_path / "test_channel"
+    folder.mkdir()
+    # A partial from a previous failure. Its name carries the Sabbath date, so
+    # it used to satisfy the already-downloaded check and block the retry.
+    stale_part = folder / "Studiu 15.07.2024.f137.mp4.part"
+    stale_part.write_text("half a video-only stream")
+
+    sat, find, sv = _manual_download_patches()
+    with sat, find, sv, \
+         patch('app.frontend.gui.download_video', return_value=None) as dl, \
+         patch('app.frontend.gui.send_telemetry_ping'):
+        gui._worker_download(_test_channel())
+
+    assert dl.called, "the partial must not be mistaken for a finished download"
+    assert not stale_part.exists()

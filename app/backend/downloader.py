@@ -5,6 +5,7 @@ import yt_dlp
 import logging
 from datetime import datetime, timedelta
 from app.backend.config import load_settings, SETTINGS_FILE, settings_lock
+from app.backend.progress import PROGRESS_PLAN_STATUS
 from tkinter import messagebox
 
 
@@ -55,6 +56,54 @@ def purge_partial_downloads(folder):
         except OSError as e:
             logging.warning(f"Could not remove unfinished download {name}: {e}")
     return removed
+
+
+def folder_snapshot(folder):
+    """Filenames currently in a folder, for diffing what a download produced."""
+    try:
+        return set(os.listdir(folder))
+    except OSError:
+        return set()
+
+
+def newly_downloaded_file(folder, before):
+    """The file a download just created, ignoring partials."""
+    new = [f for f in folder_snapshot(folder) - before if not is_partial_download(f)]
+    if not new:
+        return None
+    # Largest wins if yt-dlp left intermediate artifacts behind.
+    return max(new, key=lambda f: os.path.getsize(os.path.join(folder, f)))
+
+
+def build_download_plan(ydl, video_url):
+    """Stream count and byte total for a pending download, or None if unknown.
+
+    Lets a progress bar be weighted by real sizes instead of guessing. It
+    matters because a 1080p download's audio stream is a small fraction of its
+    video - giving each an equal share of the bar made it crawl and then leap.
+
+    Best-effort by design: if any stream's size is missing we return None rather
+    than a total that would make the bar lie, and the caller falls back to
+    counting streams. Never raises - a failure here must not fail the download.
+    """
+    try:
+        info = ydl.extract_info(video_url, download=False)
+        if not info:
+            return None
+        streams = info.get("requested_formats") or [info]
+        total = 0
+        for fmt in streams:
+            size = fmt.get("filesize") or fmt.get("filesize_approx")
+            if not size:
+                return None
+            total += size
+        if not total:
+            return None
+        return {"streams": len(streams), "total_bytes": total}
+    except Exception as e:
+        # A cosmetic progress bar is never worth failing a download over.
+        logging.info(f"Could not size the download up front: {e}")
+        return None
 
 
 def load_protected_videos():
@@ -292,6 +341,18 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False,
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
             logging.info(f"Downloading: {video_url} with quality {quality_pref}")
+            if progress_hook:
+                # Tell the UI how much is coming before any bytes move, so its
+                # bar is weighted by real sizes rather than stream count.
+                plan = build_download_plan(ydl, video_url) or {}
+                try:
+                    progress_hook({
+                        "status": PROGRESS_PLAN_STATUS,
+                        "streams": plan.get("streams"),
+                        "total_bytes": plan.get("total_bytes"),
+                    })
+                except Exception:
+                    pass
             ydl.download([video_url])
             logging.info("Download complete.")
             if protect:

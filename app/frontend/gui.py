@@ -16,8 +16,10 @@ from app.backend.config import load_channels, load_settings, save_settings
 from app.backend.downloader import (
     find_video_url, download_video, get_next_saturday, delete_old_videos,
     format_romanian_date, get_recent_sabbaths, is_partial_download,
-    list_playable_files,
+    list_playable_files, folder_snapshot, newly_downloaded_file,
+    purge_partial_downloads,
 )
+from app.backend.progress import DownloadProgress, PROGRESS_PLAN_STATUS
 from datetime import datetime
 from app.frontend.settings_window import SettingsWindow
 from app.frontend.file_viewer import FileViewer
@@ -85,8 +87,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.channel_date_vars = {}
         self.open_file_viewers = {}
         self._feedback_win = None
-        self.download_stage = 0 # 0: idle, 1: video, 2: audio
-        self.last_progress_value = 0
+        self._progress = DownloadProgress()
         self.downloading_channels = set()
         self.tray_icon = None
         self._pending_update = None  # (version, url, assets) if update available
@@ -665,8 +666,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             return
 
         self.downloading_channels.add(channel_name)
-        self.download_stage = 1 # Reset for new download
-        self.last_progress_value = 0
+        self._reset_download_progress()
         try:
             threading.Thread(
                 target=self._worker_download,
@@ -685,8 +685,7 @@ class YoutubeWeeklyGUI(tk.Tk):
             return
 
         self.downloading_channels.add("others")
-        self.download_stage = 1 # Reset for new download
-        self.last_progress_value = 0
+        self._reset_download_progress()
         link = self.others_link_var.get().strip()
         if not link:
             self._set_status(t("status_enter_link"), severity="warning")
@@ -722,8 +721,11 @@ class YoutubeWeeklyGUI(tk.Tk):
     def _worker_download_others(self, link):
         folder = os.path.join(self.base_path, "other")
         try:
+            os.makedirs(folder, exist_ok=True)
+            purge_partial_downloads(folder)
             error = download_video(link, folder, self.others_quality_var.get(), progress_hook=self.progress_hook)
             if error:
+                self._reset_download_progress()
                 self._set_status(t("status_error_downloading", error=error), severity="error")
                 self._send_notification(t("notif_download_error"), t("notif_failed_link", link=link, error=error), on_click=self.bring_to_foreground)
                 messagebox.showerror(
@@ -731,10 +733,11 @@ class YoutubeWeeklyGUI(tk.Tk):
                     t("dlg_download_failed", error=error)
                 )
             else:
-                self._set_status(t("status_download_complete"), severity="success")
+                self._finish_download_progress()
                 self._send_notification(t("notif_download_complete"), t("notif_finished_link", link=link), on_click=self.bring_to_foreground)
                 send_telemetry_ping(self.settings, 1, session_type="others", others_quality=self.others_quality_var.get())
         except Exception as e:
+            self._reset_download_progress()
             self._set_status(t("status_error_downloading", error=e), severity="error")
             self._send_notification(t("notif_download_error"), t("notif_failed_link", link=link, error=e), on_click=self.bring_to_foreground)
             messagebox.showerror(
@@ -860,19 +863,21 @@ class YoutubeWeeklyGUI(tk.Tk):
                     )
                     return
 
-            # Step 5: Clear what this download replaces
-            if forced:
-                clear_channel_videos(channel_folder, [numeric, romanian] if keep_old else None)
-            elif not selected_date or selected_date == "automat":
-                delete_old_videos(channel_folder, keep_old=keep_old)
-
-            # Step 6: Download into channel folder
+            # Step 5: Download into channel folder. Whatever this replaces is
+            # cleared *afterwards* - see Step 6. Clearing first is what left the
+            # folder empty when a download failed: last week's video already
+            # gone, and nothing arriving to take its place.
             quality_pref = self.channel_quality_vars.get(name, tk.StringVar()).get()
             if source_override:
                 self._set_status(t("status_downloading_override", name=name))
             else:
                 self._set_status(t("status_downloading", name=name, quality=quality_pref))
             try:
+                # A partial from an earlier failure both blocks this retry and
+                # shows up as playable.
+                purge_partial_downloads(channel_folder)
+                before = folder_snapshot(channel_folder)
+
                 if source_override:
                     error = download_override(
                         source_override, channel_folder, quality_pref,
@@ -881,6 +886,7 @@ class YoutubeWeeklyGUI(tk.Tk):
                 else:
                     error = download_video(url, channel_folder, quality_pref, protect=keep_old, progress_hook=self.progress_hook)
                 if error:
+                    self._reset_download_progress()
                     self._set_status(t("status_error_downloading_name", name=name, error=error), severity="error")
                     self._send_notification(t("notif_download_error"), t("notif_failed_name", name=name, error=error), on_click=self.bring_to_foreground)
                     messagebox.showerror(
@@ -888,9 +894,26 @@ class YoutubeWeeklyGUI(tk.Tk):
                         t("dlg_download_failed_name", name=name, error=error)
                     )
                 else:
+                    # Step 6: now that the new video is safely here, drop what it
+                    # replaces - never the file we just fetched. If nothing new
+                    # appeared, the wanted video was already on disk: leave it.
+                    produced = newly_downloaded_file(channel_folder, before)
+                    if produced:
+                        if forced:
+                            clear_channel_videos(
+                                channel_folder,
+                                [numeric, romanian] if keep_old else None,
+                                exclude=[produced],
+                            )
+                        elif not selected_date or selected_date == "automat":
+                            delete_old_videos(channel_folder, keep_old=keep_old,
+                                              keep=[produced])
+
+                    self._finish_download_progress()
                     self._send_notification(t("notif_download_complete"), t("notif_finished_downloading", name=name), on_click=self.bring_to_foreground)
                     send_telemetry_ping(self.settings, 1, session_type="manual")
             except Exception as e:
+                self._reset_download_progress()
                 self._set_status(t("status_error_downloading_name", name=name, error=e), severity="error")
                 self._send_notification(t("notif_download_error"), t("notif_failed_name", name=name, error=e), on_click=self.bring_to_foreground)
                 messagebox.showerror(
@@ -960,57 +983,72 @@ class YoutubeWeeklyGUI(tk.Tk):
     
 
     def _reset_download_progress(self):
-        """Reset download progress state for a new download."""
-        self.download_stage = 1
-        self.last_progress_value = 0
+        """Clear progress state and hide the bar, ready for the next download.
+
+        Also the recovery path after a failure: the bar used to be left frozen
+        wherever it stopped, so a failed download looked like a hung one.
+        """
+        self._progress.reset()
+        self.after(0, lambda: self.progress_bar.configure(
+            style="Invisible.Horizontal.TProgressbar", value=0))
+
+    def _render_progress(self, percent):
+        def apply():
+            self._set_status(t("status_downloading_percent", percent=f"{percent:.1f}"))
+            self.progress_bar.configure(value=percent)
+        self.after(0, apply)
+
+    def _finish_download_progress(self):
+        """Fill the bar, say so, and put it away.
+
+        The status line is set straight from the calling worker thread, as every
+        other terminal message in these workers is; only the widget updates are
+        marshalled onto the main thread.
+        """
+        self._set_status(t("status_download_complete"), severity="success")
+
+        def apply():
+            self.progress_bar.configure(value=100)
+            self.after(2000, lambda: self.progress_bar.configure(
+                style="Invisible.Horizontal.TProgressbar"))
+        self.after(0, apply)
 
     def progress_hook(self, d):
-        # Ensure UI updates happen on main thread
-        def update_ui():
-            # Make the progress bar visible when download starts (space already reserved)
-            self.progress_bar.configure(style="Thin.Horizontal.TProgressbar")  # Switch to visible thin style
-        
-        # Schedule showing the progress bar on the main thread
-        self.after(0, update_ui)
+        """Feed a download event to the progress model and render the result.
 
-        if d['status'] == 'downloading':
-            total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate')
-            if total_bytes:
-                percent = (d['downloaded_bytes'] / total_bytes) * 100
-                unified_percent = 0
-                if self.download_stage == 1: # Video part (0-50%)
-                    unified_percent = percent / 2
-                elif self.download_stage == 2: # Audio part (50-100%)
-                    unified_percent = 50 + (percent / 2)
-                
-                # Ratchet logic: only update if progress has increased
-                if unified_percent > self.last_progress_value:
-                    self.last_progress_value = unified_percent
-                    # Schedule UI update on the main thread
-                    def update_progress():
-                        self._set_status(t("status_downloading_percent", percent=f"{unified_percent:.1f}"))
-                        self.progress_bar.configure(value=unified_percent)
-                    self.after(0, update_progress)
+        Deliberately thin: the arithmetic lives in DownloadProgress so it can be
+        tested without a display.
+        """
+        # Space for the bar is already reserved; make it visible once bytes move.
+        self.after(0, lambda: self.progress_bar.configure(
+            style="Thin.Horizontal.TProgressbar"))
 
-        elif d['status'] == 'finished':
-            def handle_finished():
-                if self.download_stage == 1:
-                    self.download_stage = 2 # Move to audio stage
-                    # Ensure the bar hits 50% exactly
-                    if self.last_progress_value < 50:
-                        self.last_progress_value = 50
-                        self._set_status(t("status_downloading_percent", percent="50.0"))
-                        self.progress_bar.configure(value=50)
-                else:
-                    # Ensure the bar hits 100% exactly
-                    self.progress_bar.configure(value=100)
-                    self._set_status(t("status_download_complete"), severity="success")
-                    # Hide progress bar after a delay
-                    self.after(2000, lambda: self.progress_bar.configure(style="Invisible.Horizontal.TProgressbar"))
-                    self.download_stage = 0 # Reset to idle
-                    self.last_progress_value = 0
-            
-            self.after(0, handle_finished)
+        status = d.get("status")
+
+        if status == PROGRESS_PLAN_STATUS:
+            self._progress.plan(streams=d.get("streams"),
+                                total_bytes=d.get("total_bytes"))
+            return
+
+        if status == "downloading":
+            percent = self._progress.downloading(
+                d.get("filename"),
+                d.get("downloaded_bytes"),
+                d.get("total_bytes") or d.get("total_bytes_estimate"),
+                d.get("info_dict"),
+            )
+            self._render_progress(percent)
+
+        elif status == "finished":
+            self._progress.finished_stream(
+                d.get("filename"),
+                d.get("total_bytes") or d.get("total_bytes_estimate"),
+            )
+            if self._progress.complete:
+                self._finish_download_progress()
+            else:
+                self._render_progress(self._progress.percent)
+
     def _cleanup_update_artifacts(self):
         """Remove leftover .bak/.old files and old update ZIPs.
 
