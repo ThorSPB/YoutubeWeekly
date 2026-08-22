@@ -298,7 +298,7 @@ def _filename_for(override, response):
     return _safe_filename(os.path.basename(urlparse(override["target"]).path))
 
 
-def download_hosted_file(override, folder, progress_hook=None):
+def download_hosted_file(override, folder, progress_hook=None, quality_pref=None):
     """Stream a Pi-hosted video into ``folder``.
 
     Returns None on success or an error string, matching ``download_video``.
@@ -306,14 +306,18 @@ def download_hosted_file(override, folder, progress_hook=None):
     unchanged. Downloads to a ``.part`` file and renames on completion, so an
     interrupted transfer can never be mistaken for this week's video.
     """
-    url = override["target"]
+    url, wanted_name = (
+        pick_variant(override, quality_pref) if quality_pref
+        else (override["target"], override.get("filename"))
+    )
     try:
         os.makedirs(folder, exist_ok=True)
         with requests.get(url, stream=True, timeout=REQUEST_TIMEOUT) as r:
             if r.status_code != 200:
                 return f"Server returned {r.status_code} for override file"
 
-            filename = _filename_for(override, r)
+            filename = _filename_for(
+                dict(override, filename=wanted_name) if wanted_name else override, r)
             final_path = os.path.join(folder, filename)
             part_path = final_path + ".part"
 
@@ -370,6 +374,61 @@ def download_hosted_file(override, folder, progress_hook=None):
         return str(e)
 
 
+# Best first. Mirrors the GUI's quality selector; "mp3" is deliberately not on
+# this ladder - it is audio only, so it is never a substitute for a video and a
+# video is never a substitute for it.
+QUALITY_LADDER = ("max", "4k", "2k", "1080p", "720p", "480p")
+
+
+def pick_variant(override, quality_pref="1080p"):
+    """Choose which hosted file to fetch for the user's quality setting.
+
+    A hosted override used to be one fixed file, so everybody got the same bytes
+    no matter what quality they had chosen - a 720p user was handed the full
+    1080p download. The manifest can now carry a `variants` map, and the client
+    picks from it.
+
+    Returns `(url, filename)`. Falls back to the override's own target, which is
+    what an override published without variants has - and what a client that
+    predates this got anyway.
+    """
+    default = (override.get("target"), override.get("filename"))
+    variants = override.get("variants") or {}
+    if not isinstance(variants, dict) or not variants:
+        return default
+
+    def resolve(key):
+        entry = variants.get(key)
+        if not isinstance(entry, dict) or not entry.get("target"):
+            return None
+        return entry["target"], entry.get("filename") or override.get("filename")
+
+    # mp3 stands apart: only an actual audio variant will do.
+    if quality_pref == "mp3":
+        return resolve("mp3") or default
+
+    if quality_pref in variants:
+        exact = resolve(quality_pref)
+        if exact:
+            return exact
+
+    available = [q for q in QUALITY_LADDER if q in variants]
+    if not available:
+        return default
+
+    if quality_pref not in QUALITY_LADDER:
+        # An unknown setting: hand over the best we have rather than nothing.
+        return resolve(available[0]) or default
+
+    wanted = QUALITY_LADDER.index(quality_pref)
+    # Prefer the closest one *at or below* what they asked for - someone who
+    # chose 480p wants a small file - then the smallest thing above it.
+    below = [q for q in available if QUALITY_LADDER.index(q) >= wanted]
+    if below:
+        return resolve(below[0]) or default
+    return resolve(available[-1]) or default
+
+
 def download_override(override, folder, quality_pref="1080p", progress_hook=None,
                       protect=False):
     """Download whatever an override points at. Returns None or an error string."""
@@ -378,7 +437,8 @@ def download_override(override, folder, quality_pref="1080p", progress_hook=None
     from app.backend.downloader import download_video
 
     if override.get("kind") == "file":
-        return download_hosted_file(override, folder, progress_hook=progress_hook)
+        return download_hosted_file(override, folder, progress_hook=progress_hook,
+                                    quality_pref=quality_pref)
 
     return download_video(
         override["target"], folder, quality_pref,

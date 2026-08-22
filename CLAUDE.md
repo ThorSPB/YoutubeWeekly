@@ -180,6 +180,16 @@ matcher can't bridge a five-year gap.
   points at, which by definition does not carry the right date** — the existing
   file-existence pre-check matches on the date and would otherwise judge the
   video missing and re-download forever.
+- **Quality variants (hosted files)**: a hosted override used to be one fixed
+  file, so every client got the same bytes regardless of its `default_quality` —
+  telemetry showed a 720p install pulling the full 1080p download. The manifest
+  can now carry a `variants` map of `quality -> {target, filename, size}`, and
+  `pick_variant()` in `overrides.py` chooses: exact match, else the closest **at
+  or below** the request (someone on 480p wants a small file), else the smallest
+  above. `mp3` sits outside that ladder deliberately — audio-only is never a
+  substitute for video, nor the reverse. An override with no `variants` falls
+  back to `target`, which is what dashboard-published overrides and pre-variant
+  clients have. Server side: `ytw-telemetry/scripts/publish_override.py`.
 - **Discovery without polling spam**: `GET /overrides` is guarded by an ETag over
   a server-side version counter that only moves on a mutation, so an unchanged
   poll is a bodyless 304 (~150 bytes). The client polls every 30 min on Fri/Sat
@@ -198,6 +208,11 @@ matcher can't bridge a five-year gap.
   for everyone. nginx needs traverse permission on `/home/thorsp`, granted as an
   ACL (`setfacl -m u:www-data:x /home/thorsp`) rather than `chmod o+x`, so
   `www-data` can traverse but not list the home directory.
+- **Weekly health check**: `ytw-telemetry/scripts/weekly_check.py` runs the
+  find-and-download of the **published release** (not `main`) every Friday and
+  reports to Discord. It reads the bundled yt-dlp version out of the released
+  binary's PyInstaller PYZ, because the thing that broke on 2026-08-22 was that
+  frozen dependency, not the app code. See that repo's README.
 
 ### Video Player Integration
 - Default: System default video player (`os.startfile` on Windows, `xdg-open` on Linux, `open` on macOS)

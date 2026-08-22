@@ -11,6 +11,7 @@ import app.backend.overrides as overrides
 from app.backend.overrides import (
     _safe_filename,
     clear_channel_videos,
+    pick_variant,
     download_hosted_file,
     fetch_overrides,
     get_override,
@@ -460,3 +461,110 @@ def test_hosted_file_announces_a_single_stream_plan(tmp_path, monkeypatch):
     assert events.index(plans[0]) < next(
         i for i, e in enumerate(events) if e["status"] == "downloading"
     )
+
+
+# ---------------------------------------------------------------------------
+# Hosted overrides and the user's quality setting
+#
+# A hosted override used to be one fixed file, so everyone got the same bytes
+# regardless of the quality they had chosen - telemetry showed a 720p user being
+# handed the full 1080p download.
+# ---------------------------------------------------------------------------
+
+def _with_variants(*qualities, base="https://pi/base.mp4"):
+    variants = {
+        q: {"target": f"https://pi/clip.{q}.mp4", "filename": "clip.mp4"}
+        for q in qualities
+    }
+    return {"target": base, "filename": "base.mp4", "variants": variants}
+
+
+def test_exact_quality_wins():
+    o = _with_variants("1080p", "720p", "480p")
+    for q in ("1080p", "720p", "480p"):
+        assert pick_variant(o, q)[0] == f"https://pi/clip.{q}.mp4"
+
+
+def test_asking_higher_than_available_gets_the_best_there_is():
+    o = _with_variants("1080p", "720p")
+    for q in ("max", "4k", "2k"):
+        assert pick_variant(o, q)[0] == "https://pi/clip.1080p.mp4"
+
+
+def test_asking_lower_than_available_gets_the_smallest_above():
+    """Someone on 480p wants a small file, not the biggest one we happen to have."""
+    o = _with_variants("1080p", "720p")
+    assert pick_variant(o, "480p")[0] == "https://pi/clip.720p.mp4"
+
+
+def test_a_middle_request_prefers_at_or_below():
+    o = _with_variants("max", "720p", "480p")
+    assert pick_variant(o, "1080p")[0] == "https://pi/clip.720p.mp4"
+
+
+def test_mp3_is_never_substituted_either_way():
+    """Audio-only is not a stand-in for video, nor video for audio."""
+    video_only = _with_variants("1080p", "720p")
+    assert pick_variant(video_only, "mp3")[0] == "https://pi/base.mp4", \
+        "no audio variant -> fall back to the override's own target, not a video"
+
+    audio = {"target": "https://pi/base.mp4", "filename": "base.mp4",
+             "variants": {"mp3": {"target": "https://pi/clip.mp3", "filename": "clip.mp3"}}}
+    assert pick_variant(audio, "mp3")[0] == "https://pi/clip.mp3"
+    assert pick_variant(audio, "1080p")[0] == "https://pi/base.mp4", \
+        "an mp3 must not be handed to someone who asked for video"
+
+
+def test_an_override_without_variants_still_works():
+    """Overrides published before variants existed, and older clients."""
+    plain = {"target": "https://pi/base.mp4", "filename": "base.mp4"}
+    assert pick_variant(plain, "720p") == ("https://pi/base.mp4", "base.mp4")
+    assert pick_variant(dict(plain, variants={}), "720p")[0] == "https://pi/base.mp4"
+    assert pick_variant(dict(plain, variants=None), "720p")[0] == "https://pi/base.mp4"
+
+
+def test_malformed_variants_do_not_break_the_download():
+    plain = {"target": "https://pi/base.mp4", "filename": "base.mp4"}
+    for junk in ("nonsense", ["a"], {"720p": "not-a-dict"}, {"720p": {}}):
+        assert pick_variant(dict(plain, variants=junk), "720p")[0] == "https://pi/base.mp4"
+
+
+def test_variant_filename_is_used_when_it_names_one():
+    o = {"target": "https://pi/base.mp4", "filename": "base.mp4",
+         "variants": {"720p": {"target": "https://pi/x.mp4", "filename": "nice name.mp4"}}}
+    assert pick_variant(o, "720p") == ("https://pi/x.mp4", "nice name.mp4")
+
+
+def test_variant_without_a_filename_falls_back_to_the_overrides():
+    o = {"target": "https://pi/base.mp4", "filename": "base.mp4",
+         "variants": {"720p": {"target": "https://pi/x.mp4"}}}
+    assert pick_variant(o, "720p") == ("https://pi/x.mp4", "base.mp4")
+
+
+def test_hosted_download_fetches_the_variant_for_the_users_quality(tmp_path, monkeypatch):
+    """End to end through download_hosted_file: the right URL is requested."""
+    mod = MagicMock()
+    mod.get.return_value = FakeStream([b"720p bytes"], headers={"Content-Length": "10"})
+    monkeypatch.setattr(overrides, "requests", mod)
+
+    o = make_override(kind="file", target="https://pi/base.mp4", filename="base.mp4")
+    o["variants"] = {
+        "1080p": {"target": "https://pi/clip.1080p.mp4", "filename": "clip.mp4"},
+        "720p": {"target": "https://pi/clip.720p.mp4", "filename": "clip.mp4"},
+    }
+
+    error = download_hosted_file(o, str(tmp_path), quality_pref="720p")
+
+    assert error is None
+    assert mod.get.call_args[0][0] == "https://pi/clip.720p.mp4"
+    assert (tmp_path / "clip.mp4").read_bytes() == b"720p bytes"
+
+
+def test_hosted_download_without_a_quality_uses_the_plain_target(tmp_path, monkeypatch):
+    mod = MagicMock()
+    mod.get.return_value = FakeStream([b"x"], headers={"Content-Length": "1"})
+    monkeypatch.setattr(overrides, "requests", mod)
+
+    o = make_override(kind="file", target="https://pi/base.mp4", filename="base.mp4")
+    download_hosted_file(o, str(tmp_path))
+    assert mod.get.call_args[0][0] == "https://pi/base.mp4"
