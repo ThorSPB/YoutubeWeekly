@@ -11,7 +11,10 @@ from app.backend.downloader import (
     find_video_url,
     delete_old_videos,
     download_video,
-    get_recent_sabbaths
+    get_recent_sabbaths,
+    is_partial_download,
+    list_playable_files,
+    purge_partial_downloads,
 )
 
 # Fixture for mocking settings.json
@@ -289,3 +292,102 @@ def test_find_video_url_fuzzy_delimiter_mismatch(monkeypatch):
         assert url == "https://www.youtube.com/watch?v=video1"
         assert match_info["type"] == "fuzzy"
         assert "delimiter" in match_info["reason"]
+
+
+# ---------------------------------------------------------------------------
+# Unfinished downloads
+#
+# A 1080p download fetches video and audio as two separate streams and merges
+# them at the end. If it dies in between, the ".part" left behind holds only the
+# video half - it plays as picture with no sound. It must never be listed as
+# playable, must never satisfy an "already downloaded" check, and must be
+# cleaned up. (Regression: the 2026-08-22 church outage.)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("name, expected", [
+    ("Studiu 15.08.2026.f137.mp4.part", True),
+    ("Studiu 15.08.2026.f399.mp4.part", True),
+    ("Studiu 15.08.2026.mp4.ytdl", True),
+    ("Studiu 15.08.2026.temp", True),
+    ("STUDIU.MP4.PART", True),          # case-insensitive
+    ("Studiu 15.08.2026.mp4", False),
+    ("Studiu 15.08.2026.mp3", False),
+    ("partial_notes.mp4", False),       # "part" in the name is not a suffix
+])
+def test_is_partial_download(name, expected):
+    assert is_partial_download(name) is expected
+
+
+def test_list_playable_files_excludes_partials(tmp_path):
+    (tmp_path / "good.mp4").write_text("v")
+    (tmp_path / "audio.mp3").write_text("a")
+    (tmp_path / "half.f137.mp4.part").write_text("v-only")
+    (tmp_path / "scratch.mp4.ytdl").write_text("x")
+    (tmp_path / "subdir").mkdir()
+
+    assert sorted(list_playable_files(str(tmp_path))) == ["audio.mp3", "good.mp4"]
+
+
+def test_list_playable_files_on_missing_folder_is_empty(tmp_path):
+    assert list_playable_files(str(tmp_path / "nope")) == []
+
+
+def test_purge_partial_downloads_removes_only_partials(tmp_path):
+    keep = tmp_path / "good.mp4"
+    keep.write_text("v")
+    part = tmp_path / "half.f399.mp4.part"
+    part.write_text("v-only")
+    ytdl = tmp_path / "half.mp4.ytdl"
+    ytdl.write_text("x")
+
+    removed = purge_partial_downloads(str(tmp_path))
+
+    assert sorted(removed) == ["half.f399.mp4.part", "half.mp4.ytdl"]
+    assert keep.exists()
+    assert not part.exists()
+    assert not ytdl.exists()
+
+
+def test_purge_partial_downloads_on_missing_folder_is_empty(tmp_path):
+    assert purge_partial_downloads(str(tmp_path / "nope")) == []
+
+
+def test_delete_old_videos_spares_the_keep_list(tmp_path):
+    """Re-fetching a video already on disk must not delete its own result."""
+    produced = tmp_path / "Studiu 15.08.2026.mp4"
+    produced.write_text("the video we just confirmed")
+    stale = tmp_path / "Studiu 08.08.2026.mp4"
+    stale.write_text("last week")
+
+    delete_old_videos(str(tmp_path), False, keep=[produced.name])
+
+    assert produced.exists(), "the file named in keep= must survive"
+    assert not stale.exists(), "everything else still goes"
+
+
+def test_delete_old_videos_without_keep_is_unchanged(tmp_path):
+    video = tmp_path / "Studiu 15.08.2026.mp4"
+    video.write_text("v")
+    delete_old_videos(str(tmp_path), False)
+    assert not video.exists()
+
+
+def test_download_video_failure_purges_partials(tmp_path, monkeypatch):
+    """A failed download takes its half-written leftovers with it."""
+    part = tmp_path / "Studiu 15.08.2026.f137.mp4.part"
+    part.write_text("video-only bytes")
+    survivor = tmp_path / "Studiu 08.08.2026.mp4"
+    survivor.write_text("last week")
+
+    mock_ydl = MagicMock()
+    mock_ydl.return_value.__enter__.return_value.download.side_effect = \
+        Exception("ERROR: unable to download video data: HTTP Error 403: Forbidden")
+    monkeypatch.setattr("app.backend.downloader.yt_dlp.YoutubeDL", mock_ydl)
+    monkeypatch.setattr("app.backend.downloader.load_settings",
+                        lambda: ({"ffmpeg_path": "/usr/bin/ffmpeg"}, []))
+
+    error = download_video("http://example.com/watch?v=abc", str(tmp_path))
+
+    assert "403" in error
+    assert not part.exists(), "the partial must not be left behind to be played"
+    assert survivor.exists(), "a failure must not touch the existing video"

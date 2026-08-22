@@ -377,22 +377,27 @@ def download_override(override, folder, quality_pref="1080p", progress_hook=None
 # Replacing an existing download
 # ---------------------------------------------------------------------------
 
-def clear_channel_videos(folder, date_strings=None):
+def clear_channel_videos(folder, date_strings=None, exclude=None):
     """Remove the videos a force override is replacing.
 
     ``date_strings`` narrows deletion to files carrying one of those date
-    spellings; without it every media file in the channel folder goes. Returns
-    the list of deleted filenames.
+    spellings; without it every media file in the channel folder goes.
+    ``exclude`` spares specific filenames - the file the current download just
+    produced, so forcing an override onto a video already on disk cannot delete
+    the result it just fetched. Returns the list of deleted filenames.
     """
     if not folder or not os.path.isdir(folder):
         return []
 
     media_ext = (".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v", ".mp3", ".m4a", ".part")
     needles = [d.lower() for d in (date_strings or []) if d]
+    spared = {e for e in (exclude or []) if e}
     deleted = []
 
     for name in os.listdir(folder):
         if not name.lower().endswith(media_ext):
+            continue
+        if name in spared:
             continue
         if needles and not any(n in name.lower() for n in needles):
             continue

@@ -8,6 +8,55 @@ from app.backend.config import load_settings, SETTINGS_FILE, settings_lock
 from tkinter import messagebox
 
 
+# Suffixes yt-dlp leaves behind while a download is still in flight. A ".part"
+# for a 1080p video holds a *video-only* stream (audio is a separate download
+# that gets merged afterwards), so a leftover one plays as picture with no
+# sound. Never offer these as playable, and never let one satisfy an
+# "is it already downloaded?" check.
+PARTIAL_SUFFIXES = (".part", ".ytdl", ".temp")
+
+
+def is_partial_download(filename):
+    """True for a yt-dlp scratch file from a download that never finished."""
+    return str(filename).lower().endswith(PARTIAL_SUFFIXES)
+
+
+def list_playable_files(folder):
+    """Filenames in `folder` that are finished downloads, safe to play or list."""
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return []
+    return [
+        f for f in names
+        if not is_partial_download(f) and os.path.isfile(os.path.join(folder, f))
+    ]
+
+
+def purge_partial_downloads(folder):
+    """Delete unfinished-download leftovers, returning the names removed.
+
+    Called before a download so a previous failure can't block the retry (its
+    filename still carries the Sabbath date the existence check looks for), and
+    after a failure so nothing half-written is left lying around to be played.
+    """
+    removed = []
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return removed
+    for name in names:
+        if not is_partial_download(name):
+            continue
+        try:
+            os.remove(os.path.join(folder, name))
+            removed.append(name)
+            logging.info(f"Removed unfinished download: {name}")
+        except OSError as e:
+            logging.warning(f"Could not remove unfinished download {name}: {e}")
+    return removed
+
+
 def load_protected_videos():
     with settings_lock:
         try:
@@ -168,14 +217,21 @@ def find_video_url(channel_url, expected_date, date_format="%d.%m.%Y"):
 
     return None, None
 
-def delete_old_videos(video_folder, keep_old):
-    if not keep_old:
-        # If keep_old is False, delete all .mp4 files regardless of protection status
-        for filename in os.listdir(video_folder):
-            if filename.endswith(".mp4"):
-                os.remove(os.path.join(video_folder, filename))
-                logging.info(f"Deleted old video: {filename}")
-        # If keep_old is True, do nothing (i.e., keep all videos)
+def delete_old_videos(video_folder, keep_old, keep=None):
+    """Drop previous Sabbaths' videos, unless the user keeps old ones.
+
+    `keep` names files that must survive - normally the file the current
+    download just produced. Without it, re-downloading a video that is already
+    on disk would delete the very file it just confirmed.
+    """
+    if keep_old:
+        # keep_old is True: keep all videos.
+        return
+    protected = {k for k in (keep or []) if k}
+    for filename in os.listdir(video_folder):
+        if filename.endswith(".mp4") and filename not in protected:
+            os.remove(os.path.join(video_folder, filename))
+            logging.info(f"Deleted old video: {filename}")
 
 def download_video(video_url, video_folder, quality_pref="1080p", protect=False, progress_hook=None):
     if not video_folder:
@@ -249,10 +305,15 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False,
         except yt_dlp.utils.DownloadError as e:
             error_message = str(e)
             logging.error(f"Download failed: {error_message}")
+            # A partly-transferred video-only stream is worse than nothing: it
+            # is offered as playable (picture, no sound) and its name blocks
+            # the retry. Take it with us.
+            purge_partial_downloads(video_folder)
             return error_message
         except Exception as e:
             error_message = str(e)
             logging.error(f"An unexpected error occurred during download: {error_message}")
+            purge_partial_downloads(video_folder)
             return error_message
     return None # Return None on successful download
 

@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timedelta
 
 from app.backend.config import load_settings, save_settings, load_channels, CONFIG_DIR
-from app.backend.downloader import find_video_url, download_video, get_next_saturday, format_romanian_date, delete_old_videos
+from app.backend.downloader import find_video_url, download_video, get_next_saturday, format_romanian_date, delete_old_videos, purge_partial_downloads
 from app.backend.overrides import (
     clear_channel_videos,
     download_override,
@@ -230,18 +230,10 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
 
                     os.makedirs(folder, exist_ok=True)
 
-                    if forced:
-                        # A force override supersedes this Sabbath's video, so it
-                        # must go even when the user keeps old videos.
-                        previous = applied_overrides.get(channel_key) or {}
-                        targets = None
-                        if keep_old:
-                            targets = _expected_date_strings(current_sabbath_date, date_format)
-                            if isinstance(previous, dict) and previous.get("file"):
-                                targets.append(previous["file"])
-                        clear_channel_videos(folder, targets)
-                    else:
-                        delete_old_videos(folder, keep_old)
+                    # Clear leftovers from an earlier failed attempt first: a
+                    # stale ".part" still carries this Sabbath's date, so it
+                    # would satisfy the existence check and block the retry.
+                    purge_partial_downloads(folder)
 
                     quality = settings.get("default_quality", "1080p")
                     before = _folder_snapshot(folder)
@@ -261,6 +253,30 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
                         auto_download_log[current_sabbath_date][channel_key] = "error"
                         download_results[channel_name] = f"Failed: {error}"
                     else:
+                        produced = _downloaded_filename(folder, before)
+
+                        # Only now is it safe to drop what this download
+                        # replaces. Clearing first meant a failed download left
+                        # the folder empty: last week's video was already gone
+                        # and nothing arrived to replace it. `produced` is
+                        # spared so a re-fetch of a video already on disk can't
+                        # delete its own result; when nothing new appeared at
+                        # all, the file we want is already here - leave it be.
+                        if produced:
+                            if forced:
+                                # A force override supersedes this Sabbath's
+                                # video, so it must go even when the user keeps
+                                # old videos.
+                                previous = applied_overrides.get(channel_key) or {}
+                                targets = None
+                                if keep_old:
+                                    targets = _expected_date_strings(current_sabbath_date, date_format)
+                                    if isinstance(previous, dict) and previous.get("file"):
+                                        targets.append(previous["file"])
+                                clear_channel_videos(folder, targets, exclude=[produced])
+                            else:
+                                delete_old_videos(folder, keep_old, keep=[produced])
+
                         auto_download_log[current_sabbath_date][channel_key] = "downloaded"
                         download_results[channel_name] = "Success"
                         if source_override:
@@ -268,7 +284,7 @@ def run_automatic_checks(initial_settings, channels, send_notification_callback,
                             # next run recognises it instead of re-downloading.
                             applied_overrides[channel_key] = {
                                 "sig": override_signature(source_override),
-                                "file": _downloaded_filename(folder, before),
+                                "file": produced,
                             }
                         else:
                             applied_overrides.pop(channel_key, None)

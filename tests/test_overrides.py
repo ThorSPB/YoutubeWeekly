@@ -422,3 +422,19 @@ def test_clear_removes_stale_partials(tmp_path):
 def test_clear_on_missing_folder_is_harmless(tmp_path):
     assert clear_channel_videos(str(tmp_path / "nope")) == []
     assert clear_channel_videos(None) == []
+
+
+def test_clear_channel_videos_spares_excluded(tmp_path):
+    """The file the download just produced survives its own replacement sweep."""
+    produced = tmp_path / "Corectat 15.08.2026.mp4"
+    produced.write_text("the replacement")
+    stale = tmp_path / "Studiu 15.08.2026.mp4"
+    stale.write_text("the wrong video")
+
+    deleted = clear_channel_videos(
+        str(tmp_path), ["15.08.2026"], exclude=[produced.name]
+    )
+
+    assert deleted == ["Studiu 15.08.2026.mp4"]
+    assert produced.exists()
+    assert not stale.exists()
