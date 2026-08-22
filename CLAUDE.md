@@ -65,6 +65,8 @@ The build bundles config defaults from `config/`, platform binaries for mpv/ffmp
   - `telemetry.py`: Anonymous usage analytics. Persistent install ID in `CONFIG_DIR/install_id`. Geo lookup happens **on the client** via `ip-api.com` (HTTP, free tier) — only the resolved `city`/`country` are sent, never the IP. Posts to `https://thorsp.ddns.net/ytw-telemetry/ping`. Gated on `send_telemetry` setting.
   - `overrides.py`: Server-driven video overrides. When a channel titles a video with the wrong date (a wrong *year*, typically) the date matcher can't find it, so the operator publishes an override from the telemetry dashboard pointing at the right video. Two modes: **fallback** (used only when the app's own search finds nothing) and **force** (beats the search, and replaces a video already downloaded for that Sabbath). Sources are a link (yt-dlp) or a video file hosted on the Pi (streamed over HTTP with yt-dlp-shaped progress events). Discovery is a conditional GET against `https://thorsp.ddns.net/ytw-telemetry/overrides` — an unchanged poll is a bodyless 304. Identity-free (no install ID), so it runs regardless of the telemetry opt-out. See "Video Overrides" below.
   - `feedback.py`: In-app feedback. Local thread cache at `CONFIG_DIR/feedback.json`. Screenshots compressed to JPEG (≤500 KB, max 1280×720) before upload. Posts to `https://thorsp.ddns.net/ytw-telemetry/feedback`. Reuses install ID + sanitized settings from telemetry module so a single anonymous identity links pings and feedback.
+  - `progress.py`: Download-progress model — see Key Design Patterns #3. No tkinter import, so headless callers and tests can use it.
+  - `changelog.py`: Locates the changelog (localized `CHANGELOG_<lang>.md` first, English as fallback), splits it into `## ` sections and works out which are **new to this user**. `notes_since(content, previous, current)` is inclusive of the current version and exclusive of the one they had, so a 1.4.0 → 1.5.1 jump shows the 1.5.0 notes too; `all_notes()` backs the Settings → Advanced → Release Notes reader. Non-version headings (`## Unreleased`) are parsed but excluded from both.
   - `logger.py`: Logging setup with timestamped log files.
   - `startup_manager.py`: Cross-platform startup management (dispatches to OS-specific modules).
   - `windows_startup.py`: Windows Registry-based startup (HKCU Run key).
@@ -73,7 +75,7 @@ The build bundles config defaults from `config/`, platform binaries for mpv/ffmp
 
 - **Frontend (`app/frontend/`)**: UI components (dark theme `#2b2b2b`)
   - `gui.py`: Main Tkinter window. System tray, per-channel download buttons + play/folder buttons, quality/date selectors, unified progress bar, "Others" custom URL section, version badge bottom-left, refresh-update `↻` button, feedback button. Single-instance enforcement via socket IPC (port 65432).
-  - `settings_window.py`: Settings dialog organized into **General / Player / Advanced** tabs. Includes telemetry toggle, check-for-updates toggle, auto-install-updates toggle (greyed out via the visual-tree pattern when its parent setting is disabled), reset-to-defaults, and the rollback launcher.
+  - `settings_window.py`: Settings dialog organized into **General / Player / Advanced** tabs. Includes telemetry toggle, check-for-updates toggle, auto-install-updates toggle (greyed out via the visual-tree pattern when its parent setting is disabled), reset-to-defaults, the rollback launcher, and a **Release Notes** button (Advanced) that opens the full history in a `HelpWindow` — which now accepts a `content=` argument so it can render markdown that isn't a doc file on disk.
   - `feedback_window.py`: Feedback UI with conversation threads, latest-message preview, drag-and-drop multi-screenshot attach, reply support, notification badge for unread developer replies, mousewheel scrolling that propagates across child widgets.
   - `file_viewer.py`: File browser for downloaded videos (play, delete selected, delete all, open folder in OS file manager).
   - `help_window.py`: Modal help window that renders the Markdown files from `docs/`.
@@ -84,14 +86,17 @@ The build bundles config defaults from `config/`, platform binaries for mpv/ffmp
   - `channels.json`: YouTube channel configurations
   - `auto_download_log.json`: Tracking automatic download status per Sabbath date
 
-- **Documentation (`docs/`)**: In-app help (Markdown)
-  - `main_help.md`, `settings_help.md`
+- **Documentation (`docs/`)**: In-app help (Markdown), with `_ro` variants
+  - `main_help.md`, `settings_help.md` (+ `main_help_ro.md`, `settings_help_ro.md`)
+  - Release notes live at the repo **root**: `CHANGELOG.md` + `CHANGELOG_ro.md`. `release.yml` copies `CHANGELOG*.md` into the dist root, so a new translation ships without touching the workflow. **Keep the two files structurally identical** — same sections, same bullet counts; `tests/test_changelog.py` asserts it.
 
 - **Tests (`tests/`)**: pytest suite
   - Core download: `test_downloader.py`, `test_download.py`, `test_video_check.py`, `test_old_video_deletion.py`, `test_edge_cases.py`, `test_multi_channel.py`
   - Auto download: `test_auto_downloader.py`
   - Config: `test_config_loading.py`
   - Updater: `test_updater.py`
+  - Progress model: `test_progress.py`
+  - Release notes: `test_changelog.py`
   - Startup: `test_startup_manager.py`
   - Player: `test_player_logic.py`, `test_player_utils.py`
   - GUI: `test_gui.py`
@@ -102,12 +107,12 @@ The build bundles config defaults from `config/`, platform binaries for mpv/ffmp
 
 1. **Cross-platform executable management**: `config.py` resolves platform-specific paths for bundled mpv and ffmpeg (Windows, macOS arm64/Intel, Linux).
 2. **Threading for downloads**: All download operations run in worker threads to keep the UI responsive.
-3. **Progress tracking**: Two-stage download progress (video 0–50% + audio 50–100%) with unified progress bar and ratchet logic (only increases).
+3. **Progress tracking**: `app/backend/progress.py` (`DownloadProgress`) folds yt-dlp's *per-stream* events into one monotonic percentage. Byte-weighted when the producer supplies a plan (`build_download_plan` / `download_hosted_file` emit a synthetic `ytw_plan` event before any bytes move); otherwise an even split across the stream count **inferred from the first stream's codecs** — a video-only first stream means audio follows and gets merged, anything else stands alone. Completion is also declared by the calling worker when its download returns clean. Do **not** hardcode a stream count: an mp3, a pre-merged format and a hosted override file are all single-stream, and assuming yt-dlp's video+audio pair used to leave the bar stuck at 50% forever.
 4. **System tray integration**: Minimize/close minimizes to tray. Persistent tray icon with Show/Quit menu, notifications via `plyer`.
 5. **Single instance enforcement**: Socket IPC on port 65432. Second instance signals the first to show its window.
 6. **App data directory**: Configs live in the OS-specific app data dir (AppData on Windows, `~/Library/Application Support/` on macOS, `~/.config/` on Linux). Defaults from `config/` are copied on first run.
 7. **Start with system**: Cross-platform startup registration (Registry / LaunchAgent / `.desktop`) honoring `--start-minimized`.
-8. **Silent auto-update**: When tray-running, updates can install silently on startup (`auto_install_updates`). A separate `update_bootstrap` binary performs the swap so the GUI can fully exit first. After a successful update, the next launch shows a Markdown changelog popup and an "Update complete!" status message.
+8. **Silent auto-update**: When tray-running, updates can install silently on startup (`auto_install_updates`). A separate `update_bootstrap` binary performs the swap so the GUI can fully exit first. After a successful update, the next launch shows a Markdown changelog popup and an "Update complete!" status message. Where the new instance comes back is decided by the window's **current** state (`_window_is_hidden()`), not by `--start-minimized` in argv — an app launched into the tray at boot keeps that flag for its whole life, so updating from the foreground hours later used to relaunch into the tray. If notes are owed while the app is hidden they're held in `_pending_changelog` and shown the first time the window is opened.
 9. **Version rollback**: Settings → Advanced → Rollback lists prior releases (paginated GitHub releases, filtered ≥ `MIN_ROLLBACK_VERSION` v1.1.0) and reuses the same bootstrap flow.
 10. **Anonymous identity, client-side geo**: A single UUID install ID is created on first launch and shared between telemetry pings and feedback submissions. Location is resolved on-device so the user's IP never reaches our server.
 11. **Dark theme UI**: Full dark theme across all windows.
@@ -205,6 +210,7 @@ matcher can't bridge a five-year gap.
 - Update flow: in-app prompt → silent download via `updater.download_update()` → hands off to `update_bootstrap` → relaunch
 - `check_for_updates` and `auto_install_updates` settings let the user opt out or fully automate
 - After a successful update, the next launch shows the changelog popup with a centered Quit button
+- `last_run_version` in settings records the version that last ran, which is how the popup can cover **every** release the user skipped. The `.updated` marker only says *that* an update happened, never what it came from — and the bootstrap that performs an update is the **old** one from the installed version, so new CLI flags must never be added to it (an older `update_bootstrap` would reject them via argparse and break the update for everyone upgrading from that version)
 
 ### Feedback System
 - Opened from a button on the main window
@@ -232,7 +238,8 @@ matcher can't bridge a five-year gap.
   "mpv_volume": 100,
   "mpv_screen": "Default",
   "mpv_custom_args": "",
-  "last_sabbath_checked": "2025-08-16"
+  "last_sabbath_checked": "2025-08-16",
+  "last_run_version": null
 }
 ```
 
@@ -259,7 +266,8 @@ Platform-specific binaries (gitignored via `app/tools/**` and `app/player/**`):
 ## Important Notes
 - `load_settings()` returns a tuple `(settings, warnings)` — not just settings
 - Always test cross-platform compatibility when modifying executable paths
-- Progress hooks must be thread-safe and schedule UI updates on the main thread via `self.after(0, ...)`
+- Progress hooks must be thread-safe and schedule UI updates on the main thread via `self.after(0, ...)`. Note the GUI test fixture patches `__init__` and mocks `after`, so anything wrapped in `self.after(0, ...)` **never runs under test** — terminal status messages are set straight from the worker thread (as the rest of those workers do) and only widget updates are marshalled
+- Window icons are set once on the root via `iconphoto(True, ...)`, which makes every later Toplevel inherit them. `iconbitmap` only dresses the window it's called on (and raises on X11 for a `.ico`), which is why Settings/folder/help windows used to show Tk's default feather
 - Configuration changes should trigger automatic reloading in the GUI
 - System tray behavior varies by platform — test thoroughly
 - The `config/` directory in the repo contains defaults; runtime configs live in the OS-specific app data dir

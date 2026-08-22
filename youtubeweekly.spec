@@ -35,6 +35,7 @@ a = Analysis(
         "pystray._win32",
         "pystray._darwin",
         "PIL._tkinter_finder",
+        "PIL.ImageTk",   # window icons: iconphoto() needs a Tk PhotoImage
     ],
     hookspath=[],
     runtime_hooks=[],

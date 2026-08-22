@@ -15,11 +15,12 @@
   "main_window_geometry": "515x285+674+440",
   "file_viewer_Others_geometry": "352x329+1222+406",
   "file_viewer_ScoalaDeSabat_geometry": "352x329+1222+405",
-  "file_viewer_Departamentul Ispr\u0103vnicie_geometry": "352x329+1223+406",
+  "file_viewer_Departamentul Isprăvnicie_geometry": "352x329+1223+406",
   "start_with_system": true,
   "check_for_updates": true,
   "auto_install_updates": false,
   "send_telemetry": true,
   "language": "en",
-  "last_sabbath_checked": "2025-08-16"
+  "last_sabbath_checked": "2025-08-16",
+  "last_run_version": null
 }

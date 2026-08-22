@@ -5,8 +5,12 @@ import sys
 from app.i18n import t, get_language
 
 class HelpWindow(tk.Toplevel):
-    def __init__(self, parent, title, help_file_path, on_close_callback=None):
+    def __init__(self, parent, title, help_file_path, on_close_callback=None,
+                 content=None):
+        """`content` renders markdown directly, for text that isn't a doc file
+        on disk - the release-notes reader assembles its own."""
         super().__init__(parent)
+        self._content = content
         
         self.title(t("help_title", title=title))
         self.geometry("700x500")
@@ -62,7 +66,10 @@ class HelpWindow(tk.Toplevel):
         self.text_widget.pack(fill="both", expand=True)
         
         # Load and display help content
-        self.load_help_content(help_file_path)
+        if self._content is not None:
+            self.show_content(self._content)
+        else:
+            self.load_help_content(help_file_path)
         
         # Close button frame
         button_frame = tk.Frame(main_frame, bg="#2b2b2b")
@@ -82,6 +89,13 @@ class HelpWindow(tk.Toplevel):
         )
         close_button.pack(side="right")
     
+    def show_content(self, content):
+        """Render markdown straight into the text widget."""
+        self.text_widget.config(state=tk.NORMAL)
+        self.text_widget.delete(1.0, tk.END)
+        self.text_widget.insert(1.0, self.format_markdown(content))
+        self.text_widget.config(state=tk.DISABLED)
+
     def load_help_content(self, help_file_path):
         """Load and display the help content from markdown file"""
         try:
@@ -156,13 +170,15 @@ class HelpWindow(tk.Toplevel):
                 formatted_lines.append('')
                 formatted_lines.append(f"» {line[4:]}")
                 formatted_lines.append('')
+            # Bullets are checked before bold: the release notes are all
+            # "- **Thing**: text", which the bold branch used to swallow whole,
+            # losing the bullet and the indent.
+            elif line.strip().startswith('- '):
+                formatted_lines.append(f"  • {line.strip()[2:].replace('**', '')}")
             # Handle bold text
             elif '**' in line:
                 formatted_line = line.replace('**', '')
                 formatted_lines.append(formatted_line)
-            # Handle bullet points
-            elif line.strip().startswith('- '):
-                formatted_lines.append(f"  • {line.strip()[2:]}")
             # Handle numbered lists
             elif line.strip() and line.strip()[0].isdigit() and '. ' in line:
                 formatted_lines.append(f"  {line.strip()}")

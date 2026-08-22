@@ -75,6 +75,7 @@ TRANSLATIONS = {
         "dlg_update_download_failed": "Download failed:\n{error}",
         "dlg_updater_failed": "Could not launch updater:\n{error}",
         "dlg_whats_new": "What's New in v{version}",
+        "dlg_whats_new_since": "What's New since v{previous}",
         "dlg_updated_fallback": "Updated to the latest version.",
         "btn_got_it": "Got it!",
         "dlg_instance_error": "Could not connect to the running instance.",
@@ -151,6 +152,9 @@ TRANSLATIONS = {
 
         # Help
         "help_settings_title": "Settings Guide",
+        "btn_changelog": "Release Notes",
+        "changelog_title": "Release Notes",
+        "changelog_not_found": "No release notes were found.",
         "help_user_title": "User Guide",
 
         # Language
@@ -201,6 +205,7 @@ TRANSLATIONS = {
         # === File Viewer ===
         "fv_title": "Files for {name}",
         "fv_file_name": "File Name",
+        "fv_file_type": "Type",
         "fv_play_selected": "Play Selected",
         "fv_delete_selected": "Delete Selected",
         "fv_delete_all": "Delete All",
@@ -306,6 +311,7 @@ TRANSLATIONS = {
         "dlg_update_download_failed": "Descărcarea a eșuat:\n{error}",
         "dlg_updater_failed": "Nu s-a putut lansa actualizatorul:\n{error}",
         "dlg_whats_new": "Ce este nou în v{version}",
+        "dlg_whats_new_since": "Ce este nou de la v{previous}",
         "dlg_updated_fallback": "Actualizat la cea mai recentă versiune.",
         "btn_got_it": "Am înțeles!",
         "dlg_instance_error": "Nu s-a putut conecta la instanța care rulează.",
@@ -382,6 +388,9 @@ TRANSLATIONS = {
 
         # Help
         "help_settings_title": "Ghid setări",
+        "btn_changelog": "Note de lansare",
+        "changelog_title": "Note de lansare",
+        "changelog_not_found": "Nu au fost găsite note de lansare.",
         "help_user_title": "Ghid utilizator",
 
         # Language
@@ -432,6 +441,7 @@ TRANSLATIONS = {
         # === File Viewer ===
         "fv_title": "Fișiere pentru {name}",
         "fv_file_name": "Numele fișierului",
+        "fv_file_type": "Tip",
         "fv_play_selected": "Redă selecția",
         "fv_delete_selected": "Șterge selecția",
         "fv_delete_all": "Șterge tot",

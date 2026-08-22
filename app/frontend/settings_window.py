@@ -241,6 +241,7 @@ class SettingsWindow(tk.Toplevel):
         warning_label.pack(anchor="w", pady=(0, 10), padx=10)
 
         ttk.Button(advanced_frame, text=t("btn_rollback"), command=self._show_rollback_dialog, style="Dark.TButton").pack(anchor="w", pady=10, padx=10)
+        ttk.Button(advanced_frame, text=t("btn_changelog"), command=self._show_release_notes, style="Dark.TButton").pack(anchor="w", pady=(0, 10), padx=10)
 
         # === Bottom Buttons (outside tabs) ===
         button_frame = ttk.Frame(self, style="Dark.TFrame")
@@ -292,6 +293,10 @@ class SettingsWindow(tk.Toplevel):
         self.settings["settings_window_geometry"] = self.geometry()
         save_settings(self.settings)
         self.destroy()
+
+    def _show_release_notes(self):
+        """Open the full release-note history, scrollable."""
+        self.master.show_release_notes()
 
     def open_help(self):
         """Open the settings help window"""
