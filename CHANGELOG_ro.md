@@ -1,5 +1,8 @@
 # Istoric versiuni
 
+## Unreleased
+- **Pictogramă mai clară**: Pictograma era livrată într-o singură dimensiune mică, așa că Windows o întindea pentru scurtături, foldere și notificări — arăta neclară aproape peste tot. Acum include toate dimensiunile cerute de Windows, până la 256px
+
 ## v1.6.0
 - **Bara nu mai rămâne blocată la 50%**: Descărcările care vin ca un singur fișier — un mp3 sau un video servit direct de dezvoltator — lăsau bara blocată la jumătate pentru totdeauna, chiar dacă descărcarea se terminase. Rezolvat
 - **Bară de progres corectă**: Bara urmărește acum câți octeți au rămas de fapt, în loc să dea câte o jumătate imaginii și sunetului. La o descărcare 1080p sunetul este o parte mică din total, așa că bara nu mai avansează greu și apoi sare brusc

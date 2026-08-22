@@ -98,3 +98,38 @@ def test_diaspora_exclusion():
         }
         url, _ = find_video_url("https://youtube.com/c/Test", "10.05.2025")
         assert url == "https://www.youtube.com/watch?v=vid2"
+
+
+# ---------------------------------------------------------------------------
+# The app icon
+#
+# The shipped .ico once held a single 32x32 image, so Windows upscaled it for
+# shortcuts (256), Explorer (48) and toast notifications (256) - it looked soft
+# everywhere. Regenerate with scripts/build_icon.py.
+# ---------------------------------------------------------------------------
+
+def test_app_icon_has_the_sizes_windows_asks_for():
+    import os
+    from PIL import Image
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    ico = os.path.join(root, "app", "frontend", "assets", "icon4.ico")
+    sizes = {w for w, h in Image.open(ico).ico.sizes()}
+
+    for needed in (16, 32, 48, 256):
+        assert needed in sizes, (
+            f"icon4.ico has no {needed}px image (has {sorted(sizes)}); "
+            "run scripts/build_icon.py")
+
+
+def test_app_icon_master_is_kept_alongside():
+    """Without the .icns there is nothing to regenerate the .ico from, which is
+    how it ended up 32px-only in the first place."""
+    import os
+    from PIL import Image
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    icns = os.path.join(root, "app", "frontend", "assets", "icon4.icns")
+    assert os.path.isfile(icns), "the high-resolution master must stay in the repo"
+    im = Image.open(icns)
+    assert max(w for w, h, s in im.info["sizes"]) >= 256
