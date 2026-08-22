@@ -236,7 +236,7 @@ jobs:
       - name: Copy bootstrap and changelog to dist
         run: |
           Copy-Item ./dist/update_bootstrap.exe ./dist/YoutubeWeekly/
-          Copy-Item ./CHANGELOG.md ./dist/YoutubeWeekly/
+          Copy-Item ./CHANGELOG*.md ./dist/YoutubeWeekly/
 
       - name: Create ZIP
         run: |
@@ -303,7 +303,7 @@ jobs:
       - name: Copy bootstrap and changelog to dist
         run: |
           cp dist/update_bootstrap dist/YoutubeWeekly/
-          cp CHANGELOG.md dist/YoutubeWeekly/
+          cp CHANGELOG*.md dist/YoutubeWeekly/
 
       - name: Create ZIP
         run: |
@@ -372,7 +372,7 @@ jobs:
       - name: Copy bootstrap and changelog to dist
         run: |
           cp dist/update_bootstrap dist/YoutubeWeekly/
-          cp CHANGELOG.md dist/YoutubeWeekly/
+          cp CHANGELOG*.md dist/YoutubeWeekly/
 
       - name: Create ZIP
         run: |
@@ -445,7 +445,7 @@ jobs:
       - name: Copy bootstrap and changelog to dist
         run: |
           cp dist/update_bootstrap dist/YoutubeWeekly/
-          cp CHANGELOG.md dist/YoutubeWeekly/
+          cp CHANGELOG*.md dist/YoutubeWeekly/
 
       - name: Create ZIP
         run: |

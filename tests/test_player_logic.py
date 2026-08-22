@@ -47,6 +47,7 @@ def file_viewer():
         fv.selected_file_path = None
         fv.on_close_callback = MagicMock()
         fv.file_tree = MagicMock()
+        fv._row_files = {}
         fv.geometry = MagicMock(return_value="800x600+100+100")
         fv.destroy = MagicMock()
         yield fv
@@ -173,6 +174,11 @@ def test_file_viewer_populate_files_with_files(file_viewer, tmp_path):
     file_viewer.file_tree.get_children.return_value = []
     file_viewer.populate_files()
     assert file_viewer.file_tree.insert.call_count == 2
+    # name / type / selected - the type is its own column now
+    values = file_viewer.file_tree.insert.call_args[1]["values"]
+    assert len(values) == 3
+    assert values[1] == "MP4"
+    assert not values[0].endswith(".mp4"), "the extension moved out of the name"
 
 
 def test_file_viewer_populate_files_nonexistent(file_viewer):
@@ -183,12 +189,38 @@ def test_file_viewer_populate_files_nonexistent(file_viewer):
 
 def test_file_viewer_on_file_select(file_viewer):
     file_viewer.file_tree.focus.return_value = "I001"
-    file_viewer.file_tree.item.return_value = {"values": ["video.mp4", ""]}
     file_viewer.file_tree.get_children.return_value = ["I001"]
     file_viewer.channel_folder = "/path/to/channel"
+    # The row shows the name split from its type, so the real filename is
+    # looked up rather than rebuilt from what is on screen.
+    file_viewer._row_files = {"I001": "video.mp4"}
     file_viewer.on_file_select(None)
     assert file_viewer.selected_file_path == os.path.join("/path/to/channel", "video.mp4")
     file_viewer.file_tree.set.assert_any_call("I001", "selected", "✓")
+
+
+def test_file_viewer_selects_the_real_filename_not_the_displayed_stem(file_viewer):
+    """The Type column means the name cell no longer holds the whole filename.
+
+    Rebuilding it from the cells would also be at Tk's mercy - it coerces
+    values, so a numeric-looking stem can come back as a float.
+    """
+    file_viewer.file_tree.focus.return_value = "I001"
+    file_viewer.file_tree.get_children.return_value = ["I001"]
+    file_viewer.channel_folder = "/path/to/channel"
+    real = "22.08.2026 [SMV RO] - Acolo unde mainile vorbesc.mp4"
+    file_viewer._row_files = {"I001": real}
+    file_viewer.on_file_select(None)
+    assert file_viewer.selected_file_path == os.path.join("/path/to/channel", real)
+
+
+def test_file_viewer_select_with_no_mapping_is_safe(file_viewer):
+    """A stale row id must not build a path to a file that isn't there."""
+    file_viewer.file_tree.focus.return_value = "I999"
+    file_viewer.file_tree.get_children.return_value = ["I999"]
+    file_viewer._row_files = {}
+    file_viewer.on_file_select(None)
+    assert file_viewer.selected_file_path is None
 
 
 def test_file_viewer_on_file_select_none(file_viewer):

@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -6,6 +7,21 @@ from app.backend.config import save_settings
 from app.backend.downloader import list_playable_files
 from app.frontend.player_utils import play_video
 from app.i18n import t
+
+# A real extension: short and alphanumeric. The guard matters because these
+# filenames are full of dots - "22.08.2026 [SMV RO] - ..." - so a bare
+# splitext() happily carves ".2026 [SMV RO] - ..." out of the title.
+_EXTENSION_RE = re.compile(r"^[A-Za-z0-9]{1,5}$")
+
+
+def split_file_type(filename):
+    """`"clip.mp4"` -> `("clip", "MP4")`. Unknown suffix leaves the name whole."""
+    stem, ext = os.path.splitext(filename)
+    suffix = ext[1:] if ext.startswith(".") else ""
+    if not _EXTENSION_RE.match(suffix):
+        return filename, ""
+    return stem, suffix.upper()
+
 
 class FileViewer(tk.Toplevel):
     def __init__(self, parent, settings, channel_name, channel_folder, on_close_callback, display_name=None):
@@ -26,6 +42,9 @@ class FileViewer(tk.Toplevel):
         self.configure(bg="#2b2b2b")
         self.channel_folder = channel_folder
         self.selected_file_path = None
+        # Tk coerces cell values (a numeric-looking stem can come back a float),
+        # so the real filename is kept here rather than rebuilt from the row.
+        self._row_files = {}
 
         style = ttk.Style(self)
         style.theme_use("default")
@@ -34,12 +53,16 @@ class FileViewer(tk.Toplevel):
         style.configure("Treeview.Heading", background="#2b2b2b", foreground="white", font=('Segoe UI', 10, 'bold'))
         style.configure("Dark.TFrame", background="#2b2b2b")
 
-        self.file_tree = ttk.Treeview(self, columns=("name", "selected"), show="headings", selectmode="browse")
+        self.file_tree = ttk.Treeview(self, columns=("name", "type", "selected"), show="headings", selectmode="browse")
         self.file_tree.heading("name", text=t("fv_file_name"))
+        self.file_tree.heading("type", text=t("fv_file_type"))
         self.file_tree.heading("selected", text="✓")
-        
-        # Configure columns
+
+        # Configure columns. Type gets its own fixed column so it is legible at
+        # any window width - it used to be readable only when the name column
+        # happened to be wide enough to show the extension.
         self.file_tree.column("name", stretch=True)
+        self.file_tree.column("type", width=55, anchor="center", stretch=False)
         self.file_tree.column("selected", width=30, anchor="center", stretch=False)
         
         # Disable column resizing by unbinding the resize events
@@ -94,11 +117,14 @@ class FileViewer(tk.Toplevel):
 
         for i in self.file_tree.get_children():
             self.file_tree.delete(i)
+        self._row_files.clear()
 
         files = list_playable_files(self.channel_folder)
         files.sort(key=lambda f: os.path.getmtime(os.path.join(self.channel_folder, f)), reverse=True)
         for file in files:
-            self.file_tree.insert("", tk.END, values=(file, ""))
+            stem, kind = split_file_type(file)
+            item_id = self.file_tree.insert("", tk.END, values=(stem, kind, ""))
+            self._row_files[item_id] = file
 
     def on_file_select(self, event):
         for item_id in self.file_tree.get_children():
@@ -110,8 +136,10 @@ class FileViewer(tk.Toplevel):
             return
 
         self.file_tree.set(selected_item, "selected", "✓")
-        file_name = self.file_tree.item(selected_item)["values"][0]
-        self.selected_file_path = os.path.join(self.channel_folder, file_name)
+        file_name = self._row_files.get(selected_item)
+        self.selected_file_path = (
+            os.path.join(self.channel_folder, file_name) if file_name else None
+        )
 
     def play_selected(self):
         if not self.selected_file_path:

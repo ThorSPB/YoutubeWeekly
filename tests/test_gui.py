@@ -376,3 +376,28 @@ def test_manual_download_clears_a_stale_partial_first(gui, tmp_path):
 
     assert dl.called, "the partial must not be mistaken for a finished download"
     assert not stale_part.exists()
+
+
+# --- File viewer: the file-type column ---
+
+def test_split_file_type_separates_a_real_extension():
+    from app.frontend.file_viewer import split_file_type
+    assert split_file_type("clip.mp4") == ("clip", "MP4")
+    assert split_file_type("song.mp3") == ("song", "MP3")
+
+
+def test_split_file_type_leaves_dotted_titles_alone():
+    """These names are full of dots - a bare splitext() carves the date up."""
+    from app.frontend.file_viewer import split_file_type
+    assert split_file_type("22.08.2026 [SMV RO] - no extension") == (
+        "22.08.2026 [SMV RO] - no extension", "")
+    assert split_file_type("22.08.2026 [SMV RO] - Acolo.mp4") == (
+        "22.08.2026 [SMV RO] - Acolo", "MP4")
+    assert split_file_type("README") == ("README", "")
+    assert split_file_type("weird.verylongsuffix") == ("weird.verylongsuffix", "")
+
+
+def test_split_file_type_keeps_a_doubled_extension_visible():
+    from app.frontend.file_viewer import split_file_type
+    # A real file in the wild: "...mp3.mp3"
+    assert split_file_type("Cum va fi.mp3.mp3") == ("Cum va fi.mp3", "MP3")

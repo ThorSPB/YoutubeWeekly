@@ -1,5 +1,6 @@
 import os
 import sys
+import logging
 import shutil
 import threading
 import time
@@ -20,6 +21,7 @@ from app.backend.downloader import (
     purge_partial_downloads,
 )
 from app.backend.progress import DownloadProgress, PROGRESS_PLAN_STATUS
+from app.backend.changelog import load_changelog, notes_since, all_notes
 from datetime import datetime
 from app.frontend.settings_window import SettingsWindow
 from app.frontend.file_viewer import FileViewer
@@ -56,7 +58,7 @@ class YoutubeWeeklyGUI(tk.Tk):
         super().__init__()
         # Created first: background threads and _perform_quit both rely on it.
         self._shutdown = threading.Event()
-        self.iconbitmap(resource_path("assets/icon4.ico"))
+        self._set_app_icon()
         self.configure(bg="#2b2b2b")
 
         self.settings, self.startup_warnings = load_settings()
@@ -68,6 +70,16 @@ class YoutubeWeeklyGUI(tk.Tk):
 
         # Clean up any leftover update artifacts and detect post-update
         self._just_updated = self._cleanup_update_artifacts()
+
+        # Which version last ran, so the release notes can cover everything the
+        # user skipped. The ".updated" marker only says *that* an update
+        # happened, never what it came from - and someone jumping 1.4.0 to
+        # 1.5.1 never saw the 1.5.0 notes at all.
+        self._previous_version = self.settings.get("last_run_version")
+        self._record_this_version()
+        # Set when notes are owed but the window isn't up yet; shown the first
+        # time the user actually opens it.
+        self._pending_changelog = False
 
         # Synchronize startup registration with the user's stored intent.
         # When enabled, re-register unconditionally so the registry value
@@ -325,9 +337,14 @@ class YoutubeWeeklyGUI(tk.Tk):
         if self.settings.get("check_for_updates", True):
             threading.Thread(target=self._check_for_updates_thread, daemon=True).start()
 
-        # Show changelog after an update
-        if self._just_updated:
-            self.after(500, self._show_changelog)
+        # Show the release notes for anything the user hasn't seen. Starting
+        # hidden in the tray, they'd land behind nothing at all - hold them
+        # until the window is opened.
+        if self._changelog_is_due():
+            if "--start-minimized" in sys.argv:
+                self._pending_changelog = True
+            else:
+                self.after(500, self._show_changelog)
 
     def _run_auto_checks(self):
         """Kick off the automatic download check on a worker thread."""
@@ -372,60 +389,97 @@ class YoutubeWeeklyGUI(tk.Tk):
                 # only fills a gap.
                 self._run_auto_checks()
 
-    def _show_changelog(self):
-        """Show the changelog for the current version after an update."""
-        changelog_path = resource_path("docs/CHANGELOG.md") if not getattr(sys, 'frozen', False) else None
+    def _set_app_icon(self):
+        """Put the app icon on this window and every window it spawns.
 
-        # Try multiple paths for the changelog
-        candidates = [
-            os.path.join(get_base_path(), "CHANGELOG.md"),
-            os.path.join(get_base_path(), "_internal", "docs", "CHANGELOG.md"),
-        ]
-        if changelog_path:
-            candidates.insert(0, changelog_path)
+        `iconbitmap` only dresses the window it is called on, which is why
+        Settings, the folder viewers and the help windows all showed Tk's
+        default feather. `iconphoto(True, ...)` sets the default for toplevels
+        created afterwards, so they inherit it without each one repeating this.
+        """
+        icon_path = resource_path("assets/icon4.ico")
+        try:
+            self.iconbitmap(icon_path)
+        except Exception:
+            pass  # .ico is Windows-friendly; other platforms use the photo below
+        try:
+            from PIL import ImageTk
+            self._icon_image = ImageTk.PhotoImage(Image.open(icon_path))
+            self.iconphoto(True, self._icon_image)
+        except Exception as e:
+            logging.info(f"Could not set the default window icon: {e}")
 
-        content = None
-        for path in candidates:
-            if os.path.exists(path):
-                with open(path, "r", encoding="utf-8") as f:
-                    content = f.read()
-                break
+    def _window_is_hidden(self):
+        """True when the app is sitting in the tray rather than on screen.
 
-        if not content:
+        Must be read on the main thread, so callers capture it before handing
+        work to a worker.
+        """
+        try:
+            return self.state() in ("withdrawn", "iconic")
+        except Exception:
+            # No window to ask (very early, or already destroyed): fall back to
+            # how we were launched.
+            return "--start-minimized" in sys.argv
+
+    def _record_this_version(self):
+        """Remember the running version, so the next launch can diff against it."""
+        if __version__ == "dev":
             return
+        if self.settings.get("last_run_version") == __version__:
+            return
+        self.settings["last_run_version"] = __version__
+        try:
+            save_settings(self.settings)
+        except Exception as e:
+            logging.info(f"Could not record the running version: {e}")
 
-        # Extract just the current version's section
-        lines = content.split("\n")
-        section_lines = []
-        found_current = False
-        for line in lines:
-            if line.startswith("## ") and f"v{__version__}" in line:
-                found_current = True
-                section_lines.append(line)
-            elif line.startswith("## ") and found_current:
-                break
-            elif found_current:
-                section_lines.append(line)
+    def _changelog_is_due(self):
+        """Should we show release notes this launch?
 
-        if not section_lines:
-            section_lines = [f"## v{__version__}", "", t("dlg_updated_fallback")]
+        Yes when the version moved since the last run - that covers an in-app
+        update, a manual reinstall over the top, and a rollback. Also yes right
+        after an in-app update even if we can't tell what came before, since the
+        marker proves something changed. A first-ever run shows nothing: there
+        is no "what's new" for a brand-new install.
+        """
+        if __version__ == "dev":
+            return False
+        if self._previous_version and self._previous_version != __version__:
+            return True
+        return bool(self._just_updated) and not self._previous_version
 
-        # Show in a simple dialog
+    def _changelog_markdown(self):
+        """The notes this user hasn't seen, as markdown. Empty if none."""
+        content = load_changelog(get_language())
+        if not content:
+            return ""
+        return notes_since(content, self._previous_version, __version__)
+
+    def _show_changelog(self):
+        """Show every release note new to this user, not just the latest one."""
+        body = self._changelog_markdown()
+        if not body:
+            body = f"## v{__version__}\n\n{t('dlg_updated_fallback')}"
+
+        if self._previous_version and self._previous_version != __version__:
+            title = t("dlg_whats_new_since", previous=self._previous_version)
+        else:
+            title = t("dlg_whats_new", version=__version__)
+
         dialog = tk.Toplevel(self)
-        dialog.title(t("dlg_whats_new", version=__version__))
+        dialog.title(title)
         dialog.configure(bg="#2b2b2b")
-        dialog.geometry("450x300")
-        dialog.resizable(False, False)
+        dialog.geometry("480x380")
         dialog.transient(self)
 
         dialog.update_idletasks()
-        x = self.winfo_x() + (self.winfo_width() - 450) // 2
-        y = self.winfo_y() + (self.winfo_height() - 300) // 2
+        x = self.winfo_x() + (self.winfo_width() - 480) // 2
+        y = self.winfo_y() + (self.winfo_height() - 380) // 2
         dialog.geometry(f"+{x}+{y}")
 
-        # Format markdown before displaying
         from app.frontend.help_window import HelpWindow
-        formatted = HelpWindow.format_markdown(None, "\n".join(section_lines))
+        formatted = HelpWindow.format_markdown(None, body)
 
         from tkinter import scrolledtext
         text = scrolledtext.ScrolledText(
@@ -438,6 +492,14 @@ class YoutubeWeeklyGUI(tk.Tk):
         text.config(state="disabled")
 
         ttk.Button(dialog, text=t("btn_got_it"), command=dialog.destroy, width=10).pack(pady=(5, 15))
+
+    def show_release_notes(self):
+        """Open the full release-note history in a scrollable reader."""
+        from app.frontend.help_window import HelpWindow
+        content = load_changelog(get_language())
+        body = all_notes(content) if content else t("changelog_not_found")
+        win = HelpWindow(self, t("changelog_title"), "CHANGELOG.md", content=body)
+        win.focus_set()
 
     def center_window(self):
         self.update_idletasks()
@@ -474,6 +536,11 @@ class YoutubeWeeklyGUI(tk.Tk):
         self.attributes('-topmost', True)
         self.after_idle(self.attributes, '-topmost', False)
         self.focus_force()
+
+        # Notes held back because we started in the tray.
+        if self._pending_changelog:
+            self._pending_changelog = False
+            self.after(300, self._show_changelog)
 
         # If there's a pending update, show the dialog
         if self._pending_update:
@@ -1099,9 +1166,13 @@ class YoutubeWeeklyGUI(tk.Tk):
         auto_install = self.settings.get("auto_install_updates", False)
 
         if auto_install:
-            # Auto-update: show progress if window is visible, silent if minimized
+            # Auto-update at startup: show progress if the window is visible,
+            # stay silent if we came up in the tray - and in that case come back
+            # to the tray too, rather than stealing the screen unprompted.
             self._send_notification(t("notif_update_detected"), t("notif_installing_auto", version=latest_version))
-            self.after(0, lambda: self._start_update(latest_version, download_url, assets, silent=is_minimized))
+            self.after(0, lambda: self._start_update(
+                latest_version, download_url, assets,
+                silent=is_minimized, relaunch_minimized=is_minimized))
         elif is_minimized:
             # Minimized but not auto-install: notify, show dialog when user opens GUI
             self._send_notification(t("notif_update_available"), t("notif_update_available_msg", version=latest_version))
@@ -1158,8 +1229,18 @@ class YoutubeWeeklyGUI(tk.Tk):
         ttk.Button(btn_frame, text=t("dlg_update_now"), command=on_update, width=14).pack(side="left", padx=5)
         ttk.Button(btn_frame, text=t("dlg_later"), command=dialog.destroy, width=10).pack(side="left", padx=5)
 
-    def _start_update(self, version, release_url, assets, silent=False):
-        """Begin the update process: download ZIP and launch bootstrap."""
+    def _start_update(self, version, release_url, assets, silent=False,
+                      relaunch_minimized=None):
+        """Begin the update process: download ZIP and launch bootstrap.
+
+        `relaunch_minimized` decides where the *new* instance comes back. It is
+        read from the window's current state, not from `--start-minimized` in
+        argv: an app launched into the tray at boot keeps that flag for its
+        whole life, so updating from the foreground hours later used to relaunch
+        into the tray and look like nothing happened.
+        """
+        if relaunch_minimized is None:
+            relaunch_minimized = self._window_is_hidden()
         # Check if bootstrap exists (v1.0.4 won't have it)
         bootstrap_path = self._get_bootstrap_path()
         if not getattr(sys, 'frozen', False) or not os.path.exists(bootstrap_path):
@@ -1199,11 +1280,12 @@ class YoutubeWeeklyGUI(tk.Tk):
             self._set_status(t("status_downloading_update", version=version))
         threading.Thread(
             target=self._download_and_apply_update,
-            args=(asset_url, version, bootstrap_path, silent),
+            args=(asset_url, version, bootstrap_path, silent, relaunch_minimized),
             daemon=True
         ).start()
 
-    def _download_and_apply_update(self, asset_url, version, bootstrap_path, silent=False):
+    def _download_and_apply_update(self, asset_url, version, bootstrap_path,
+                                   silent=False, relaunch_minimized=None):
         """Download the update ZIP and launch the bootstrap."""
         zip_name = get_platform_asset_name(version)
         zip_path = os.path.join(UPDATE_DIR, zip_name)
@@ -1229,13 +1311,14 @@ class YoutubeWeeklyGUI(tk.Tk):
         # Launch bootstrap and exit
         base = get_base_path()
         exe_name = os.path.basename(sys.executable)
-        should_minimize = "--start-minimized" in sys.argv
+        if relaunch_minimized is None:
+            relaunch_minimized = "--start-minimized" in sys.argv
 
         if not silent:
             self.after(0, lambda: self._set_status(t("status_installing_update")))
 
         bootstrap_cmd = [bootstrap_path, "--zip", zip_path, "--target", base, "--exe", exe_name, "--pid", str(os.getpid())]
-        if should_minimize:
+        if relaunch_minimized:
             bootstrap_cmd.append("--minimized")
 
         try:
