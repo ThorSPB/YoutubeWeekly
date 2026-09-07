@@ -30,6 +30,10 @@ env:
   PYTHON_VERSION: '3.12'
   APP_NAME: 'YoutubeWeekly'
   BINARIES_TAG: 'v0.0.0-binaries'
+  # yt-dlp runs YouTube's own JavaScript to solve the signature / "n"
+  # challenge. Without an engine, every format above 360p is dropped on the
+  # videos that demand it. quickjs-ng ships static single-file builds ~2MB.
+  QUICKJS_TAG: 'v0.16.2'
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -216,6 +220,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Download bundled QuickJS
+        run: |
+          New-Item -ItemType Directory -Force -Path app/tools/quickjs_win64 | Out-Null
+          curl.exe -L --fail --retry 5 --retry-delay 10 --retry-all-errors --connect-timeout 30 --max-time 300 `
+            "https://github.com/quickjs-ng/quickjs/releases/download/${{ env.QUICKJS_TAG }}/qjs-windows-x86_64.exe" `
+            -o app/tools/quickjs_win64/qjs.exe
+
       - name: Inject version
         run: |
           $version = "${{ needs.create-release.outputs.version }}"
@@ -283,6 +294,14 @@ jobs:
           unzip -o ffmpeg-macos.zip -d app/
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download bundled QuickJS
+        run: |
+          mkdir -p app/tools/quickjs_macOS/arm64
+          curl -L --fail --retry 5 --retry-delay 10 --retry-all-errors --connect-timeout 30 --max-time 300 \
+               https://github.com/quickjs-ng/quickjs/releases/download/${{ env.QUICKJS_TAG }}/qjs-darwin-arm64 \
+               -o app/tools/quickjs_macOS/arm64/qjs
+          chmod +x app/tools/quickjs_macOS/arm64/qjs
 
       - name: Inject version
         run: |
@@ -352,6 +371,14 @@ jobs:
           unzip -o ffmpeg-macos.zip -d app/
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download bundled QuickJS
+        run: |
+          mkdir -p app/tools/quickjs_macOS/intel
+          curl -L --fail --retry 5 --retry-delay 10 --retry-all-errors --connect-timeout 30 --max-time 300 \
+               https://github.com/quickjs-ng/quickjs/releases/download/${{ env.QUICKJS_TAG }}/qjs-darwin-x86_64 \
+               -o app/tools/quickjs_macOS/intel/qjs
+          chmod +x app/tools/quickjs_macOS/intel/qjs
 
       - name: Inject version
         run: |
@@ -425,6 +452,14 @@ jobs:
                -o ffmpeg-linux.tar.xz
           tar -xf ffmpeg-linux.tar.xz --strip-components=1 -C app/tools/ffmpeg_linux/ffmpeg-7.0.2-amd64-static
           chmod +x app/tools/ffmpeg_linux/ffmpeg-7.0.2-amd64-static/ffmpeg
+
+      - name: Download bundled QuickJS
+        run: |
+          mkdir -p app/tools/quickjs_linux
+          curl -L --fail --retry 5 --retry-delay 10 --retry-all-errors --connect-timeout 30 --max-time 300 \
+               https://github.com/quickjs-ng/quickjs/releases/download/${{ env.QUICKJS_TAG }}/qjs-linux-x86_64 \
+               -o app/tools/quickjs_linux/qjs
+          chmod +x app/tools/quickjs_linux/qjs
 
       - name: Inject version
         run: |

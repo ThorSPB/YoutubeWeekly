@@ -160,3 +160,77 @@ def test_load_settings_no_write_when_nothing_to_merge(tmp_path, monkeypatch):
 
     assert mtime_after == mtime_before, "load_settings rewrote the file when no migration was needed"
     assert settings["default_quality"] == "720p"
+
+
+# --- bundled JavaScript engine -------------------------------------------
+#
+# yt-dlp runs YouTube's own JavaScript to solve the signature / "n" challenge.
+# Videos that demand it - every "Made for Kids" one - release no
+# adaptive-format URL until it is solved, so without an engine every format
+# above 360p is dropped and the download fails outright.
+
+def _fake_bundle(tmp_path, monkeypatch, *, with_qjs, system="Linux", machine="x86_64"):
+    """Point config at a fake app/ tree, optionally carrying a qjs binary."""
+    import os
+    app_dir = tmp_path / "app"
+    (app_dir / "tools").mkdir(parents=True)
+    if with_qjs:
+        rel = {"Linux": ("quickjs_linux", "qjs"),
+               "Windows": ("quickjs_win64", "qjs.exe"),
+               "Darwin": (os.path.join("quickjs_macOS", machine_dir(machine)), "qjs")}[system]
+        d = app_dir / "tools" / rel[0]
+        d.mkdir(parents=True, exist_ok=True)
+        exe = d / rel[1]
+        exe.write_text("#!/bin/sh\nexit 0\n")
+        exe.chmod(0o755)
+    monkeypatch.setattr("app.backend.config.platform.system", lambda: system)
+    monkeypatch.setattr("app.backend.config.platform.machine", lambda: machine)
+    monkeypatch.setattr("app.backend.config.os.path.dirname",
+                        lambda _p: str(app_dir / "backend"))
+    return app_dir
+
+
+def machine_dir(machine):
+    return "arm64" if machine == "arm64" else "intel"
+
+
+@pytest.mark.parametrize("system, machine, expected_tail", [
+    ("Linux", "x86_64", ("quickjs_linux", "qjs")),
+    ("Windows", "AMD64", ("quickjs_win64", "qjs.exe")),
+    ("Darwin", "arm64", ("arm64", "qjs")),
+    ("Darwin", "x86_64", ("intel", "qjs")),
+])
+def test_bundled_js_engine_is_found_on_every_platform(
+        tmp_path, monkeypatch, system, machine, expected_tail):
+    import os
+    from app.backend.config import get_default_executable_paths
+    _fake_bundle(tmp_path, monkeypatch, with_qjs=True, system=system, machine=machine)
+    paths, _ = get_default_executable_paths()
+    found = paths["js_runtime_path"]
+    assert found, f"no js_runtime_path resolved for {system}/{machine}"
+    assert os.path.basename(found) == expected_tail[1]
+    assert expected_tail[0] in found
+
+
+def test_missing_js_engine_is_silent_not_a_user_warning(tmp_path, monkeypatch):
+    """A source checkout has no bundled binary, and there is nothing for the
+    user to configure - it is not exposed in Settings. An empty path means
+    "let yt-dlp auto-detect", which is the old behaviour, so nagging about it
+    would be noise in the same list that reports a genuinely broken mpv."""
+    from app.backend.config import get_default_executable_paths
+    _fake_bundle(tmp_path, monkeypatch, with_qjs=False)
+    paths, warnings = get_default_executable_paths()
+    assert paths["js_runtime_path"] == ""
+    assert not [w for w in warnings if "quickjs" in w.lower() or "javascript" in w.lower()]
+
+
+def test_load_settings_always_resolves_the_js_engine(mock_settings_file, monkeypatch):
+    """Like mpv_path and ffmpeg_path, it is recomputed on every load rather
+    than trusted from the settings file - a saved path breaks the moment the
+    app is updated or moved."""
+    monkeypatch.setattr("app.backend.config.SETTINGS_FILE", str(mock_settings_file))
+    monkeypatch.setattr("app.backend.config.get_default_executable_paths",
+                        lambda: ({"mpv_path": "", "ffmpeg_path": "",
+                                  "js_runtime_path": "/bundled/qjs"}, []))
+    settings, _ = load_settings()
+    assert settings["js_runtime_path"] == "/bundled/qjs"

@@ -22,6 +22,12 @@ they are, and guessing either is what produced the two bugs this replaces:
 # status itself.
 PROGRESS_PLAN_STATUS = "ytw_plan"
 
+# Synthetic event for "throw away what you have and start over" - emitted when a
+# download is retried from scratch. The model's percentage only ever moves
+# forward, so without this a retry would sit at the failed attempt's high-water
+# mark instead of tracking the transfer actually in flight.
+PROGRESS_RESET_STATUS = "ytw_reset"
+
 
 def streams_implied_by(info):
     """How many streams a download will fetch, judged from its first one.

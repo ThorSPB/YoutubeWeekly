@@ -5,7 +5,7 @@ import yt_dlp
 import logging
 from datetime import datetime, timedelta
 from app.backend.config import load_settings, SETTINGS_FILE, settings_lock
-from app.backend.progress import PROGRESS_PLAN_STATUS
+from app.backend.progress import PROGRESS_PLAN_STATUS, PROGRESS_RESET_STATUS
 from tkinter import messagebox
 
 
@@ -15,6 +15,16 @@ from tkinter import messagebox
 # sound. Never offer these as playable, and never let one satisfy an
 # "is it already downloaded?" check.
 PARTIAL_SUFFIXES = (".part", ".ytdl", ".temp")
+
+# YouTube does not serve every video to every InnerTube client, and yt-dlp only
+# asks the handful it defaults to. Some channels answer UNPLAYABLE - which
+# surfaces as the flatly wrong "This video is not available" - on exactly those
+# clients while an older one still hands over a real stream. Measured
+# 2026-09-07 against the Mount Moriah Sabbath School channel: `visionos` and
+# `android_vr` refuse every video on it, `android` serves them. So a failure is
+# not proof the video is gone; it is worth asking again through a wider set of
+# clients before telling the user it cannot be had.
+FALLBACK_PLAYER_CLIENTS = ("default", "android", "ios", "web_safari", "tv")
 
 
 def is_partial_download(filename):
@@ -319,6 +329,7 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False,
 
     settings, _ = load_settings()
     ffmpeg_path = settings.get("ffmpeg_path")
+    js_runtime_path = settings.get("js_runtime_path")
 
     ydl_opts = {
         'outtmpl': os.path.join(video_folder, '%(title)s.%(ext)s'),
@@ -331,6 +342,22 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False,
         'progress_hooks': [progress_hook] if progress_hook else []
     }
 
+    if js_runtime_path:
+        # Hand yt-dlp the bundled QuickJS so it can run YouTube's own
+        # JavaScript and solve the signature / "n" challenge. Some videos -
+        # every "Made for Kids" one - release no adaptive-format URL until that
+        # is solved, and without an engine every format above 360p is dropped.
+        #
+        # Must be a DICT of {runtime: {config}}. A list raises a bare
+        # ValueError from YoutubeDL.__init__ that names no option.
+        ydl_opts['js_runtimes'] = {'quickjs': {'path': js_runtime_path}}
+        logging.info(f"JS engine: {js_runtime_path}")
+    else:
+        # Logged rather than warned so a build that shipped without the binary
+        # (or lost its executable bit in packaging) is visible in the log
+        # instead of silently reverting to 360p-or-nothing on those videos.
+        logging.info("JS engine: none bundled; leaving yt-dlp to auto-detect")
+
     if quality_pref == "mp3":
         ydl_opts['postprocessors'].append({
             'key': 'FFmpegExtractAudio',
@@ -338,45 +365,74 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False,
             'preferredquality': '192',
         })
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+    def attempt(extra_opts=None):
+        """One download run. Returns an error string, or None on success."""
+        opts = dict(ydl_opts)
+        if extra_opts:
+            opts.update(extra_opts)
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            try:
+                logging.info(f"Downloading: {video_url} with quality {quality_pref}")
+                if progress_hook:
+                    # Tell the UI how much is coming before any bytes move, so
+                    # its bar is weighted by real sizes rather than stream count.
+                    plan = build_download_plan(ydl, video_url) or {}
+                    try:
+                        progress_hook({
+                            "status": PROGRESS_PLAN_STATUS,
+                            "streams": plan.get("streams"),
+                            "total_bytes": plan.get("total_bytes"),
+                        })
+                    except Exception:
+                        pass
+                ydl.download([video_url])
+                logging.info("Download complete.")
+                if protect:
+                    # Get video info to accurately identify the downloaded file
+                    info = ydl.extract_info(video_url, download=False)
+                    if info:
+                        # Construct the expected filename based on yt-dlp's output template
+                        # This assumes the default outtmpl: '%(title)s.%(ext)s'
+                        video_filename = f"{info.get('title')}.{info.get('ext')}"
+                        add_protected_video(os.path.basename(video_folder), video_filename)
+            except yt_dlp.utils.DownloadError as e:
+                error_message = str(e)
+                logging.error(f"Download failed: {error_message}")
+                # A partly-transferred video-only stream is worse than nothing:
+                # it is offered as playable (picture, no sound) and its name
+                # blocks the retry. Take it with us.
+                purge_partial_downloads(video_folder)
+                return error_message
+            except Exception as e:
+                error_message = str(e)
+                logging.error(f"An unexpected error occurred during download: {error_message}")
+                purge_partial_downloads(video_folder)
+                return error_message
+        return None
+
+    error = attempt()
+    if error is None:
+        return None
+
+    # Ask again through the wider client list before giving up - see
+    # FALLBACK_PLAYER_CLIENTS. Nothing has been transferred that survived the
+    # purge above, so the bar has to start over too.
+    clients = ",".join(FALLBACK_PLAYER_CLIENTS)
+    logging.info(f"Retrying with player clients: {clients}")
+    if progress_hook:
         try:
-            logging.info(f"Downloading: {video_url} with quality {quality_pref}")
-            if progress_hook:
-                # Tell the UI how much is coming before any bytes move, so its
-                # bar is weighted by real sizes rather than stream count.
-                plan = build_download_plan(ydl, video_url) or {}
-                try:
-                    progress_hook({
-                        "status": PROGRESS_PLAN_STATUS,
-                        "streams": plan.get("streams"),
-                        "total_bytes": plan.get("total_bytes"),
-                    })
-                except Exception:
-                    pass
-            ydl.download([video_url])
-            logging.info("Download complete.")
-            if protect:
-                # Get video info to accurately identify the downloaded file
-                info = ydl.extract_info(video_url, download=False)
-                if info:
-                    # Construct the expected filename based on yt-dlp's output template
-                    # This assumes the default outtmpl: '%(title)s.%(ext)s'
-                    video_filename = f"{info.get('title')}.{info.get('ext')}"
-                    add_protected_video(os.path.basename(video_folder), video_filename)
-        except yt_dlp.utils.DownloadError as e:
-            error_message = str(e)
-            logging.error(f"Download failed: {error_message}")
-            # A partly-transferred video-only stream is worse than nothing: it
-            # is offered as playable (picture, no sound) and its name blocks
-            # the retry. Take it with us.
-            purge_partial_downloads(video_folder)
-            return error_message
-        except Exception as e:
-            error_message = str(e)
-            logging.error(f"An unexpected error occurred during download: {error_message}")
-            purge_partial_downloads(video_folder)
-            return error_message
-    return None # Return None on successful download
+            progress_hook({"status": PROGRESS_RESET_STATUS})
+        except Exception:
+            pass
+    retry_error = attempt({
+        "extractor_args": {"youtube": {"player_client": list(FALLBACK_PLAYER_CLIENTS)}},
+    })
+    if retry_error is None:
+        logging.info(f"Succeeded on retry with player clients: {clients}")
+        return None
+    # Report the first failure: the retry's message is about the fallback
+    # clients and would only mislead about what the user actually asked for.
+    return error
 
 def get_recent_sabbaths(n=30, date_format="%d.%m.%Y"):
     """Return the last `n` Sabbath (Saturday) dates formatted."""

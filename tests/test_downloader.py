@@ -1,9 +1,12 @@
 import pytest
 import os
 import json
+import yt_dlp
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timedelta
+from app.backend.progress import PROGRESS_PLAN_STATUS, PROGRESS_RESET_STATUS
 from app.backend.downloader import (
+    FALLBACK_PLAYER_CLIENTS,
     load_protected_videos,
     add_protected_video,
     get_next_saturday,
@@ -250,10 +253,114 @@ def test_download_video_protect(mock_download_dependencies):
 
 def test_download_video_download_failure(mock_download_dependencies):
     mock_download_dependencies["mock_ydl_instance"].download.side_effect = Exception("Download error")
+    error = download_video("http://example.com/video", "/tmp/videos")
+    # Two runs: the plain one, then the wider-player-client retry.
+    assert mock_download_dependencies["mock_ydl_instance"].download.call_count == 2
+    # The message the user sees describes the download they asked for, not the
+    # fallback clients they never chose.
+    assert error == "Download error"
+
+
+def _opts_of(call):
+    args, _ = call
+    return args[0]
+
+
+def test_download_video_hands_yt_dlp_the_bundled_js_engine(mock_download_dependencies, monkeypatch):
+    """Without a JS engine yt-dlp cannot solve YouTube's signature / "n"
+    challenge, and every format above 360p is dropped on the videos that
+    demand it (all "Made for Kids" ones)."""
+    monkeypatch.setattr("app.backend.downloader.load_settings",
+                        lambda: ({"ffmpeg_path": "/usr/bin/ffmpeg",
+                                  "js_runtime_path": "/bundled/qjs"}, []))
     download_video("http://example.com/video", "/tmp/videos")
-    mock_download_dependencies["mock_ydl_instance"].download.assert_called_once()
-    # Assert that logging.error was called, but mocking logging is more complex.
-    # For now, just ensure no other unexpected calls or crashes.
+    opts = _opts_of(mock_download_dependencies["mock_ydl"].call_args_list[0])
+    # A DICT of {runtime: {config}}. Passing a list raises a bare ValueError
+    # from YoutubeDL.__init__ that names no option, so the shape is the test.
+    assert opts["js_runtimes"] == {"quickjs": {"path": "/bundled/qjs"}}
+
+
+def test_download_video_omits_js_runtimes_when_none_is_bundled(mock_download_dependencies, monkeypatch):
+    """An absent engine must leave yt-dlp to auto-detect a system one rather
+    than being pinned to a path that does not exist."""
+    monkeypatch.setattr("app.backend.downloader.load_settings",
+                        lambda: ({"ffmpeg_path": "/usr/bin/ffmpeg",
+                                  "js_runtime_path": ""}, []))
+    download_video("http://example.com/video", "/tmp/videos")
+    opts = _opts_of(mock_download_dependencies["mock_ydl"].call_args_list[0])
+    assert "js_runtimes" not in opts
+
+
+def test_download_video_js_engine_survives_the_player_client_retry(mock_download_dependencies, monkeypatch):
+    """The retry must not drop it - a fallback that cannot solve the challenge
+    is exactly the 360p-or-nothing case this engine exists to avoid."""
+    monkeypatch.setattr("app.backend.downloader.load_settings",
+                        lambda: ({"ffmpeg_path": "/usr/bin/ffmpeg",
+                                  "js_runtime_path": "/bundled/qjs"}, []))
+    instance = mock_download_dependencies["mock_ydl_instance"]
+    instance.download.side_effect = [Exception("boom"), None]
+    download_video("http://example.com/video", "/tmp/videos")
+    calls = mock_download_dependencies["mock_ydl"].call_args_list
+    assert len(calls) == 2
+    for call in calls:
+        assert _opts_of(call)["js_runtimes"] == {"quickjs": {"path": "/bundled/qjs"}}
+
+
+def _player_clients_of(call):
+    """The player_client list a YoutubeDL(...) call was given, if any."""
+    args, _ = call
+    return (args[0].get("extractor_args") or {}).get("youtube", {}).get("player_client")
+
+
+def test_download_video_no_retry_when_the_first_attempt_works(mock_download_dependencies):
+    assert download_video("http://example.com/video", "/tmp/videos") is None
+    calls = mock_download_dependencies["mock_ydl"].call_args_list
+    assert len(calls) == 1
+    # A working download must not pay for extra InnerTube round-trips.
+    assert _player_clients_of(calls[0]) is None
+
+
+def test_download_video_retries_across_more_player_clients(mock_download_dependencies):
+    """A channel YouTube hides from yt-dlp's default clients still downloads.
+
+    Reproduces the 2026-09-07 report: `visionos` answers UNPLAYABLE for the
+    whole channel, so the first attempt fails with YouTube's misleading "This
+    video is not available" - and `android`, in the fallback list, serves it.
+    """
+    instance = mock_download_dependencies["mock_ydl_instance"]
+    instance.download.side_effect = [
+        yt_dlp.utils.DownloadError("ERROR: [youtube] X: This video is not available"),
+        None,
+    ]
+
+    assert download_video("http://example.com/video", "/tmp/videos") is None
+
+    calls = mock_download_dependencies["mock_ydl"].call_args_list
+    assert len(calls) == 2
+    assert _player_clients_of(calls[0]) is None
+    assert _player_clients_of(calls[1]) == list(FALLBACK_PLAYER_CLIENTS)
+    # The default has to stay in the list, or the retry would trade a 1080p
+    # stream for whatever the older clients happen to offer.
+    assert "default" in FALLBACK_PLAYER_CLIENTS
+
+
+def test_download_video_retry_restarts_the_progress_bar(mock_download_dependencies):
+    """The failed attempt's high-water mark must not stick.
+
+    DownloadProgress only ever moves forward, so a retry that starts from zero
+    bytes needs an explicit reset or the bar reports the abandoned attempt.
+    """
+    instance = mock_download_dependencies["mock_ydl_instance"]
+    instance.download.side_effect = [Exception("boom"), None]
+    statuses = []
+
+    download_video("http://example.com/video", "/tmp/videos",
+                   progress_hook=lambda d: statuses.append(d.get("status")))
+
+    assert PROGRESS_RESET_STATUS in statuses
+    # It has to land between the two attempts' plans, not after them.
+    assert statuses.index(PROGRESS_RESET_STATUS) < len(statuses) - 1
+    assert statuses[statuses.index(PROGRESS_RESET_STATUS) + 1] == PROGRESS_PLAN_STATUS
 
 # Test for get_recent_sabbaths
 @pytest.mark.parametrize("n, expected_sabbaths", [

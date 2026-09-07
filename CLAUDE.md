@@ -58,7 +58,7 @@ The build bundles config defaults from `config/`, platform binaries for mpv/ffmp
 
 - **Backend (`app/backend/`)**: Core business logic
   - `config.py`: Configuration management, platform-specific executable paths, `__version__` constant, app data dir (`CONFIG_DIR`); copies default configs from `config/` into the OS-specific app data dir on first run. `load_settings()` returns `(settings, warnings)`.
-  - `downloader.py`: yt-dlp-based downloads (find videos, quality/format selection, delete old videos, protected videos, recent Sabbath dates). Includes fuzzy date matching — handles off-by-one-day titles and formatting variants, and surfaces a confirmation prompt to the user.
+  - `downloader.py`: yt-dlp-based downloads (find videos, quality/format selection, delete old videos, protected videos, recent Sabbath dates). Includes fuzzy date matching — handles off-by-one-day titles and formatting variants, and surfaces a confirmation prompt to the user. Hands yt-dlp the bundled JS engine, and retries a failed download once across `FALLBACK_PLAYER_CLIENTS` — see "JavaScript engine (QuickJS)" and "Player-client fallback" below.
   - `auto_downloader.py`: Automatic download scheduling for upcoming Sabbath (Fri/Sat).
   - `updater.py`: Talks to the GitHub releases API (`ThorSPB/YoutubeWeekly`). Provides current-release check, paginated listing of available versions for rollback (`MIN_ROLLBACK_VERSION = 1.1.0`), and asset downloader with progress callback. Per-platform asset selection (`win64`, `macos-arm64`, `macos-intel`, `linux-x64`).
   - `update_bootstrap.py`: External process that swaps a downloaded ZIP over the running install. Uses `WaitForSingleObject` on Windows for reliable exit detection; renames the running bootstrap before extraction so it can update itself.
@@ -145,6 +145,77 @@ Videos with "diaspora" in the title are excluded. The fuzzy matcher (since v1.1.
 - Per-channel download with quality selector. Supported qualities (since v1.1.0): `max`, `4K`, `2K`, `1080p`, `720p`, `480p`, `mp3`.
 - Date selector: "automat" (next Saturday) or a specific past Sabbath date (last 30 Saturdays).
 - "Others" section: paste any YouTube URL to download into the `other/` folder. Tracked separately in telemetry (since v1.2.0) so quality selection there is metered independently.
+
+### JavaScript engine (QuickJS)
+
+**Downloads need a JavaScript engine.** yt-dlp solves YouTube's signature /
+`n` challenge by *running YouTube's own JavaScript*, and some videos release no
+adaptive-format URL until that is solved. Adaptive formats are the only route
+above 360p (the sole surviving muxed format is 360p), so with no engine those
+videos fail outright — with YouTube's flatly wrong "This video is not
+available", because yt-dlp then falls through its clients until `visionos`
+refuses.
+
+**The discriminator is YouTube's "Made for Kids" flag.** Measured 2026-09-07
+across 22 videos, no engine vs `quickjs`: **8/8 kids videos failed, 0/10
+non-kids failed**; every failure returned 1080p with an engine. The kids set
+spanned five unrelated channels plus Cocomelon and Baby Shark, 2021 and 2026
+uploads, all `People & Blogs`, `isFamilySafe: true` in *both* groups. That is
+why nothing else had ever failed: an ordinary video is served by `visionos`
+with clean URLs and never needs JavaScript at all.
+
+- **`app/tools/quickjs_<platform>/qjs[.exe]`**, fetched per platform in
+  `release.yml` (pinned by `QUICKJS_TAG`) from **quickjs-ng**, which publishes
+  static single-file builds of ~2 MB. `app/tools` is bundled wholesale by the
+  spec, so no spec change is needed for a new binary under it.
+- `config.py::get_default_executable_paths()` resolves it into
+  **`js_runtime_path`**, recomputed on every `load_settings()` like
+  `mpv_path`/`ffmpeg_path` — a saved path breaks when the app is moved or
+  updated.
+- A missing engine adds **no user-facing warning**, unlike mpv and ffmpeg: it
+  is not exposed in Settings so there is nothing to configure, a source
+  checkout legitimately has none, and an empty path just means "let yt-dlp
+  auto-detect". `download_video` logs which engine it used instead, so a build
+  that shipped without the binary — or lost its executable bit in packaging —
+  is visible in the log rather than silently back to 360p-or-nothing.
+- ⚠ **`js_runtimes` must be a dict** of `{runtime: {config}}`. A list raises a
+  bare `ValueError` from `YoutubeDL.__init__` that names no option.
+- ⚠ **yt-dlp auto-enables only `deno`.** Node can sit on `PATH` completely
+  unused, which is what makes "no JS runtime" so easy to misdiagnose.
+
+Dead ends, all measured — don't re-walk them:
+- **PO tokens are irrelevant here.** `bgutil-ytdlp-pot-provider` minted a real
+  GVS token and nothing changed.
+- **Forcing `player_client=web` is SABR-only regardless**, so every web-client
+  probe looks like a dead end and sends you chasing SABR (yt-dlp #12482).
+- Upgrading yt-dlp changes nothing (stable 2026.08.19 == nightly 2026.08.30).
+- The `android` client alone "works" but serves only muxed **360p** — a trap
+  that looks like a fix.
+
+### Player-client fallback
+
+A safety net *behind* the JavaScript engine above, not a substitute for it: it
+rescues a challenge-blocked video at 360p, where the engine gets 1080p. It
+earns its place for the case where the bundled binary is missing or broken, and
+for whatever YouTube does next.
+
+`download_video` treats a failure as inconclusive: it retries **once** with
+`extractor_args={"youtube": {"player_client": FALLBACK_PLAYER_CLIENTS}}`.
+Notes on that list and the retry:
+- `default` stays **first** in it. Without it the retry would trade a perfectly
+  good 1080p stream for whatever the older clients happen to offer.
+- The retry is deliberately **not** gated on the error text. YouTube's messages
+  churn, and a fix that pattern-matches them is a fix that quietly stops
+  working. The cost of an unnecessary retry is a few HTTP requests on a path
+  that was already failing.
+- The error handed back to the caller is the **first** attempt's, not the
+  retry's: the retry ran against clients the user never chose, and its message
+  would only mislead.
+- A retry restarts from zero bytes, so it emits `PROGRESS_RESET_STATUS` first.
+  `DownloadProgress` only ever moves forward, so without that the bar would sit
+  at the abandoned attempt's high-water mark.
+- Every download in the app (channels, "Others", link overrides) goes through
+  `download_video`, so all of them get this.
 
 ### Video Overrides
 A safety valve for the case the date matcher structurally cannot handle: the

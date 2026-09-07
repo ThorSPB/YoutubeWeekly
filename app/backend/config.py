@@ -65,24 +65,29 @@ def get_default_executable_paths():
         base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) # This should be YoutubeWeekly/app
     mpv_path = ""
     ffmpeg_path = ""
+    js_runtime_path = ""
     warnings = []
 
     system = platform.system()
     if system == "Windows":
         mpv_candidate = os.path.join(base_path, "player", "win64", "mpv-x86_64-20250715-git-fdbea0f", "mpv.exe")
         ffmpeg_candidate = os.path.join(base_path, "tools", "ffmpeg_win64", "ffmpeg-7.1.1-essentials_build", "bin", "ffmpeg.exe")
+        qjs_candidate = os.path.join(base_path, "tools", "quickjs_win64", "qjs.exe")
     elif system == "Darwin": # macOS
         if platform.machine() == "arm64":
             mpv_candidate = os.path.join(base_path, "player", "macOS", "arm64", "mpv-arm64-0.40.0", "mpv.app", "Contents", "MacOS", "mpv")
             ffmpeg_candidate = os.path.join(base_path, "tools", "ffmpeg_macOS", "ffmpeg711arm", "ffmpeg")
+            qjs_candidate = os.path.join(base_path, "tools", "quickjs_macOS", "arm64", "qjs")
         else: # Intel
             mpv_candidate = os.path.join(base_path, "player", "macOS", "intel", "mpv-0.39.0", "mpv.app", "Contents", "MacOS", "mpv")
             ffmpeg_candidate = os.path.join(base_path, "tools", "ffmpeg_macOS", "ffmpeg71intel", "ffmpeg")
+            qjs_candidate = os.path.join(base_path, "tools", "quickjs_macOS", "intel", "qjs")
     elif system == "Linux":
         # Assuming a 64-bit Linux for now, adjust if 32-bit is needed
         mpv_candidate = "/usr/bin/mpv" # Placeholder, as you didn't provide a bundled Linux mpv
         ffmpeg_candidate = os.path.join(base_path, "tools", "ffmpeg_linux", "ffmpeg-7.0.2-amd64-static", "ffmpeg")
-    
+        qjs_candidate = os.path.join(base_path, "tools", "quickjs_linux", "qjs")
+
     # Validate mpv path
     if os.path.exists(mpv_candidate) and os.access(mpv_candidate, os.X_OK):
         mpv_path = mpv_candidate
@@ -95,7 +100,19 @@ def get_default_executable_paths():
     else:
         warnings.append(f"Warning: Default FFmpeg executable not found or not executable at '{ffmpeg_candidate}'. Please configure FFmpeg path in settings.")
 
-    return {"mpv_path": mpv_path, "ffmpeg_path": ffmpeg_path}, warnings
+    # Validate the bundled JavaScript engine - see "JavaScript engine (QuickJS)"
+    # in CLAUDE.md for why downloads need one at all.
+    #
+    # Deliberately adds NO warning when it is missing, unlike mpv and ffmpeg:
+    # there is nothing for the user to configure (it is not exposed in
+    # Settings), a source checkout legitimately has no bundled binary, and
+    # yt-dlp falls back to auto-detecting a system runtime. An empty path here
+    # means "let yt-dlp decide", which is exactly the old behaviour.
+    if qjs_candidate and os.path.exists(qjs_candidate) and os.access(qjs_candidate, os.X_OK):
+        js_runtime_path = qjs_candidate
+
+    return {"mpv_path": mpv_path, "ffmpeg_path": ffmpeg_path,
+            "js_runtime_path": js_runtime_path}, warnings
 
 def _merge_missing_defaults(settings):
     """Add keys present in bundled defaults but missing from the user's settings.
@@ -110,7 +127,7 @@ def _merge_missing_defaults(settings):
 
     # Window geometries and bundled exe paths are runtime-only; defaults file
     # may carry stale values for them, so skip those keys during migration.
-    skip_keys = {"mpv_path", "ffmpeg_path"}
+    skip_keys = {"mpv_path", "ffmpeg_path", "js_runtime_path"}
 
     added = False
     for key, default_value in defaults.items():
@@ -142,6 +159,7 @@ def load_settings():
     # Always use the bundled executables
     settings["mpv_path"] = default_paths["mpv_path"]
     settings["ffmpeg_path"] = default_paths["ffmpeg_path"]
+    settings["js_runtime_path"] = default_paths["js_runtime_path"]
 
     # Ensure video_folder is an absolute path relative to the executable
     video_folder = settings.get("video_folder", "data/videos")
