@@ -329,6 +329,7 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False,
 
     settings, _ = load_settings()
     ffmpeg_path = settings.get("ffmpeg_path")
+    js_runtime_path = settings.get("js_runtime_path")
 
     ydl_opts = {
         'outtmpl': os.path.join(video_folder, '%(title)s.%(ext)s'),
@@ -340,6 +341,22 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False,
         'ffmpeg_location': ffmpeg_path,
         'progress_hooks': [progress_hook] if progress_hook else []
     }
+
+    if js_runtime_path:
+        # Hand yt-dlp the bundled QuickJS so it can run YouTube's own
+        # JavaScript and solve the signature / "n" challenge. Some videos -
+        # every "Made for Kids" one - release no adaptive-format URL until that
+        # is solved, and without an engine every format above 360p is dropped.
+        #
+        # Must be a DICT of {runtime: {config}}. A list raises a bare
+        # ValueError from YoutubeDL.__init__ that names no option.
+        ydl_opts['js_runtimes'] = {'quickjs': {'path': js_runtime_path}}
+        logging.info(f"JS engine: {js_runtime_path}")
+    else:
+        # Logged rather than warned so a build that shipped without the binary
+        # (or lost its executable bit in packaging) is visible in the log
+        # instead of silently reverting to 360p-or-nothing on those videos.
+        logging.info("JS engine: none bundled; leaving yt-dlp to auto-detect")
 
     if quality_pref == "mp3":
         ydl_opts['postprocessors'].append({

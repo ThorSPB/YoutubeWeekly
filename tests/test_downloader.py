@@ -261,6 +261,51 @@ def test_download_video_download_failure(mock_download_dependencies):
     assert error == "Download error"
 
 
+def _opts_of(call):
+    args, _ = call
+    return args[0]
+
+
+def test_download_video_hands_yt_dlp_the_bundled_js_engine(mock_download_dependencies, monkeypatch):
+    """Without a JS engine yt-dlp cannot solve YouTube's signature / "n"
+    challenge, and every format above 360p is dropped on the videos that
+    demand it (all "Made for Kids" ones)."""
+    monkeypatch.setattr("app.backend.downloader.load_settings",
+                        lambda: ({"ffmpeg_path": "/usr/bin/ffmpeg",
+                                  "js_runtime_path": "/bundled/qjs"}, []))
+    download_video("http://example.com/video", "/tmp/videos")
+    opts = _opts_of(mock_download_dependencies["mock_ydl"].call_args_list[0])
+    # A DICT of {runtime: {config}}. Passing a list raises a bare ValueError
+    # from YoutubeDL.__init__ that names no option, so the shape is the test.
+    assert opts["js_runtimes"] == {"quickjs": {"path": "/bundled/qjs"}}
+
+
+def test_download_video_omits_js_runtimes_when_none_is_bundled(mock_download_dependencies, monkeypatch):
+    """An absent engine must leave yt-dlp to auto-detect a system one rather
+    than being pinned to a path that does not exist."""
+    monkeypatch.setattr("app.backend.downloader.load_settings",
+                        lambda: ({"ffmpeg_path": "/usr/bin/ffmpeg",
+                                  "js_runtime_path": ""}, []))
+    download_video("http://example.com/video", "/tmp/videos")
+    opts = _opts_of(mock_download_dependencies["mock_ydl"].call_args_list[0])
+    assert "js_runtimes" not in opts
+
+
+def test_download_video_js_engine_survives_the_player_client_retry(mock_download_dependencies, monkeypatch):
+    """The retry must not drop it - a fallback that cannot solve the challenge
+    is exactly the 360p-or-nothing case this engine exists to avoid."""
+    monkeypatch.setattr("app.backend.downloader.load_settings",
+                        lambda: ({"ffmpeg_path": "/usr/bin/ffmpeg",
+                                  "js_runtime_path": "/bundled/qjs"}, []))
+    instance = mock_download_dependencies["mock_ydl_instance"]
+    instance.download.side_effect = [Exception("boom"), None]
+    download_video("http://example.com/video", "/tmp/videos")
+    calls = mock_download_dependencies["mock_ydl"].call_args_list
+    assert len(calls) == 2
+    for call in calls:
+        assert _opts_of(call)["js_runtimes"] == {"quickjs": {"path": "/bundled/qjs"}}
+
+
 def _player_clients_of(call):
     """The player_client list a YoutubeDL(...) call was given, if any."""
     args, _ = call
