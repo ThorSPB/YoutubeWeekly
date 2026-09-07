@@ -1,6 +1,7 @@
 # Istoric versiuni
 
 ## Unreleased
+- **Linkuri pe care YouTube refuză să le ofere**: Unele videoclipuri eșuau cu „Acest videoclip nu este disponibil”, deși se redau perfect în browser — YouTube pur și simplu nu le oferă aplicației pe calea obișnuită. Aplicația încearcă acum și pe o a doua cale înainte de a renunța, așa că acele linkuri se descarcă
 - **Pictogramă mai clară**: Pictograma era livrată într-o singură dimensiune mică, așa că Windows o întindea pentru scurtături, foldere și notificări — arăta neclară aproape peste tot. Acum include toate dimensiunile cerute de Windows, până la 256px
 
 ## v1.6.0

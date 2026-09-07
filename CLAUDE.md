@@ -58,7 +58,7 @@ The build bundles config defaults from `config/`, platform binaries for mpv/ffmp
 
 - **Backend (`app/backend/`)**: Core business logic
   - `config.py`: Configuration management, platform-specific executable paths, `__version__` constant, app data dir (`CONFIG_DIR`); copies default configs from `config/` into the OS-specific app data dir on first run. `load_settings()` returns `(settings, warnings)`.
-  - `downloader.py`: yt-dlp-based downloads (find videos, quality/format selection, delete old videos, protected videos, recent Sabbath dates). Includes fuzzy date matching — handles off-by-one-day titles and formatting variants, and surfaces a confirmation prompt to the user.
+  - `downloader.py`: yt-dlp-based downloads (find videos, quality/format selection, delete old videos, protected videos, recent Sabbath dates). Includes fuzzy date matching — handles off-by-one-day titles and formatting variants, and surfaces a confirmation prompt to the user. A failed download is retried once across `FALLBACK_PLAYER_CLIENTS` — see "Player-client fallback" below.
   - `auto_downloader.py`: Automatic download scheduling for upcoming Sabbath (Fri/Sat).
   - `updater.py`: Talks to the GitHub releases API (`ThorSPB/YoutubeWeekly`). Provides current-release check, paginated listing of available versions for rollback (`MIN_ROLLBACK_VERSION = 1.1.0`), and asset downloader with progress callback. Per-platform asset selection (`win64`, `macos-arm64`, `macos-intel`, `linux-x64`).
   - `update_bootstrap.py`: External process that swaps a downloaded ZIP over the running install. Uses `WaitForSingleObject` on Windows for reliable exit detection; renames the running bootstrap before extraction so it can update itself.
@@ -145,6 +145,39 @@ Videos with "diaspora" in the title are excluded. The fuzzy matcher (since v1.1.
 - Per-channel download with quality selector. Supported qualities (since v1.1.0): `max`, `4K`, `2K`, `1080p`, `720p`, `480p`, `mp3`.
 - Date selector: "automat" (next Saturday) or a specific past Sabbath date (last 30 Saturdays).
 - "Others" section: paste any YouTube URL to download into the `other/` folder. Tracked separately in telemetry (since v1.2.0) so quality selection there is metered independently.
+
+### Player-client fallback
+
+yt-dlp asks YouTube for a video through one of several *InnerTube clients*, and
+YouTube does not answer them all the same way. Whole channels come back
+`UNPLAYABLE` on the clients yt-dlp reaches for by default while an older client
+still hands over a real stream — the user sees YouTube's own, flatly wrong
+"This video is not available".
+
+Measured 2026-09-07 on `Mount Moriah Sabbath School` (reported from the church
+PC, feedback #17): `visionos` and `android_vr` refuse **every** video on that
+channel, `web`/`ios`/`mweb`/`tv` return a player response with the stream URLs
+withheld (SABR-only, or a GVS PO Token demanded), and `android` serves it —
+though only as the legacy muxed 360p format 18. yt-dlp itself, at any version,
+reports the video as unavailable.
+
+So `download_video` treats a failure as inconclusive: it retries **once** with
+`extractor_args={"youtube": {"player_client": FALLBACK_PLAYER_CLIENTS}}`.
+Notes on that list and the retry:
+- `default` stays **first** in it. Without it the retry would trade a perfectly
+  good 1080p stream for whatever the older clients happen to offer.
+- The retry is deliberately **not** gated on the error text. YouTube's messages
+  churn, and a fix that pattern-matches them is a fix that quietly stops
+  working. The cost of an unnecessary retry is a few HTTP requests on a path
+  that was already failing.
+- The error handed back to the caller is the **first** attempt's, not the
+  retry's: the retry ran against clients the user never chose, and its message
+  would only mislead.
+- A retry restarts from zero bytes, so it emits `PROGRESS_RESET_STATUS` first.
+  `DownloadProgress` only ever moves forward, so without that the bar would sit
+  at the abandoned attempt's high-water mark.
+- Every download in the app (channels, "Others", link overrides) goes through
+  `download_video`, so all of them get this.
 
 ### Video Overrides
 A safety valve for the case the date matcher structurally cannot handle: the

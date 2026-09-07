@@ -20,7 +20,9 @@ from app.backend.downloader import (
     list_playable_files, folder_snapshot, newly_downloaded_file,
     purge_partial_downloads,
 )
-from app.backend.progress import DownloadProgress, PROGRESS_PLAN_STATUS
+from app.backend.progress import (
+    DownloadProgress, PROGRESS_PLAN_STATUS, PROGRESS_RESET_STATUS,
+)
 from app.backend.changelog import load_changelog, notes_since, all_notes
 from datetime import datetime
 from app.frontend.settings_window import SettingsWindow
@@ -1091,6 +1093,12 @@ class YoutubeWeeklyGUI(tk.Tk):
             style="Thin.Horizontal.TProgressbar"))
 
         status = d.get("status")
+
+        if status == PROGRESS_RESET_STATUS:
+            # A retry is starting from zero bytes; so must the bar.
+            self._progress.reset()
+            self._render_progress(0.0)
+            return
 
         if status == PROGRESS_PLAN_STATUS:
             self._progress.plan(streams=d.get("streams"),

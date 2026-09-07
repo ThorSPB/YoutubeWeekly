@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- **Links YouTube Refuses to Hand Over**: Some videos failed with "This video is not available" even though they play perfectly in a browser — YouTube just won't serve them to the app the usual way. The app now asks a second way before giving up, so those links download
 - **Sharper App Icon**: The icon shipped at a single small size, so Windows stretched it for shortcuts, folder views and notifications — it looked fuzzy nearly everywhere. It now includes every size Windows asks for, up to 256px
 
 ## v1.6.0
