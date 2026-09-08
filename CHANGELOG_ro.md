@@ -1,6 +1,6 @@
 # Istoric versiuni
 
-## Unreleased
+## v1.6.2
 - **Videoclipurile pentru copii se descarcă din nou, la calitate maximă**: Videoclipurile marcate „Made for Kids” pe YouTube — cântece pentru copii, istorioare biblice și altele — eșuau toate cu „Acest videoclip nu este disponibil”, deși se redau perfect în browser. YouTube le reține dacă aplicația nu poate rula o bucată din codul lui, așa că aplicația include acum micul motor necesar. Se descarcă din nou la 1080p complet, iar un link care tot refuză este reîncercat pe a doua cale înainte ca aplicația să renunțe
 
 ## v1.6.1

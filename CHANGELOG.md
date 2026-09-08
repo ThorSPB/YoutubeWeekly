@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.6.2
 - **Children's Videos Download Again, in Full Quality**: Videos marked "Made for Kids" on YouTube — children's songs, Bible stories and the like — all failed with "This video is not available", even though they play perfectly in a browser. YouTube holds those back unless the app can run a piece of its code, so the app now carries the small engine needed. They download at full 1080p again, and any link that still refuses is retried a second way before the app gives up
 
 ## v1.6.1
