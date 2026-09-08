@@ -18,23 +18,50 @@ PARTIAL_SUFFIXES = (".part", ".ytdl", ".temp")
 
 
 def js_solver_status():
-    """Whether yt-dlp can actually reach its vendored JS challenge solver.
+    """Which of the two challenge-solver scripts yt-dlp can actually reach.
 
-    A JS engine is only half of what solving YouTube's signature / "n"
-    challenge takes: yt-dlp runs a *vendored JavaScript file* through it, and
-    `vendor.load_script()` returns None **silently** when that file is missing.
-    v1.6.1 shipped exactly that way - QuickJS bundled and configured, no script
-    to run - and the only symptom was YouTube's misleading "This video is not
-    available", indistinguishable from having no engine at all.
+    Solving YouTube's signature / "n" challenge takes a JS engine **and two
+    scripts** - a `lib` and a `core` - which live in different packages:
 
-    Reaches into yt-dlp internals on purpose, and never raises: this is
-    diagnostics, and a yt-dlp refactor must not be able to break a download.
+      * `core` - vendored inside yt_dlp, and also in yt_dlp_ejs
+      * `lib`  - **only** in the separate `yt_dlp_ejs` package. yt_dlp vendors
+                 bun/deno *import shims*, not a usable `yt.solver.lib.js`.
+
+    So a QuickJS build needs `yt_dlp_ejs`; `requirements.txt` pulls it via
+    `yt-dlp[default]` and the spec collects its data files. Scripts are data
+    files, a freeze drops them unless collected, and a missing one is reported
+    by returning None - **silently**. Missing either fails identically, with
+    YouTube's misleading "This video is not available".
+
+    Calls exactly what yt-dlp calls (`yt_dlp_ejs.yt.solver.lib()` / `.core()`)
+    rather than probing for files. Two earlier versions of this function
+    checked the wrong thing and logged "ok" while the download still fell back
+    to 360p - once by checking only the core, once by looking for the files on
+    disk when yt-dlp needs the *module* to be importable.
+
+    Never raises: this is diagnostics, and a yt-dlp refactor must not be able
+    to break a download.
     """
     try:
-        from yt_dlp.extractor.youtube.jsc._builtin import vendor
-        return "ok" if vendor.load_script("yt.solver.core.js") else "MISSING"
+        import yt_dlp_ejs.yt.solver as solver
+
+        def loads(fn):
+            try:
+                return bool(fn())
+            except Exception:
+                return False
+
+        lib, core = loads(solver.lib), loads(solver.core)
+        if lib and core:
+            return "ok"
+        return f"INCOMPLETE (lib={'ok' if lib else 'MISSING'}, core={'ok' if core else 'MISSING'})"
+    except ImportError:
+        # No yt_dlp_ejs at all: the lib script is unreachable, so the challenge
+        # cannot be solved no matter what the vendored core offers.
+        return "INCOMPLETE (yt_dlp_ejs not installed - lib script unreachable)"
     except Exception as e:
         return f"unknown ({type(e).__name__})"
+
 
 # YouTube does not serve every video to every InnerTube client, and yt-dlp only
 # asks the handful it defaults to. Some channels answer UNPLAYABLE - which

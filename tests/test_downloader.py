@@ -602,16 +602,30 @@ def test_js_solver_status_never_raises(monkeypatch):
     assert dl.js_solver_status().startswith(("unknown", "MISSING", "ok"))
 
 
-def test_spec_bundles_yt_dlp_data_files():
-    """The actual fix for the v1.6.1 packaging bug.
+def test_spec_bundles_both_solver_script_packages():
+    """The fix for the v1.6.1 and v1.6.2 packaging bugs.
 
     Asserted against the spec text because the failure mode is invisible from
     source and only appears in a frozen build - so there is nothing else here
-    to pin it to.
+    to pin it to. Both packages are needed: yt_dlp carries the `core` script,
+    yt_dlp_ejs the `lib` one, and either missing fails identically.
     """
     import os
     spec = os.path.join(os.path.dirname(__file__), "..", "youtubeweekly.spec")
     with open(spec, encoding="utf-8") as f:
         content = f.read()
-    assert "collect_data_files" in content
     assert 'collect_data_files("yt_dlp")' in content
+    assert 'collect_data_files("yt_dlp_ejs")' in content
+
+
+def test_requirements_pull_the_solver_lib_package():
+    """`yt.solver.lib.js` exists ONLY in yt_dlp_ejs, and plain `yt-dlp` does
+    not depend on it - which is why v1.6.2 shipped unable to solve anything.
+    `[default]` is the extra that pulls it, and yt-dlp pins the exact version it
+    validates at runtime, so yt-dlp must own that pin rather than us."""
+    import os
+    req = os.path.join(os.path.dirname(__file__), "..", "requirements.txt")
+    with open(req, encoding="utf-8") as f:
+        lines = [l for l in f if not l.strip().startswith("#")]
+    assert any("yt-dlp[default]" in l for l in lines), \
+        "requirements.txt must use yt-dlp[default] so yt_dlp_ejs comes with it"

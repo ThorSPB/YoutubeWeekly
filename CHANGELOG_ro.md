@@ -1,5 +1,8 @@
 # Istoric versiuni
 
+## Unreleased
+- **Videoclipurile pentru copii vin acum chiar la calitate maximă**: Versiunea anterioară spunea că a rezolvat asta, dar nu o făcuse — videoclipurile veneau tot la 360p, nu la calitatea aleasă. Verificarea YouTube are nevoie de două bucăți de cod, iar aplicația includea doar una. Acum le include pe amândouă, așa că se descarcă la 1080p complet
+
 ## v1.6.2
 - **Videoclipurile pentru copii se descarcă din nou, la calitate maximă**: Videoclipurile marcate „Made for Kids” pe YouTube — cântece pentru copii, istorioare biblice și altele — eșuau toate cu „Acest videoclip nu este disponibil”, deși se redau perfect în browser. YouTube le reține dacă aplicația nu poate rula o bucată din codul lui, așa că aplicația include acum micul motor necesar. Se descarcă din nou la 1080p complet, iar un link care tot refuză este reîncercat pe a doua cale înainte ca aplicația să renunțe
 
