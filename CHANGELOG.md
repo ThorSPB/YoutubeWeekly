@@ -2,6 +2,8 @@
 
 ## Unreleased
 - **Children's Videos Download Again, in Full Quality**: Videos marked "Made for Kids" on YouTube — children's songs, Bible stories and the like — all failed with "This video is not available", even though they play perfectly in a browser. YouTube holds those back unless the app can run a piece of its code, so the app now carries the small engine needed. They download at full 1080p again, and any link that still refuses is retried a second way before the app gives up
+
+## v1.6.1
 - **Sharper App Icon**: The icon shipped at a single small size, so Windows stretched it for shortcuts, folder views and notifications — it looked fuzzy nearly everywhere. It now includes every size Windows asks for, up to 256px
 
 ## v1.6.0

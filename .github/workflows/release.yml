@@ -131,6 +131,30 @@ jobs:
           echo "create_tag=$CREATE_TAG" >> $GITHUB_OUTPUT
           echo "Final Version: $VERSION"
 
+      # Notes are written under `## Unreleased` as work lands, and changelog.py
+      # ignores non-version headings - so without this the release ships with
+      # every note still unreleased and users see none. v1.6.1 shipped that way.
+      # Must run BEFORE the tag: the tag is what the build jobs check out.
+      - name: Stamp the changelog with this version
+        id: stamp
+        if: steps.get_version.outputs.create_tag == 'true' && steps.get_version.outputs.version != ''
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Exit 1 means "nothing to stamp" (no Unreleased section, or empty) -
+          # a normal outcome, not a failure, so don't fail the release for it.
+          if python3 scripts/stamp_changelog.py "$VERSION"; then
+            git add CHANGELOG.md CHANGELOG_ro.md
+            # [skip ci] or this push to main starts a second Release run.
+            git commit -m "chore: stamp changelog for v$VERSION [skip ci]"
+            git push origin HEAD:${{ github.event.repository.default_branch }}
+            echo "Stamped and pushed."
+          else
+            echo "Nothing to stamp; leaving the changelog alone."
+          fi
+
       - name: Create and Push Tag
         if: steps.get_version.outputs.create_tag == 'true' && steps.get_version.outputs.version != ''
         run: |
@@ -194,6 +218,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          # The tag, not the triggering commit: the changelog is stamped in
+          # create-release, so only the tag carries the shipped release notes.
+          ref: v${{ needs.create-release.outputs.version }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -269,6 +297,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          # The tag, not the triggering commit: the changelog is stamped in
+          # create-release, so only the tag carries the shipped release notes.
+          ref: v${{ needs.create-release.outputs.version }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -346,6 +378,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          # The tag, not the triggering commit: the changelog is stamped in
+          # create-release, so only the tag carries the shipped release notes.
+          ref: v${{ needs.create-release.outputs.version }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -423,6 +459,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          # The tag, not the triggering commit: the changelog is stamped in
+          # create-release, so only the tag carries the shipped release notes.
+          ref: v${{ needs.create-release.outputs.version }}
 
       - name: Set up Python
         uses: actions/setup-python@v6

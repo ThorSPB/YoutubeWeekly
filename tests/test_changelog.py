@@ -5,6 +5,7 @@ so showing them only the newest section hides a whole release.
 """
 
 import os
+import sys
 
 import pytest
 
@@ -187,3 +188,76 @@ def test_shipped_changelogs_agree_on_structure():
 
     for a, b in zip(en, ro):
         assert bullets(a) == bullets(b), f"bullet count differs for {a['version']}"
+
+
+# --- stamping a release ---------------------------------------------------
+#
+# Notes are written under `## Unreleased`, and this module deliberately ignores
+# non-version headings - so a release that never stamps them shows its users no
+# notes at all. That is what v1.6.1 did. `scripts/stamp_changelog.py` runs in
+# release.yml before the tag is cut.
+
+import subprocess
+
+STAMP = os.path.join(os.path.dirname(__file__), "..", "scripts", "stamp_changelog.py")
+
+
+def _write_pair(tmp_path, en, ro):
+    (tmp_path / "CHANGELOG.md").write_text(en, encoding="utf-8")
+    (tmp_path / "CHANGELOG_ro.md").write_text(ro, encoding="utf-8")
+
+
+def _run(tmp_path, *args):
+    return subprocess.run([sys.executable, STAMP, *args, "--root", str(tmp_path)],
+                          capture_output=True, text=True)
+
+
+def test_stamp_renames_unreleased_to_the_version(tmp_path):
+    body = "# Changelog\n\n## Unreleased\n- did a thing\n\n## v1.0.0\n- first\n"
+    _write_pair(tmp_path, body, body)
+    r = _run(tmp_path, "1.6.2")
+    assert r.returncode == 0, r.stderr
+    for name in ("CHANGELOG.md", "CHANGELOG_ro.md"):
+        out = (tmp_path / name).read_text(encoding="utf-8")
+        assert "## v1.6.2\n- did a thing" in out
+        assert "Unreleased" not in out
+        # Everything else is untouched.
+        assert "## v1.0.0\n- first" in out
+
+
+def test_stamp_is_idempotent(tmp_path):
+    """A re-run must not stamp a second time - it would swallow the next
+    version's notes into an already-released section."""
+    body = "# Changelog\n\n## Unreleased\n- new\n\n## v1.6.2\n- old\n"
+    _write_pair(tmp_path, body, body)
+    r = _run(tmp_path, "1.6.2")
+    assert r.returncode == 1, "nothing should have changed"
+    assert "already has" in r.stdout
+    assert (tmp_path / "CHANGELOG.md").read_text(encoding="utf-8") == body
+
+
+def test_stamp_leaves_an_empty_unreleased_alone(tmp_path):
+    """A release with no user-visible change must not get a bare heading."""
+    body = "# Changelog\n\n## Unreleased\n\n## v1.0.0\n- first\n"
+    _write_pair(tmp_path, body, body)
+    r = _run(tmp_path, "1.6.2")
+    assert r.returncode == 1
+    assert "empty" in r.stdout
+    assert (tmp_path / "CHANGELOG.md").read_text(encoding="utf-8") == body
+
+
+def test_stamp_rejects_a_bad_version(tmp_path):
+    _write_pair(tmp_path, "## Unreleased\n- x\n", "## Unreleased\n- x\n")
+    assert _run(tmp_path, "not-a-version").returncode == 2
+
+
+def test_stamped_notes_become_visible_to_users(tmp_path):
+    """The whole point: before stamping, notes_since() returns nothing."""
+    body = "# Changelog\n\n## Unreleased\n- the fix\n\n## v1.6.1\n- older\n"
+    _write_pair(tmp_path, body, body)
+    before = cl.notes_since(body, "1.6.1", "1.6.2")
+    assert "the fix" not in (before or ""), "unreleased notes must be invisible"
+    _run(tmp_path, "1.6.2")
+    after = cl.notes_since((tmp_path / "CHANGELOG.md").read_text(encoding="utf-8"),
+                           "1.6.1", "1.6.2")
+    assert "the fix" in after
