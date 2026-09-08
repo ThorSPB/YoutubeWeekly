@@ -565,3 +565,53 @@ def test_folder_snapshot_and_newly_downloaded_file(tmp_path):
     assert newly_downloaded_file(str(tmp_path), before) == "big.mp4"
     assert newly_downloaded_file(str(tmp_path), folder_snapshot(str(tmp_path))) is None
     assert folder_snapshot(str(tmp_path / "nope")) == set()
+
+
+# --- the JS challenge solver's vendored script ----------------------------
+#
+# A JS engine alone is not enough. yt-dlp runs a vendored JavaScript file
+# through it, that file is the only non-Python asset in the yt_dlp package, and
+# a plain PyInstaller freeze drops it. v1.6.1 shipped that way - engine present
+# and configured, no script to run - and failed identically to having no engine.
+
+def test_vendored_js_solver_script_is_reachable():
+    """Guards against a yt-dlp upgrade renaming or moving the script.
+
+    Cannot catch the packaging bug itself (from source the file is always
+    there) - `youtubeweekly.spec` collecting yt_dlp's data files is what does
+    that, and the test below pins it. What this catches is the *other* way the
+    same silent failure returns: the filename changing under us, since
+    `load_script` reports absence by returning None.
+    """
+    from app.backend.downloader import js_solver_status
+    assert js_solver_status() == "ok"
+
+
+def test_js_solver_status_never_raises(monkeypatch):
+    """It is diagnostics on a private yt-dlp path - a refactor there must not
+    be able to break a download."""
+    import app.backend.downloader as dl
+
+    def boom(*a, **k):
+        raise RuntimeError("yt-dlp moved things")
+
+    monkeypatch.setattr("importlib.import_module", boom, raising=False)
+    # Force the import inside the function to fail however it can.
+    monkeypatch.setitem(__import__("sys").modules,
+                        "yt_dlp.extractor.youtube.jsc._builtin", None)
+    assert dl.js_solver_status().startswith(("unknown", "MISSING", "ok"))
+
+
+def test_spec_bundles_yt_dlp_data_files():
+    """The actual fix for the v1.6.1 packaging bug.
+
+    Asserted against the spec text because the failure mode is invisible from
+    source and only appears in a frozen build - so there is nothing else here
+    to pin it to.
+    """
+    import os
+    spec = os.path.join(os.path.dirname(__file__), "..", "youtubeweekly.spec")
+    with open(spec, encoding="utf-8") as f:
+        content = f.read()
+    assert "collect_data_files" in content
+    assert 'collect_data_files("yt_dlp")' in content

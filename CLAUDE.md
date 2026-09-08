@@ -181,6 +181,22 @@ with clean URLs and never needs JavaScript at all.
   auto-detect". `download_video` logs which engine it used instead, so a build
   that shipped without the binary — or lost its executable bit in packaging —
   is visible in the log rather than silently back to 360p-or-nothing.
+- ⚠⚠ **An engine is only HALF of it.** yt-dlp runs a *vendored JavaScript file*
+  (`yt.solver.core.js`) through the engine, and those `.js` files are the only
+  non-Python assets in the whole `yt_dlp` package — so a plain PyInstaller
+  freeze **drops them**, and `vendor.load_script()` reports that by returning
+  `None` **silently**. The result is indistinguishable from having no engine at
+  all: the same misleading "This video is not available".
+  **This is what shipped in v1.6.1** — QuickJS bundled, resolved and logged,
+  with no script to run. `youtubeweekly.spec` now calls
+  `collect_data_files("yt_dlp")`; `tests/test_downloader.py` pins that, and
+  `download_video` logs `solver script: ok|MISSING` beside the engine path.
+- ⚠ **Verify a packaging fix in a frozen build, never from source.** From a
+  checkout those `.js` files are always present, so the bug is invisible — the
+  first fix passed every source-level test and still shipped broken. Freeze a
+  probe (`PyInstaller` a script that calls `vendor.load_script` and downloads a
+  kids video) or parse the shipped exe's PYZ; see
+  [[feedback_verify_which_build_operator_tested]].
 - ⚠ **`js_runtimes` must be a dict** of `{runtime: {config}}`. A list raises a
   bare `ValueError` from `YoutubeDL.__init__` that names no option.
 - ⚠ **yt-dlp auto-enables only `deno`.** Node can sit on `PATH` completely
