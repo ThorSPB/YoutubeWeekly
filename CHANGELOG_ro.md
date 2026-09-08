@@ -1,6 +1,6 @@
 # Istoric versiuni
 
-## Unreleased
+## v1.6.3
 - **Videoclipurile pentru copii vin acum chiar la calitate maximă**: Versiunea anterioară spunea că a rezolvat asta, dar nu o făcuse — videoclipurile veneau tot la 360p, nu la calitatea aleasă. Verificarea YouTube are nevoie de două bucăți de cod, iar aplicația includea doar una. Acum le include pe amândouă, așa că se descarcă la 1080p complet
 
 ## v1.6.2

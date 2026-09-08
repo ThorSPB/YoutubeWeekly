@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.6.3
 - **Children's Videos Really Do Arrive in Full Quality Now**: The last release said it had fixed this and hadn't — those videos still came down at 360p instead of the quality you picked. YouTube's check needs two pieces of code to run, and the app was only carrying one. It now ships both, so they download at the full 1080p
 
 ## v1.6.2
