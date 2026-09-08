@@ -1,5 +1,9 @@
 pytest
-yt-dlp>=2026.08.19
+# [default] is what pulls yt-dlp-ejs, which carries the challenge solver's
+# `lib` script. yt-dlp pins it exactly (yt-dlp-ejs==0.8.0) and validates the
+# version at runtime, so letting yt-dlp own that pin is what keeps the two in
+# step. Plain `yt-dlp` omits it and the app cannot solve the challenge at all.
+yt-dlp[default]>=2026.08.19
 plyer
 pyobjus; sys_platform == "darwin"
 screeninfo

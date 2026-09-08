@@ -16,9 +16,14 @@ from PyInstaller.utils.hooks import collect_data_files
 # download dies with YouTube's misleading "This video is not available".
 #
 # That is exactly what shipped in v1.6.1: the bundled QuickJS was present and
-# correctly configured, but had no script to run. Verified by freezing a probe
-# both ways - without this call the solver is missing and the download fails;
-# with it the script loads and the same video comes down at 1080p.
+# correctly configured, but had no script to run.
+#
+# It takes TWO scripts, a `lib` and a `core`, and they come from different
+# packages. yt_dlp vendors only the core plus bun/deno *import shims* - there is
+# no vendored `yt.solver.lib.js`, so a QuickJS build needs `yt_dlp_ejs`, whose
+# lib.min.js/core.min.js are likewise data files a freeze would drop. Missing
+# either one fails identically and silently. v1.6.2 shipped with the core but no
+# lib, which is why it still came down at 360p.
 
 # The .ico carries every size Windows asks for (16-256) and the .icns is the
 # high-resolution master both are generated from - see scripts/build_icon.py.
@@ -38,7 +43,7 @@ a = Analysis(
         ("app/tools", "app/tools"),
         ("app/frontend/assets", "assets"),
         ("docs", "docs"),
-    ] + collect_data_files("yt_dlp"),
+    ] + collect_data_files("yt_dlp") + collect_data_files("yt_dlp_ejs"),
     hiddenimports=[
         "yt_dlp",
         "plyer",

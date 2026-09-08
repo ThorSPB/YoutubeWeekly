@@ -181,22 +181,34 @@ with clean URLs and never needs JavaScript at all.
   auto-detect". `download_video` logs which engine it used instead, so a build
   that shipped without the binary — or lost its executable bit in packaging —
   is visible in the log rather than silently back to 360p-or-nothing.
-- ⚠⚠ **An engine is only HALF of it.** yt-dlp runs a *vendored JavaScript file*
-  (`yt.solver.core.js`) through the engine, and those `.js` files are the only
-  non-Python assets in the whole `yt_dlp` package — so a plain PyInstaller
-  freeze **drops them**, and `vendor.load_script()` reports that by returning
-  `None` **silently**. The result is indistinguishable from having no engine at
-  all: the same misleading "This video is not available".
-  **This is what shipped in v1.6.1** — QuickJS bundled, resolved and logged,
-  with no script to run. `youtubeweekly.spec` now calls
-  `collect_data_files("yt_dlp")`; `tests/test_downloader.py` pins that, and
-  `download_video` logs `solver script: ok|MISSING` beside the engine path.
+- ⚠⚠ **An engine is only HALF of it, and the other half is TWO scripts from
+  TWO packages.** yt-dlp runs a `lib` script and a `core` script through the
+  engine. `yt_dlp` vendors the **core** plus bun/deno *import shims* — there is
+  **no vendored `yt.solver.lib.js`**, so the `lib` script exists only in the
+  separate **`yt_dlp_ejs`** package, which plain `yt-dlp` does not depend on.
+  All of them are **data files**, which a freeze drops unless collected, and a
+  missing one is reported by returning `None` **silently**. Missing either fails
+  identically to having no engine: "This video is not available".
+  So `requirements.txt` uses **`yt-dlp[default]`** (that extra pins
+  `yt-dlp-ejs==0.8.0`, and yt-dlp validates the version at runtime — let yt-dlp
+  own that pin) and the spec collects **both** `collect_data_files("yt_dlp")`
+  and `collect_data_files("yt_dlp_ejs")`.
+  **v1.6.1 shipped with neither script; v1.6.2 shipped with the core but no
+  lib** — engine bundled, resolved and logged, still 360p.
+- ⚠⚠ **Beware yt-dlp's solver CACHE when verifying.** `~/.cache/yt-dlp/challenge-solver/`
+  is a script source in its own right, ranked above the vendored one. A single
+  earlier run with `--remote-components ejs:github` populates it, and every
+  later test then passes for the wrong reason — which is exactly how v1.6.2 was
+  "proved" working. **Always pass an isolated, empty `cachedir`** (and move the
+  user cache aside) when testing the solver, or you are measuring your own
+  earlier experiment.
 - ⚠ **Verify a packaging fix in a frozen build, never from source.** From a
-  checkout those `.js` files are always present, so the bug is invisible — the
-  first fix passed every source-level test and still shipped broken. Freeze a
-  probe (`PyInstaller` a script that calls `vendor.load_script` and downloads a
-  kids video) or parse the shipped exe's PYZ; see
-  [[feedback_verify_which_build_operator_tested]].
+  checkout those data files are always present, so the bug is invisible — two
+  fixes passed every source-level test and still shipped broken. Freeze a probe
+  (`PyInstaller` a script that calls `js_solver_status()` and downloads a kids
+  video, with an isolated cachedir) and build a **negative control** too: a
+  positive-only result cannot tell a real fix from a contaminated environment.
+  See [[feedback_verify_which_build_operator_tested]].
 - ⚠ **`js_runtimes` must be a dict** of `{runtime: {config}}`. A list raises a
   bare `ValueError` from `YoutubeDL.__init__` that names no option.
 - ⚠ **yt-dlp auto-enables only `deno`.** Node can sit on `PATH` completely
