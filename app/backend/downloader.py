@@ -16,6 +16,26 @@ from tkinter import messagebox
 # "is it already downloaded?" check.
 PARTIAL_SUFFIXES = (".part", ".ytdl", ".temp")
 
+
+def js_solver_status():
+    """Whether yt-dlp can actually reach its vendored JS challenge solver.
+
+    A JS engine is only half of what solving YouTube's signature / "n"
+    challenge takes: yt-dlp runs a *vendored JavaScript file* through it, and
+    `vendor.load_script()` returns None **silently** when that file is missing.
+    v1.6.1 shipped exactly that way - QuickJS bundled and configured, no script
+    to run - and the only symptom was YouTube's misleading "This video is not
+    available", indistinguishable from having no engine at all.
+
+    Reaches into yt-dlp internals on purpose, and never raises: this is
+    diagnostics, and a yt-dlp refactor must not be able to break a download.
+    """
+    try:
+        from yt_dlp.extractor.youtube.jsc._builtin import vendor
+        return "ok" if vendor.load_script("yt.solver.core.js") else "MISSING"
+    except Exception as e:
+        return f"unknown ({type(e).__name__})"
+
 # YouTube does not serve every video to every InnerTube client, and yt-dlp only
 # asks the handful it defaults to. Some channels answer UNPLAYABLE - which
 # surfaces as the flatly wrong "This video is not available" - on exactly those
@@ -351,7 +371,9 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False,
         # Must be a DICT of {runtime: {config}}. A list raises a bare
         # ValueError from YoutubeDL.__init__ that names no option.
         ydl_opts['js_runtimes'] = {'quickjs': {'path': js_runtime_path}}
-        logging.info(f"JS engine: {js_runtime_path}")
+        # Both halves, on one line: a path without a solver script is useless,
+        # and that combination is precisely what v1.6.1 shipped.
+        logging.info(f"JS engine: {js_runtime_path} | solver script: {js_solver_status()}")
     else:
         # Logged rather than warned so a build that shipped without the binary
         # (or lost its executable bit in packaging) is visible in the log
