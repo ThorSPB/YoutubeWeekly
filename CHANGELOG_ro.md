@@ -1,5 +1,9 @@
 # Istoric versiuni
 
+## Unreleased
+- **Linkurile de playlist și Mix descarcă un singur videoclip**: Un link către un Mix sau un playlist YouTube — ce distribuie des aplicația YouTube — lăsa aplicația blocată la „Se începe descărcarea...” la nesfârșit, pentru că încerca să aducă toată lista, iar un Mix nu se termină niciodată. Acum descarcă doar videoclipul din care a fost distribuit linkul (sau primul videoclip din playlist)
+- **Buton de anulare**: Cât timp rulează o descărcare, butonul ei Descarcă devine un buton roșu Anulează. Apăsarea lui oprește descărcarea și șterge fișierele începute, așa că nu rămâne nimic descărcat pe jumătate și nimic nu e oferit spre redare
+
 ## v1.6.3
 - **Videoclipurile pentru copii vin acum chiar la calitate maximă**: Versiunea anterioară spunea că a rezolvat asta, dar nu o făcuse — videoclipurile veneau tot la 360p, nu la calitatea aleasă. Verificarea YouTube are nevoie de două bucăți de cod, iar aplicația includea doar una. Acum le include pe amândouă, așa că se descarcă la 1080p complet
 

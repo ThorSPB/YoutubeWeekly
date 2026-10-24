@@ -46,7 +46,7 @@ from urllib.parse import unquote, urlparse
 import requests
 
 from app.backend.config import CONFIG_DIR
-from app.backend.progress import PROGRESS_PLAN_STATUS
+from app.backend.progress import PROGRESS_PLAN_STATUS, DOWNLOAD_CANCELLED
 
 # thorsp.net, not thorsp.ddns.net: same nginx, same certificate (the cert
 # covers thorsp.ddns.net, thorsp.net and www.thorsp.net), but a real domain
@@ -303,10 +303,13 @@ def _filename_for(override, response):
     return _safe_filename(os.path.basename(urlparse(override["target"]).path))
 
 
-def download_hosted_file(override, folder, progress_hook=None, quality_pref=None):
+def download_hosted_file(override, folder, progress_hook=None, quality_pref=None,
+                         cancel_event=None):
     """Stream a Pi-hosted video into ``folder``.
 
-    Returns None on success or an error string, matching ``download_video``.
+    Returns None on success or an error string, matching ``download_video`` -
+    including ``DOWNLOAD_CANCELLED`` once ``cancel_event`` is set, after
+    deleting the ``.part`` file.
     Emits yt-dlp-shaped progress events so the GUI's existing hook works
     unchanged. Downloads to a ``.part`` file and renames on completion, so an
     interrupted transfer can never be mistaken for this week's video.
@@ -344,6 +347,8 @@ def download_hosted_file(override, folder, progress_hook=None, quality_pref=None
 
             with open(part_path, "wb") as f:
                 for chunk in r.iter_content(chunk_size=DOWNLOAD_CHUNK):
+                    if cancel_event is not None and cancel_event.is_set():
+                        break
                     if not chunk:
                         continue
                     f.write(chunk)
@@ -358,6 +363,11 @@ def download_hosted_file(override, folder, progress_hook=None, quality_pref=None
                             })
                         except Exception:
                             pass
+
+        if cancel_event is not None and cancel_event.is_set():
+            os.remove(part_path)
+            logging.info(f"[Overrides] Cancelled; removed {part_path}")
+            return DOWNLOAD_CANCELLED
 
         os.replace(part_path, final_path)
         if progress_hook:
@@ -435,7 +445,7 @@ def pick_variant(override, quality_pref="1080p"):
 
 
 def download_override(override, folder, quality_pref="1080p", progress_hook=None,
-                      protect=False):
+                      protect=False, cancel_event=None):
     """Download whatever an override points at. Returns None or an error string."""
     # Imported here: downloader imports tkinter, and this module is also used by
     # headless code paths and tests.
@@ -443,11 +453,11 @@ def download_override(override, folder, quality_pref="1080p", progress_hook=None
 
     if override.get("kind") == "file":
         return download_hosted_file(override, folder, progress_hook=progress_hook,
-                                    quality_pref=quality_pref)
+                                    quality_pref=quality_pref, cancel_event=cancel_event)
 
     return download_video(
         override["target"], folder, quality_pref,
-        protect=protect, progress_hook=progress_hook,
+        protect=protect, progress_hook=progress_hook, cancel_event=cancel_event,
     )
 
 

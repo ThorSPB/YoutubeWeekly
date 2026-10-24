@@ -568,3 +568,23 @@ def test_hosted_download_without_a_quality_uses_the_plain_target(tmp_path, monke
     o = make_override(kind="file", target="https://pi/base.mp4", filename="base.mp4")
     download_hosted_file(o, str(tmp_path))
     assert mod.get.call_args[0][0] == "https://pi/base.mp4"
+
+
+def test_hosted_file_cancel_stops_and_removes_the_part_file(tmp_path, monkeypatch):
+    import threading
+    from app.backend.progress import DOWNLOAD_CANCELLED
+    cancel = threading.Event()
+    mod = MagicMock()
+    mod.get.return_value = FakeStream([b"a" * 100, b"b" * 100, b"c" * 100], headers={"Content-Length": "300"})
+    monkeypatch.setattr(overrides, "requests", mod)
+
+    def hook(e):
+        # The user presses Cancel once the first chunk has arrived.
+        if e["status"] == "downloading":
+            cancel.set()
+
+    o = make_override(kind="file", filename="v.mp4")
+    error = download_hosted_file(o, str(tmp_path), progress_hook=hook, cancel_event=cancel)
+
+    assert error == DOWNLOAD_CANCELLED
+    assert list(tmp_path.iterdir()) == [], "neither the .part nor a finished file may be left"

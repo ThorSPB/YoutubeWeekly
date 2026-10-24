@@ -103,6 +103,11 @@ class YoutubeWeeklyGUI(tk.Tk):
         self._feedback_win = None
         self._progress = DownloadProgress()
         self.downloading_channels = set()
+        # Row key ("others" or a channel name) -> {"cancel": Event, "thread": Thread}
+        # for each manual download that can still be cancelled.
+        self._active_downloads = {}
+        # Row key -> thread of a cancelled download that may still be winding down.
+        self._abandoned_downloads = {}
         self.tray_icon = None
         self._pending_update = None  # (version, url, assets) if update available
 
@@ -120,6 +125,8 @@ class YoutubeWeeklyGUI(tk.Tk):
         style.configure(".", font=default_font)
         style.configure("TButton", background="#444444", foreground="white")
         style.map("TButton", background=[("active", "#555555")])
+        style.configure("Cancel.TButton", background="#7a2e2e", foreground="white")
+        style.map("Cancel.TButton", background=[("active", "#933838")])
         style.configure("Dark.TFrame", background="#2b2b2b")
 
         self.title(t("app_title"))
@@ -622,9 +629,9 @@ class YoutubeWeeklyGUI(tk.Tk):
         """Update all static UI text after a language change."""
         self.title(t("app_title"))
         self._header_label.config(text=t("app_title"))
-        for name, btn in self._channel_download_btns.items():
-            btn.config(text=t("btn_download_channel", name=name))
-        self._others_btn.config(text=t("btn_download"))
+        for name in self._channel_download_btns:
+            self._show_row_downloading(name, name in self._active_downloads)
+        self._show_row_downloading("others", "others" in self._active_downloads)
         self._quit_btn.config(text=t("btn_quit"))
         # Refresh status message if it's the default ready message
         old_placeholder = self._others_placeholder
@@ -727,50 +734,113 @@ class YoutubeWeeklyGUI(tk.Tk):
             except Exception as e:
                 print(f"Error sending notification: {e}")
 
+    # --- Manual downloads: one per row, each cancellable ----------------------
+    # While a row downloads, its Download button is a Cancel button. Cancelling
+    # frees the row at once; the download's thread stops at its next progress
+    # event and deletes the files it wrote (download_video does that). A new
+    # download on the same row first waits for that cleanup to finish.
+
+    def _row_button(self, key):
+        if key == "others":
+            return self._others_btn
+        return self._channel_download_btns.get(key)
+
+    def _show_row_downloading(self, key, downloading):
+        btn = self._row_button(key)
+        if btn is None:
+            return
+        if downloading:
+            text = t("btn_cancel_others") if key == "others" else t("btn_cancel_channel")
+            btn.config(text=text, style="Cancel.TButton")
+        else:
+            text = t("btn_download") if key == "others" else t("btn_download_channel", name=key)
+            btn.config(text=text, style="TButton")
+
+    def _start_row_download(self, key, target, arg):
+        token = {"cancel": threading.Event()}
+        thread = threading.Thread(target=target, args=(arg, token), daemon=True)
+        token["thread"] = thread
+        self._active_downloads[key] = token
+        self.downloading_channels.add(key)
+        self._show_row_downloading(key, True)
+        thread.start()
+
+    def cancel_download(self, key):
+        """Stop a row's download now (the Cancel button)."""
+        token = self._active_downloads.pop(key, None)
+        if token is None:
+            return
+        token["cancel"].set()
+        self._abandoned_downloads[key] = token.get("thread")
+        self.downloading_channels.discard(key)
+        self._show_row_downloading(key, False)
+        if not self._active_downloads:
+            self._reset_download_progress()
+        self._set_status(t("status_download_stopped"), severity="warning")
+        logging.info(f"Download cancelled by the user: {key}")
+
+    def _wait_for_cancelled_download(self, key, token):
+        """Let a cancelled download of this row finish deleting its files first.
+
+        Returns False if this download was itself cancelled meanwhile.
+        """
+        prev = self._abandoned_downloads.pop(key, None)
+        if prev is not None and prev is not threading.current_thread() and prev.is_alive():
+            self._set_status(t("status_waiting_for_cancelled"))
+            prev.join()
+        return not token["cancel"].is_set()
+
+    def _end_row_download(self, key, token):
+        """Worker exit: free the row, unless a newer download already owns it."""
+        if self._active_downloads.get(key) is token:
+            del self._active_downloads[key]
+        elif key in self._active_downloads:
+            return
+        self.downloading_channels.discard(key)
+        self.after(0, lambda: self._show_row_downloading(key, False))
+
     def download_for_channel(self, channel):
-        """Launch the download check in a background thread."""
+        """Launch the download check in a background thread, or cancel it."""
         channel_name = channel["name"]
+        if channel_name in self._active_downloads:
+            self.cancel_download(channel_name)
+            return
         if channel_name in self.downloading_channels:
             self._set_status(t("status_download_in_progress", name=channel_name))
             return
 
-        self.downloading_channels.add(channel_name)
         self._reset_download_progress()
         try:
-            threading.Thread(
-                target=self._worker_download,
-                args=(channel,),
-                daemon=True
-            ).start()
+            self._start_row_download(channel_name, self._worker_download, channel)
         except Exception as e:
             self._set_status(t("status_error_starting", error=e), severity="error")
-            if channel_name in self.downloading_channels:
-                self.downloading_channels.remove(channel_name)
+            self._active_downloads.pop(channel_name, None)
+            self.downloading_channels.discard(channel_name)
+            self._show_row_downloading(channel_name, False)
 
     def download_others(self):
-        """Download video from the link in the others entry to data/videos/other."""
+        """Download video from the link in the others entry to data/videos/other, or cancel it."""
+        if "others" in self._active_downloads:
+            self.cancel_download("others")
+            return
         if "others" in self.downloading_channels:
             self._set_status(t("status_others_in_progress"))
             return
 
-        self.downloading_channels.add("others")
-        self._reset_download_progress()
         link = self.others_link_var.get().strip()
         if not link:
             self._set_status(t("status_enter_link"), severity="warning")
-            self.downloading_channels.remove("others")
             return
 
+        self._reset_download_progress()
         self._set_status(t("status_starting_download"))
         try:
-            threading.Thread(
-                target=self._worker_download_others,
-                args=(link,),
-                daemon=True
-            ).start()
+            self._start_row_download("others", self._worker_download_others, link)
         except Exception as e:
             self._set_status(t("status_error_starting", error=e), severity="error")
-            self.downloading_channels.remove("others")
+            self._active_downloads.pop("others", None)
+            self.downloading_channels.discard("others")
+            self._show_row_downloading("others", False)
 
     def play_others(self):
         """Play the latest video in the 'other' folder."""
@@ -787,12 +857,19 @@ class YoutubeWeeklyGUI(tk.Tk):
             file_viewer_win = FileViewer(self, self.settings, "Others", other_folder, self._on_file_viewer_close, display_name=t("lbl_others_section"))
             self.open_file_viewers[other_folder] = file_viewer_win
 
-    def _worker_download_others(self, link):
+    def _worker_download_others(self, link, token=None):
+        token = token or {"cancel": threading.Event()}
+        cancel = token["cancel"]
         folder = os.path.join(self.base_path, "other")
         try:
+            if not self._wait_for_cancelled_download("others", token):
+                return
             os.makedirs(folder, exist_ok=True)
             purge_partial_downloads(folder)
-            error = download_video(link, folder, self.others_quality_var.get(), progress_hook=self.progress_hook)
+            error = download_video(link, folder, self.others_quality_var.get(), progress_hook=self.progress_hook,
+                                   cancel_event=cancel)
+            if cancel.is_set():
+                return  # the row and status line already say so
             if error:
                 self._reset_download_progress()
                 self._set_status(t("status_error_downloading", error=error), severity="error")
@@ -806,6 +883,8 @@ class YoutubeWeeklyGUI(tk.Tk):
                 self._send_notification(t("notif_download_complete"), t("notif_finished_link", link=link), on_click=self.bring_to_foreground)
                 send_telemetry_ping(self.settings, 1, session_type="others", others_quality=self.others_quality_var.get())
         except Exception as e:
+            if cancel.is_set():
+                return
             self._reset_download_progress()
             self._set_status(t("status_error_downloading", error=e), severity="error")
             self._send_notification(t("notif_download_error"), t("notif_failed_link", link=link, error=e), on_click=self.bring_to_foreground)
@@ -814,8 +893,7 @@ class YoutubeWeeklyGUI(tk.Tk):
                 t("dlg_download_failed", error=e)
             )
         finally:
-            if "others" in self.downloading_channels:
-                self.downloading_channels.remove("others")
+            self._end_row_download("others", token)
 
     def _worker_play_others(self):
         """Worker function to find and play the latest video in the 'other' folder."""
@@ -843,10 +921,14 @@ class YoutubeWeeklyGUI(tk.Tk):
         else:
             self._set_status(t("status_launched_player", name=others_label))
 
-    def _worker_download(self, channel):
+    def _worker_download(self, channel, token=None):
         """Worker function that runs off the main UI thread."""
         name = channel["name"]
+        token = token or {"cancel": threading.Event()}
+        cancel = token["cancel"]
         try:
+            if not self._wait_for_cancelled_download(name, token):
+                return
             fmt = channel["date_format"]
 
             # Step 1: Find next Saturday's date or use selected date
@@ -874,6 +956,8 @@ class YoutubeWeeklyGUI(tk.Tk):
             if iso_date and iso_date == get_current_sabbath_date():
                 override, _changed = fetch_overrides()
                 override = get_override(channel["folder"], iso_date, override)
+            if cancel.is_set():
+                return
 
             forced = override if (override and override.get("force")) else None
 
@@ -881,6 +965,8 @@ class YoutubeWeeklyGUI(tk.Tk):
             url, match_info = (None, None)
             if not forced:
                 url, match_info = find_video_url(channel["url"], next_sat, date_format=fmt)
+                if cancel.is_set():
+                    return
                 if not url and not override:
                     self._set_status(t("status_no_video_found", name=name, date=next_sat), severity="error")
                     self._send_notification(t("notif_video_not_found"), t("status_no_video_found", name=name, date=next_sat), on_click=self.bring_to_foreground)
@@ -906,6 +992,8 @@ class YoutubeWeeklyGUI(tk.Tk):
 
                 if not result[0]:
                     self._set_status(t("status_download_cancelled", name=name))
+                    return
+                if cancel.is_set():
                     return
 
             # Prepare channel-specific folder
@@ -951,9 +1039,13 @@ class YoutubeWeeklyGUI(tk.Tk):
                     error = download_override(
                         source_override, channel_folder, quality_pref,
                         progress_hook=self.progress_hook, protect=keep_old,
+                        cancel_event=cancel,
                     )
                 else:
-                    error = download_video(url, channel_folder, quality_pref, protect=keep_old, progress_hook=self.progress_hook)
+                    error = download_video(url, channel_folder, quality_pref, protect=keep_old,
+                                           progress_hook=self.progress_hook, cancel_event=cancel)
+                if cancel.is_set():
+                    return  # the row and status line already say so
                 if error:
                     self._reset_download_progress()
                     self._set_status(t("status_error_downloading_name", name=name, error=error), severity="error")
@@ -982,6 +1074,8 @@ class YoutubeWeeklyGUI(tk.Tk):
                     self._send_notification(t("notif_download_complete"), t("notif_finished_downloading", name=name), on_click=self.bring_to_foreground)
                     send_telemetry_ping(self.settings, 1, session_type="manual")
             except Exception as e:
+                if cancel.is_set():
+                    return
                 self._reset_download_progress()
                 self._set_status(t("status_error_downloading_name", name=name, error=e), severity="error")
                 self._send_notification(t("notif_download_error"), t("notif_failed_name", name=name, error=e), on_click=self.bring_to_foreground)
@@ -990,8 +1084,7 @@ class YoutubeWeeklyGUI(tk.Tk):
                     t("dlg_download_failed_name", name=name, error=e)
                 )
         finally:
-            if name in self.downloading_channels:
-                self.downloading_channels.remove(name)
+            self._end_row_download(name, token)
 
     def play_latest(self, channel):
         """Play the latest video for a given channel."""

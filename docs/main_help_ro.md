@@ -19,6 +19,11 @@ Folosește secțiunea de jos pentru a descărca orice videoclip YouTube:
 2. **Selectează calitatea**
 3. **Apasă Descarcă**
 
+Un link către un playlist sau un Mix descarcă doar videoclipul din care a fost distribuit (pentru un playlist fără videoclip în link, primul lui videoclip), niciodată toată lista.
+
+### Anularea unei descărcări
+Cât timp rulează o descărcare, butonul ei **Descarcă** devine un buton roșu **✕ Anulează**. Apasă-l ca să oprești descărcarea: fișierele începute de ea sunt șterse, iar ce era deja în folder rămâne.
+
 ### Redarea videoclipurilor
 - **Butonul ▶**: Redă cel mai recent videoclip de pe canalul respectiv
 - **Butonul 📂**: Deschide folderul pentru a răsfoi toate videoclipurile descărcate

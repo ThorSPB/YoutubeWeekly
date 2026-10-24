@@ -21,7 +21,12 @@ from app.backend.downloader import (
     build_download_plan,
     folder_snapshot,
     newly_downloaded_file,
+    single_video_url,
+    first_playlist_video,
+    remove_files_of_run,
 )
+from app.backend.progress import DOWNLOAD_CANCELLED
+import threading
 
 # Fixture for mocking settings.json
 @pytest.fixture
@@ -629,3 +634,162 @@ def test_requirements_pull_the_solver_lib_package():
         lines = [l for l in f if not l.strip().startswith("#")]
     assert any("yt-dlp[default]" in l for l in lines), \
         "requirements.txt must use yt-dlp[default] so yt_dlp_ejs comes with it"
+
+
+# --- Playlist links download one video -------------------------------------
+# The reported link (2026-10-24): a Mix shared from the YouTube app. yt-dlp took
+# it as a whole, endless playlist and the app sat on "Starting download..."
+
+MIX_LINK = "https://youtube.com/playlist?list=RDqAxfYBTBgDU&playnext=1&si=JQMyiR7prO6LDWDf"
+
+
+@pytest.mark.parametrize("url, expected", [
+    (MIX_LINK, "https://www.youtube.com/watch?v=qAxfYBTBgDU"),
+    ("https://music.youtube.com/playlist?list=RDAMVMqAxfYBTBgDU", "https://www.youtube.com/watch?v=qAxfYBTBgDU"),
+    ("https://www.youtube.com/watch?v=qAxfYBTBgDU&list=RDqAxfYBTBgDU&start_radio=1", "https://www.youtube.com/watch?v=qAxfYBTBgDU"),
+    ("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLabc123&index=4", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
+    ("https://youtu.be/dQw4w9WgXcQ?list=PLabc123", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
+    ("m.youtube.com/playlist?list=RDdQw4w9WgXcQ", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
+])
+def test_single_video_url_picks_the_linked_video(url, expected):
+    assert single_video_url(url) == expected
+
+
+@pytest.mark.parametrize("url", [
+    "https://www.youtube.com/playlist?list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG",
+    "https://music.youtube.com/playlist?list=RDCLAK5uy_kb7EBi6y3GrtJri4_ZH56Ms786DFEimbM",
+])
+def test_single_video_url_playlist_without_a_video_needs_lookup(url):
+    assert single_video_url(url) is None
+
+
+@pytest.mark.parametrize("url", [
+    "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "https://youtu.be/dQw4w9WgXcQ",
+    "https://www.youtube.com/shorts/dQw4w9WgXcQ",
+    "https://vimeo.com/123456?list=RDdQw4w9WgXcQ",
+    "https://notyoutube.com/playlist?list=RDdQw4w9WgXcQ",
+])
+def test_single_video_url_leaves_other_links_alone(url):
+    assert single_video_url(url) == url
+
+
+def test_first_playlist_video_asks_for_one_flat_entry(monkeypatch):
+    ydl = MagicMock()
+    ydl.return_value.__enter__.return_value.extract_info.return_value = {"entries": [{"id": "dQw4w9WgXcQ"}]}
+    monkeypatch.setattr("app.backend.downloader.yt_dlp.YoutubeDL", ydl)
+    assert first_playlist_video("https://www.youtube.com/playlist?list=PLx") == "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    opts = ydl.call_args[0][0]
+    assert opts["playlist_items"] == "1"
+    assert opts["extract_flat"] == "in_playlist"
+
+
+def test_first_playlist_video_unreadable_playlist(monkeypatch):
+    ydl = MagicMock()
+    ydl.return_value.__enter__.return_value.extract_info.side_effect = yt_dlp.utils.DownloadError("private")
+    monkeypatch.setattr("app.backend.downloader.yt_dlp.YoutubeDL", ydl)
+    assert first_playlist_video("https://www.youtube.com/playlist?list=PLx") is None
+
+
+def test_download_video_mix_link_downloads_only_its_video(mock_download_dependencies):
+    error = download_video(MIX_LINK, "/tmp/videos", quality_pref="mp3")
+    assert error is None
+    mock_download_dependencies["mock_ydl_instance"].download.assert_called_once_with(
+        ["https://www.youtube.com/watch?v=qAxfYBTBgDU"])
+    # Named in the Mix's id, so no playlist lookup was needed.
+    mock_download_dependencies["mock_ydl_instance"].extract_info.assert_not_called()
+
+
+def test_download_video_plain_playlist_downloads_its_first_video(mock_download_dependencies):
+    inst = mock_download_dependencies["mock_ydl_instance"]
+    inst.extract_info.return_value = {"entries": [{"id": "dQw4w9WgXcQ"}, {"id": "aaaaaaaaaaa"}]}
+    error = download_video("https://www.youtube.com/playlist?list=PLx0sYbCqOb8", "/tmp/videos")
+    assert error is None
+    inst.download.assert_called_once_with(["https://www.youtube.com/watch?v=dQw4w9WgXcQ"])
+
+
+def test_download_video_unreadable_playlist_is_an_error_not_a_hang(mock_download_dependencies):
+    inst = mock_download_dependencies["mock_ydl_instance"]
+    inst.extract_info.return_value = {"entries": []}
+    error = download_video("https://www.youtube.com/playlist?list=PLempty", "/tmp/videos")
+    assert error and "playlist" in error
+    inst.download.assert_not_called()
+
+
+# --- Cancel ------------------------------------------------------------------
+
+def test_remove_files_of_run_deletes_only_what_this_download_wrote(tmp_path):
+    (tmp_path / "Song.mp3").write_text("finished last week")          # was already here
+    (tmp_path / "Other.f137.mp4.part").write_text("someone else")     # another title
+    before = {p.name for p in tmp_path.iterdir()}
+    for name in ("Song.f137.mp4", "Song.f251.webm.part", "Song.temp.mp4", "Song.f137.mp4.ytdl"):
+        (tmp_path / name).write_text("this run")
+
+    removed = remove_files_of_run(str(tmp_path), {"Song"}, before)
+
+    assert sorted(removed) == ["Song.f137.mp4", "Song.f137.mp4.ytdl", "Song.f251.webm.part", "Song.temp.mp4"]
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["Other.f137.mp4.part", "Song.mp3"]
+
+
+class _CancellingYDL:
+    """Writes what yt-dlp writes mid-download, then the user presses Cancel."""
+    runs = []
+
+    def __init__(self, opts):
+        self.opts = opts
+        _CancellingYDL.runs.append(self)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def prepare_filename(self, info):
+        return os.path.join(self.folder, f"{info['title']}.{info['ext']}")
+
+    def extract_info(self, url, download=False):
+        return {"title": "Song", "ext": "mp4"}
+
+    def download(self, urls):
+        for name in ("Song.f137.mp4", "Song.f251.webm.part"):
+            open(os.path.join(self.folder, name), "w").close()
+        self.cancel.set()
+        for hook in self.opts["progress_hooks"]:
+            hook({"status": "downloading", "info_dict": {"title": "Song", "ext": "webm"},
+                  "filename": os.path.join(self.folder, "Song.f251.webm")})
+
+
+def _cancelling_ydl(monkeypatch, folder, cancel):
+    _CancellingYDL.runs = []
+    _CancellingYDL.folder = str(folder)
+    _CancellingYDL.cancel = cancel
+    monkeypatch.setattr("app.backend.downloader.yt_dlp.YoutubeDL", _CancellingYDL)
+    monkeypatch.setattr("app.backend.downloader.load_settings", lambda: ({"ffmpeg_path": None}, []))
+
+
+def test_cancel_mid_download_cleans_up_and_does_not_retry(tmp_path, monkeypatch):
+    (tmp_path / "Last week.mp4").write_text("keep me")
+    cancel = threading.Event()
+    _cancelling_ydl(monkeypatch, tmp_path, cancel)
+    events = []
+
+    error = download_video("https://www.youtube.com/watch?v=dQw4w9WgXcQ", str(tmp_path),
+                           progress_hook=events.append, cancel_event=cancel)
+
+    assert error == DOWNLOAD_CANCELLED
+    assert len(_CancellingYDL.runs) == 1, "a cancel is not a failure: no player-client retry"
+    assert [p.name for p in tmp_path.iterdir()] == ["Last week.mp4"]
+    assert not [e for e in events if e.get("status") == "downloading"], \
+        "a cancelled download stops feeding the progress bar"
+
+
+def test_cancel_before_start_downloads_nothing(tmp_path, monkeypatch):
+    cancel = threading.Event()
+    cancel.set()
+    _cancelling_ydl(monkeypatch, tmp_path, cancel)
+
+    error = download_video("https://www.youtube.com/watch?v=dQw4w9WgXcQ", str(tmp_path), cancel_event=cancel)
+
+    assert error == DOWNLOAD_CANCELLED
+    assert _CancellingYDL.runs == []
