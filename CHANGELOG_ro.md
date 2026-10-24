@@ -1,6 +1,6 @@
 # Istoric versiuni
 
-## Unreleased
+## v1.7.0
 - **Linkurile de playlist și Mix descarcă un singur videoclip**: Un link către un Mix sau un playlist YouTube — ce distribuie des aplicația YouTube — lăsa aplicația blocată la „Se începe descărcarea...” la nesfârșit, pentru că încerca să aducă toată lista, iar un Mix nu se termină niciodată. Acum descarcă doar videoclipul din care a fost distribuit linkul (sau primul videoclip din playlist)
 - **Buton de anulare**: Cât timp rulează o descărcare, butonul ei Descarcă devine un buton roșu Anulează. Apăsarea lui oprește descărcarea și șterge fișierele începute, așa că nu rămâne nimic descărcat pe jumătate și nimic nu e oferit spre redare
 

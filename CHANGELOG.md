@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.7.0
 - **Playlist and Mix Links Download One Video**: Pasting a link to a YouTube Mix or playlist — what the YouTube app often shares — left the app stuck on "Starting download..." forever, because it tried to fetch the whole list, and a Mix never ends. It now downloads just the video the link was shared from (or a playlist's first video)
 - **Cancel Button**: While a download runs, its Download button turns into a red Cancel button. Pressing it stops the download and deletes the files it had started, so nothing half-downloaded is left behind or offered for playing
 
