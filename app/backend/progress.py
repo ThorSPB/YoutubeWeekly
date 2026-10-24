@@ -28,6 +28,11 @@ PROGRESS_PLAN_STATUS = "ytw_plan"
 # mark instead of tracking the transfer actually in flight.
 PROGRESS_RESET_STATUS = "ytw_reset"
 
+# What download_video / download_override return when the caller's cancel event
+# was set: not an error to show, the user asked for it. Lives here because both
+# downloaders already import this module and neither may import the other.
+DOWNLOAD_CANCELLED = "ytw_cancelled"
+
 
 def streams_implied_by(info):
     """How many streams a download will fetch, judged from its first one.

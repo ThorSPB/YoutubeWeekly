@@ -4,8 +4,9 @@ import time
 import yt_dlp
 import logging
 from datetime import datetime, timedelta
+from urllib.parse import urlparse, parse_qs
 from app.backend.config import load_settings, SETTINGS_FILE, settings_lock
-from app.backend.progress import PROGRESS_PLAN_STATUS, PROGRESS_RESET_STATUS
+from app.backend.progress import PROGRESS_PLAN_STATUS, PROGRESS_RESET_STATUS, DOWNLOAD_CANCELLED
 from tkinter import messagebox
 
 
@@ -130,6 +131,33 @@ def newly_downloaded_file(folder, before):
         return None
     # Largest wins if yt-dlp left intermediate artifacts behind.
     return max(new, key=lambda f: os.path.getsize(os.path.join(folder, f)))
+
+
+def remove_files_of_run(folder, stems, before):
+    """Delete what one download wrote, returning the names removed.
+
+    A cancelled download leaves more than ``.part`` files: a finished video-only
+    stream waiting for its audio, the pre-mp3 ``.webm``, a ``.temp.mp4`` merge.
+    yt-dlp names all of them after the video (``<stem>.f137.mp4.part``,
+    ``<stem>.webm``, ...), so this removes files that start with one of
+    ``stems`` (bare filenames, extension dropped) and were not in the folder
+    before the download began (``before``, from ``folder_snapshot``). Unlike
+    ``purge_partial_downloads`` it never touches another download's files.
+    """
+    removed = []
+    prefixes = tuple(f"{stem}." for stem in stems if stem)
+    if not prefixes:
+        return removed
+    for name in folder_snapshot(folder) - set(before):
+        if name.startswith(prefixes):
+            try:
+                os.remove(os.path.join(folder, name))
+                removed.append(name)
+            except OSError as e:
+                logging.warning(f"Could not remove {name} after cancelling: {e}")
+    if removed:
+        logging.info(f"Cancelled download: removed {', '.join(sorted(removed))}")
+    return removed
 
 
 def build_download_plan(ydl, video_url):
@@ -339,10 +367,98 @@ def delete_old_videos(video_folder, keep_old, keep=None):
             os.remove(os.path.join(video_folder, filename))
             logging.info(f"Deleted old video: {filename}")
 
-def download_video(video_url, video_folder, quality_pref="1080p", protect=False, progress_hook=None):
+YOUTUBE_VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
+
+# A Mix ("radio") playlist is named after the video it was started from:
+# list=RD<id> on YouTube, list=RDAMVM<id> on YouTube Music. Longest prefix first.
+MIX_PREFIXES = ("RDAMVM", "RD")
+
+
+def _is_youtube_host(host):
+    host = (host or "").lower()
+    return host == "youtu.be" or host == "youtube.com" or host.endswith(".youtube.com")
+
+
+def single_video_url(url):
+    """The one video a pasted YouTube link points at, ignoring any playlist.
+
+    Returns a plain watch URL when the link names a video - directly (`v=`,
+    youtu.be/<id>) or through the Mix it belongs to (`list=RD<id>`). Returns
+    None for a playlist link that names no video, and the link unchanged when
+    it carries no playlist (or isn't YouTube), so other sites still work.
+
+    Handed a whole playlist, yt-dlp downloads all of it - and a Mix never
+    ends, so the app sat on "Starting download..." for good.
+    """
+    try:
+        parsed = urlparse(url if "://" in url else "https://" + url)
+    except ValueError:
+        return url
+    if not _is_youtube_host(parsed.hostname):
+        return url
+    query = parse_qs(parsed.query)
+    list_id = (query.get("list") or [""])[0]
+    if not list_id:
+        return url
+
+    video_id = (query.get("v") or [""])[0]
+    if not video_id and parsed.hostname.lower() == "youtu.be":
+        video_id = parsed.path.strip("/").split("/")[0]
+    if not video_id:
+        for prefix in MIX_PREFIXES:
+            if list_id.startswith(prefix) and YOUTUBE_VIDEO_ID.match(list_id[len(prefix):]):
+                video_id = list_id[len(prefix):]
+                break
+    if video_id:
+        return f"https://www.youtube.com/watch?v={video_id}"
+    return None
+
+
+def first_playlist_video(url):
+    """Watch URL of a playlist's first video, or None if it can't be read.
+
+    Asks for a single flat entry, so even an endless Mix answers at once.
+    """
+    opts = {'quiet': True, 'extract_flat': 'in_playlist', 'playlist_items': '1'}
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False) or {}
+    except Exception as e:
+        logging.error(f"Could not read the playlist {url}: {e}")
+        return None
+    for entry in info.get("entries") or []:
+        if entry and entry.get("id"):
+            return f"https://www.youtube.com/watch?v={entry['id']}"
+    return None
+
+
+def download_video(video_url, video_folder, quality_pref="1080p", protect=False, progress_hook=None,
+                   cancel_event=None):
+    """Download one video. Returns None on success or an error string.
+
+    ``cancel_event`` (a ``threading.Event``) stops the download at its next
+    progress event, deletes the files it had written and returns
+    ``DOWNLOAD_CANCELLED``. Setting it while yt-dlp is still extracting takes
+    effect when the transfer would begin: extraction itself can't be interrupted.
+    """
     if not video_folder:
         logging.error("Video folder path is empty or invalid.")
         return
+
+    def cancelled():
+        return cancel_event is not None and cancel_event.is_set()
+
+    # One link, one video: never a whole playlist (see single_video_url).
+    single = single_video_url(video_url)
+    if single is None:
+        single = first_playlist_video(video_url)
+        if single is None:
+            return f"This playlist link has no video the app can download: {video_url}"
+    if single != video_url:
+        logging.info(f"Playlist link {video_url} -> downloading only {single}")
+        video_url = single
+    if cancelled():
+        return DOWNLOAD_CANCELLED
 
     # Check if video already exists in folder by title (simplified check)
     video_title = video_url.split("v=")[-1]
@@ -353,6 +469,9 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False,
             return
 
     os.makedirs(video_folder, exist_ok=True)
+    # What was here before, so a cancel only ever deletes this download's files.
+    before = folder_snapshot(video_folder)
+    stems = set()
 
     # Determine format options based on quality_pref
     quality_formats = {
@@ -386,7 +505,7 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False,
         'merge_output_format': merge_format,
         'postprocessors': [],
         'ffmpeg_location': ffmpeg_path,
-        'progress_hooks': [progress_hook] if progress_hook else []
+        'progress_hooks': [],
     }
 
     if js_runtime_path:
@@ -414,15 +533,42 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False,
             'preferredquality': '192',
         })
 
+    def cancelled_result():
+        remove_files_of_run(video_folder, stems, before)
+        return DOWNLOAD_CANCELLED
+
     def attempt(extra_opts=None):
         """One download run. Returns an error string, or None on success."""
         opts = dict(ydl_opts)
         if extra_opts:
             opts.update(extra_opts)
+        current = {}
+
+        def hook(d):
+            # Note the files' stem before anything else, so the event that
+            # carries the cancel still says what to clean up.
+            info = d.get("info_dict")
+            if info and current.get("ydl"):
+                try:
+                    stems.add(os.path.splitext(os.path.basename(current["ydl"].prepare_filename(info)))[0])
+                except Exception:
+                    pass
+            if cancelled():
+                raise yt_dlp.utils.DownloadCancelled()
+            if progress_hook:
+                progress_hook(d)
+
+        def postprocessor_hook(d):
+            if cancelled():
+                raise yt_dlp.utils.DownloadCancelled()
+
+        opts['progress_hooks'] = [hook]
+        opts['postprocessor_hooks'] = [postprocessor_hook]
         with yt_dlp.YoutubeDL(opts) as ydl:
+            current["ydl"] = ydl
             try:
                 logging.info(f"Downloading: {video_url} with quality {quality_pref}")
-                if progress_hook:
+                if progress_hook and not cancelled():
                     # Tell the UI how much is coming before any bytes move, so
                     # its bar is weighted by real sizes rather than stream count.
                     plan = build_download_plan(ydl, video_url) or {}
@@ -434,7 +580,11 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False,
                         })
                     except Exception:
                         pass
+                if cancelled():
+                    return cancelled_result()
                 ydl.download([video_url])
+                if cancelled():
+                    return cancelled_result()
                 logging.info("Download complete.")
                 if protect:
                     # Get video info to accurately identify the downloaded file
@@ -444,7 +594,15 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False,
                         # This assumes the default outtmpl: '%(title)s.%(ext)s'
                         video_filename = f"{info.get('title')}.{info.get('ext')}"
                         add_protected_video(os.path.basename(video_folder), video_filename)
-            except yt_dlp.utils.DownloadError as e:
+            except Exception as e:
+                if cancelled():
+                    logging.info(f"Download cancelled: {video_url}")
+                    return cancelled_result()
+                if not isinstance(e, yt_dlp.utils.DownloadError):
+                    error_message = str(e)
+                    logging.error(f"An unexpected error occurred during download: {error_message}")
+                    purge_partial_downloads(video_folder)
+                    return error_message
                 error_message = str(e)
                 logging.error(f"Download failed: {error_message}")
                 # A partly-transferred video-only stream is worse than nothing:
@@ -452,16 +610,13 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False,
                 # blocks the retry. Take it with us.
                 purge_partial_downloads(video_folder)
                 return error_message
-            except Exception as e:
-                error_message = str(e)
-                logging.error(f"An unexpected error occurred during download: {error_message}")
-                purge_partial_downloads(video_folder)
-                return error_message
         return None
 
     error = attempt()
-    if error is None:
-        return None
+    if error is None or error == DOWNLOAD_CANCELLED:
+        return error
+    if cancelled():
+        return cancelled_result()
 
     # Ask again through the wider client list before giving up - see
     # FALLBACK_PLAYER_CLIENTS. Nothing has been transferred that survived the
@@ -479,6 +634,8 @@ def download_video(video_url, video_folder, quality_pref="1080p", protect=False,
     if retry_error is None:
         logging.info(f"Succeeded on retry with player clients: {clients}")
         return None
+    if retry_error == DOWNLOAD_CANCELLED:
+        return retry_error
     # Report the first failure: the retry's message is about the fallback
     # clients and would only mislead about what the user actually asked for.
     return error

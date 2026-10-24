@@ -32,6 +32,10 @@ def gui(monkeypatch):
         g.progress_bar = MagicMock()
         g.tray_icon = MagicMock()
         g.downloading_channels = set()
+        g._active_downloads = {}
+        g._abandoned_downloads = {}
+        g._others_btn = MagicMock()
+        g._channel_download_btns = {"Test Channel": MagicMock()}
         g.open_file_viewers = {}
         g._progress = DownloadProgress()
 
@@ -108,7 +112,7 @@ def test_download_for_channel(gui):
         gui.download_for_channel(channel)
         mock_thread.assert_called_once()
         assert mock_thread.call_args.kwargs['target'] == gui._worker_download
-        assert mock_thread.call_args.kwargs['args'] == (channel,)
+        assert mock_thread.call_args.kwargs['args'] == (channel, gui._active_downloads["Test Channel"])
         mock_thread.return_value.start.assert_called_once()
 
 
@@ -134,11 +138,12 @@ def test_download_others_with_link(gui):
     with patch('app.frontend.gui.threading.Thread') as mock_thread:
         gui.download_others()
         gui._set_status.assert_called_with("Starting download...")
-        mock_thread.assert_called_once_with(
-            target=gui._worker_download_others,
-            args=(gui.others_link_var.get(),),
-            daemon=True
-        )
+        mock_thread.assert_called_once()
+        kwargs = mock_thread.call_args.kwargs
+        assert kwargs["target"] == gui._worker_download_others
+        assert kwargs["args"][0] == gui.others_link_var.get()
+        assert kwargs["args"][1] is gui._active_downloads["others"]
+        assert kwargs["daemon"] is True
         mock_thread.return_value.start.assert_called_once()
 
 
@@ -401,3 +406,100 @@ def test_split_file_type_keeps_a_doubled_extension_visible():
     from app.frontend.file_viewer import split_file_type
     # A real file in the wild: "...mp3.mp3"
     assert split_file_type("Cum va fi.mp3.mp3") == ("Cum va fi.mp3", "MP3")
+
+
+# --- Cancel ------------------------------------------------------------------
+# While a row downloads, its Download button is Cancel. Cancelling frees the row
+# at once; the download's own thread deletes what it wrote as it stops.
+
+def _active(gui, key, thread=None):
+    import threading
+    token = {"cancel": threading.Event(), "thread": thread or MagicMock()}
+    gui._active_downloads[key] = token
+    gui.downloading_channels.add(key)
+    return token
+
+
+def test_pressing_the_others_button_while_downloading_cancels(gui):
+    gui._set_status = MagicMock()
+    gui._reset_download_progress = MagicMock()
+    token = _active(gui, "others")
+
+    with patch('app.frontend.gui.threading.Thread') as mock_thread:
+        gui.download_others()
+
+    mock_thread.assert_not_called()
+    assert token["cancel"].is_set()
+    assert "others" not in gui._active_downloads and "others" not in gui.downloading_channels
+    gui._others_btn.config.assert_called_with(text="Download", style="TButton")
+    gui._set_status.assert_called_with("Download cancelled.", severity="warning")
+    assert gui._abandoned_downloads["others"] is token["thread"]
+
+
+def test_pressing_a_channel_button_while_downloading_cancels(gui):
+    gui._set_status = MagicMock()
+    gui._reset_download_progress = MagicMock()
+    token = _active(gui, "Test Channel")
+    gui.download_for_channel({"name": "Test Channel"})
+    assert token["cancel"].is_set()
+    gui._channel_download_btns["Test Channel"].config.assert_called_with(
+        text="Download Test Channel", style="TButton")
+
+
+def test_starting_a_download_turns_the_button_into_cancel(gui):
+    gui._set_status = MagicMock()
+    gui._reset_download_progress = MagicMock()
+    with patch('app.frontend.gui.threading.Thread'):
+        gui.download_others()
+    gui._others_btn.config.assert_called_with(text="✕ Cancel", style="Cancel.TButton")
+
+
+def test_cancelled_worker_reports_nothing(gui, tmp_path):
+    from app.backend.progress import DOWNLOAD_CANCELLED
+    gui.base_path = str(tmp_path)
+    gui._set_status = MagicMock()
+    gui._send_notification = MagicMock()
+    token = _active(gui, "others")
+
+    def cancelled_download(*a, **k):
+        gui.cancel_download("others")          # the user presses Cancel mid-download
+        return DOWNLOAD_CANCELLED
+
+    with patch('app.frontend.gui.download_video', side_effect=cancelled_download), \
+         patch('app.frontend.gui.messagebox.showerror') as showerror:
+        gui._worker_download_others("http://youtube.com/watch?v=test", token)
+
+    showerror.assert_not_called()
+    gui._send_notification.assert_not_called()
+    assert gui._set_status.call_args_list[-1] == call("Download cancelled.", severity="warning")
+
+
+def test_finished_cancelled_worker_leaves_a_newer_download_alone(gui):
+    old = _active(gui, "others")
+    gui.cancel_download("others")
+    new = _active(gui, "others")
+    gui._end_row_download("others", old)
+    assert gui._active_downloads["others"] is new
+    assert "others" in gui.downloading_channels
+
+
+def test_restarted_row_waits_for_the_cancelled_download_to_clean_up(gui):
+    import threading
+    order = []
+    release = threading.Event()
+
+    def old_download():
+        release.wait(5)
+        order.append("old finished cleaning up")
+
+    old_thread = threading.Thread(target=old_download)
+    old_thread.start()
+    gui._abandoned_downloads["others"] = old_thread
+    gui._set_status = MagicMock()
+    token = {"cancel": threading.Event()}
+
+    threading.Timer(0.2, release.set).start()
+    assert gui._wait_for_cancelled_download("others", token) is True
+    order.append("new started")
+    assert order == ["old finished cleaning up", "new started"]
+    gui._set_status.assert_called_with("Waiting for the cancelled download to stop...")

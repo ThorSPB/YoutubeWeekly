@@ -19,6 +19,11 @@ Use the bottom section to download any YouTube video:
 2. **Select quality** 
 3. **Click Download**
 
+A link to a playlist or a Mix downloads just the video it was shared from (for a playlist with no video in the link, its first video), never the whole list.
+
+### Cancelling a Download
+While a download runs, its **Download** button turns into a red **✕ Cancel** button. Press it to stop the download: the files it had started are deleted, and anything that was already in the folder stays.
+
 ### Playing Videos
 - **▶ Button**: Plays the most recent video from that channel
 - **📂 Button**: Opens folder to browse all downloaded videos
