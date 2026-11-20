@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.7.1
 - **Audio Files Open a Player Window**: Playing an audio file, such as a backing track or a song from “Other”, started it with nothing on screen: there was no window to pause or stop it, and closing the app did not stop it either, so it played to the end. Audio files now open a small player window with its controls always showing, on the main screen, never fullscreen and never on the projector, so it does not cover what is being shown
 
 ## v1.7.0

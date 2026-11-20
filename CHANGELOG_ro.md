@@ -1,6 +1,6 @@
 # Istoric versiuni
 
-## Unreleased
+## v1.7.1
 - **Fișierele audio deschid o fereastră de redare**: Redarea unui fișier audio, cum ar fi un negativ sau o cântare din „Altele”, pornea fără nimic pe ecran: nu exista nicio fereastră din care să fie oprit sau pus pe pauză, iar închiderea aplicației nu îl oprea, așa că mergea până la capăt. Acum fișierele audio deschid o fereastră mică de redare, cu butoanele mereu vizibile, pe ecranul principal, niciodată pe tot ecranul și niciodată pe proiector, ca să nu acopere ce se proiectează
 
 ## v1.7.0
