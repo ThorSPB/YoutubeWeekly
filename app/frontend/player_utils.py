@@ -5,13 +5,35 @@ import shlex
 
 from app.i18n import t
 
+#: Files that carry no picture. mpv opens no window for a file without a video
+#: stream (its --force-window defaults to "no"), so an MP3 played with nothing on
+#: screen to pause or close, and closing YoutubeWeekly did not stop it either:
+#: mpv is its own process (church PC, 2026-11-20, a karaoke MP3 from "Other").
+AUDIO_EXTENSIONS = frozenset({".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg", ".opus", ".wma"})
+
+#: The window an audio file gets: small, with mpv's controls always showing.
+AUDIO_WINDOW_ARGS = ("--force-window=immediate", "--geometry=600x140",
+                     "--script-opts=osc-visibility=always")
+
+
+def is_audio_file(file_path):
+    return os.path.splitext(file_path)[1].lower() in AUDIO_EXTENSIONS
+
 
 def build_mpv_args(settings, file_path, script_path=None):
-    """Build the argument list for launching mpv."""
+    """Build the argument list for launching mpv.
+
+    An audio file gets a small window with its controls instead of none, and it
+    stays on the main screen: no fullscreen and no --screen, so a backing track
+    started during a service never covers what the projector shows.
+    """
     mpv_path = settings.get("mpv_path")
     mpv_args = [mpv_path, file_path]
+    audio = is_audio_file(file_path)
+    if audio:
+        mpv_args.extend(AUDIO_WINDOW_ARGS)
 
-    if settings.get("mpv_fullscreen", False) and script_path:
+    if settings.get("mpv_fullscreen", False) and script_path and not audio:
         mpv_args.append(f"--script={script_path}")
 
     if settings.get("mpv_volume") is not None:
@@ -21,7 +43,7 @@ def build_mpv_args(settings, file_path, script_path=None):
     # is represented by anything that isn't a numeric index (empty string from
     # newer saves, legacy "Default", or translated labels like "Implicit").
     mpv_screen = str(settings.get("mpv_screen", "") or "")
-    if mpv_screen.isdigit():
+    if mpv_screen.isdigit() and not audio:
         mpv_args.append(f"--screen={mpv_screen}")
 
     custom_args = settings.get("mpv_custom_args", "").strip()

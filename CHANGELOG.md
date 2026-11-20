@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- **Audio Files Open a Player Window**: Playing an audio file, such as a backing track or a song from “Other”, started it with nothing on screen: there was no window to pause or stop it, and closing the app did not stop it either, so it played to the end. Audio files now open a small player window with its controls always showing, on the main screen, never fullscreen and never on the projector, so it does not cover what is being shown
+
 ## v1.7.0
 - **Playlist and Mix Links Download One Video**: Pasting a link to a YouTube Mix or playlist — what the YouTube app often shares — left the app stuck on "Starting download..." forever, because it tried to fetch the whole list, and a Mix never ends. It now downloads just the video the link was shared from (or a playlist's first video)
 - **Cancel Button**: While a download runs, its Download button turns into a red Cancel button. Pressing it stops the download and deletes the files it had started, so nothing half-downloaded is left behind or offered for playing
