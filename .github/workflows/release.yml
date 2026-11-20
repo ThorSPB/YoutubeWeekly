@@ -373,7 +373,10 @@ jobs:
     name: Build macOS (Intel)
     needs: create-release
     if: needs.create-release.outputs.version != ''
-    runs-on: macos-14
+    # GitHub's x86_64 macOS runner. macos-14 is Apple Silicon (so the "Intel"
+    # zip built there was arm64) and GitHub no longer serves it: v1.7.1's job
+    # failed with "The configuration 'macos-14-arm64-us-default' is not supported".
+    runs-on: macos-15-intel
 
     steps:
       - name: Checkout code

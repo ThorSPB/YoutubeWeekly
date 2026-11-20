@@ -69,6 +69,7 @@ def _sanitize_settings(settings):
         "check_for_updates",
         "auto_install_updates",
         "use_mpv",
+        "mpv_for_audio",
         "mpv_fullscreen",
         "language",
     ]

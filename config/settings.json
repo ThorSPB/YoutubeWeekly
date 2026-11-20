@@ -8,6 +8,7 @@
   "enable_auto_download": true,
   "enable_notifications": true,
   "use_mpv": false,
+  "mpv_for_audio": false,
   "mpv_fullscreen": true,
   "mpv_volume": 100,
   "mpv_screen": "Default",

@@ -11,7 +11,9 @@ from app.i18n import t
 #: mpv is its own process (church PC, 2026-11-20, a karaoke MP3 from "Other").
 AUDIO_EXTENSIONS = frozenset({".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg", ".opus", ".wma"})
 
-#: The window an audio file gets: small, with mpv's controls always showing.
+#: The window an audio file gets when "Also play audio files in MPV" is on: small,
+#: with mpv's controls always showing. Off by default; audio then goes to the
+#: system's default app.
 AUDIO_WINDOW_ARGS = ("--force-window=immediate", "--geometry=600x140",
                      "--script-opts=osc-visibility=always")
 
@@ -59,7 +61,13 @@ def play_video(settings, file_path, script_path=None):
     Returns None on success, or an error message string on failure.
     """
     try:
-        if settings.get("use_mpv", False) and settings.get("mpv_path"):
+        use_mpv = settings.get("use_mpv", False) and settings.get("mpv_path")
+        # Audio goes to the system's default app (Windows Media Player) unless
+        # "Also play audio files in MPV" is on: an mpv window is a source in the
+        # church PC's OBS scene, so it would show on the projector (2026-11-20).
+        if use_mpv and is_audio_file(file_path) and not settings.get("mpv_for_audio", False):
+            use_mpv = False
+        if use_mpv:
             mpv_args = build_mpv_args(settings, file_path, script_path)
 
             process = subprocess.Popen(mpv_args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)

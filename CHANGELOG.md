@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+- **Audio Files Open in Your Default Player Again**: Since the last update, audio files opened in a small MPV window, and with "Use MPV Player" on, MPV windows can end up on the projector. Audio files now always open in your computer's default player, such as Windows Media Player, as they did before. A new setting under Player, "Also play audio files in MPV", sends them to MPV instead
+- **macOS (Intel) Download**: The Intel Mac download is built on an Intel Mac again. It was missing from the last release, and before that it was built for Apple Silicon by mistake
+
 ## v1.7.1
 - **Audio Files Open a Player Window**: Playing an audio file, such as a backing track or a song from “Other”, started it with nothing on screen: there was no window to pause or stop it, and closing the app did not stop it either, so it played to the end. Audio files now open a small player window with its controls always showing, on the main screen, never fullscreen and never on the projector, so it does not cover what is being shown
 

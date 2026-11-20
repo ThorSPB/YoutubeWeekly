@@ -97,3 +97,30 @@ def test_a_video_still_goes_fullscreen_on_its_screen_with_no_forced_window():
     assert "--script=fs.lua" in args and "--screen=1" in args
     assert not any(a.startswith("--force-window") for a in args)
     assert not is_audio_file("x.mp4")
+
+
+# Audio goes to the default app (Windows Media Player) even with "Use MPV Player"
+# on: an mpv window is a source in the church PC's OBS scene and would show on
+# the projector. "Also play audio files in MPV" opts back in (2026-11-20).
+@patch("app.frontend.player_utils.os.startfile", create=True)
+@patch("app.frontend.player_utils.subprocess.call")
+@patch("app.frontend.player_utils.subprocess.Popen")
+def test_audio_opens_in_the_default_app_even_with_mpv_on(mock_popen, mock_call, mock_startfile):
+    assert play_video(dict(CHURCH), "D:/videos/other/NEGATIV.mp3") is None
+    mock_popen.assert_not_called()
+    assert mock_startfile.called or mock_call.called
+
+
+@patch("app.frontend.player_utils.subprocess.Popen")
+def test_audio_goes_to_mpv_with_its_window_when_opted_in(mock_popen):
+    mock_popen.return_value = MagicMock(returncode=0, communicate=MagicMock(return_value=(b"", b"")))
+    assert play_video({**CHURCH, "mpv_for_audio": True}, "D:/videos/other/NEGATIV.mp3") is None
+    args = mock_popen.call_args[0][0]
+    assert "--force-window=immediate" in args
+
+
+@patch("app.frontend.player_utils.subprocess.Popen")
+def test_video_still_plays_in_mpv(mock_popen):
+    mock_popen.return_value = MagicMock(returncode=0, communicate=MagicMock(return_value=(b"", b"")))
+    assert play_video(dict(CHURCH), "D:/videos/colecta/22 august 2026.mp4") is None
+    mock_popen.assert_called_once()
