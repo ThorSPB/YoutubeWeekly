@@ -1,5 +1,9 @@
 # Istoric versiuni
 
+## Unreleased
+- **Fișierele audio se deschid din nou în playerul implicit**: De la ultima actualizare, fișierele audio se deschideau într-o fereastră mică MPV, iar cu „Folosește MPV Player” activat ferestrele MPV pot ajunge pe proiector. Acum fișierele audio se deschid mereu în playerul implicit al calculatorului, de exemplu Windows Media Player, ca înainte. O setare nouă la Player, „Redă și fișierele audio în MPV”, le trimite în schimb la MPV
+- **Descărcarea pentru macOS (Intel)**: Versiunea pentru Mac cu Intel este construită din nou pe un Mac cu Intel. Lipsea din versiunea anterioară, iar înainte era construită din greșeală pentru Apple Silicon
+
 ## v1.7.1
 - **Fișierele audio deschid o fereastră de redare**: Redarea unui fișier audio, cum ar fi un negativ sau o cântare din „Altele”, pornea fără nimic pe ecran: nu exista nicio fereastră din care să fie oprit sau pus pe pauză, iar închiderea aplicației nu îl oprea, așa că mergea până la capăt. Acum fișierele audio deschid o fereastră mică de redare, cu butoanele mereu vizibile, pe ecranul principal, niciodată pe tot ecranul și niciodată pe proiector, ca să nu acopere ce se proiectează
 

@@ -194,6 +194,22 @@ class SettingsWindow(tk.Toplevel):
         self.mpv_path_entry = ttk.Entry(self.mpv_path_frame, textvariable=self.mpv_path_var, width=20, style="Dark.TEntry")
         self.mpv_path_entry.pack(side="left", expand=True, fill="x", padx=5)
         ttk.Button(self.mpv_path_frame, text=t("btn_browse"), command=self.browse_mpv_path, style="Dark.TButton").pack(side="left")
+        mpv_audio_frame = ttk.Frame(player_frame, style="Dark.TFrame")
+        mpv_audio_frame.pack(anchor="w", pady=(0, 5), padx=10)
+        self.mpv_audio_tree_label = tk.Label(
+            mpv_audio_frame, text="  └ ", fg="#666666", bg="#2b2b2b", font=("Consolas", 10)
+        )
+        self.mpv_audio_tree_label.pack(side="left")
+        self.mpv_for_audio_var = tk.BooleanVar(value=self.settings.get("mpv_for_audio", False))
+        self.mpv_audio_check = ttk.Checkbutton(
+            mpv_audio_frame, text="", variable=self.mpv_for_audio_var, style="Dark.TCheckbutton"
+        )
+        self.mpv_audio_check.pack(side="left")
+        self.mpv_audio_label = tk.Label(
+            mpv_audio_frame, text=t("chk_mpv_audio"), fg="white", bg="#2b2b2b"
+        )
+        self.mpv_audio_label.pack(side="left")
+        self.mpv_audio_label.bind("<Button-1>", lambda e: self.mpv_audio_check.invoke() if str(self.mpv_audio_check.cget("state")) != "disabled" else None)
         self.toggle_mpv_path_entry()
 
         self.mpv_fullscreen_var = tk.BooleanVar(value=self.settings.get("mpv_fullscreen", False))
@@ -272,8 +288,14 @@ class SettingsWindow(tk.Toplevel):
             self.ffmpeg_path_var.set(file_selected)
 
     def toggle_mpv_path_entry(self):
-        state = "normal" if self.use_mpv_var.get() else "disabled"
+        enabled = self.use_mpv_var.get()
+        state = "normal" if enabled else "disabled"
         self.mpv_path_entry.config(state=state)
+        # "Also play audio files in MPV" only means something while MPV is used.
+        if hasattr(self, "mpv_audio_check"):
+            self.mpv_audio_check.config(state=state)
+            self.mpv_audio_label.config(fg="white" if enabled else "#555555")
+            self.mpv_audio_tree_label.config(fg="#666666" if enabled else "#444444")
 
     def _update_auto_install_state(self):
         """Grey out auto-install checkbox when check-for-updates is disabled."""
@@ -326,6 +348,7 @@ class SettingsWindow(tk.Toplevel):
         self.settings["auto_install_updates"] = self.auto_install_updates_var.get()
         self.settings["send_telemetry"] = self.send_telemetry_var.get()
         self.settings["use_mpv"] = self.use_mpv_var.get()
+        self.settings["mpv_for_audio"] = self.mpv_for_audio_var.get()
         self.settings["mpv_path"] = self.mpv_path_var.get()
         self.settings["ffmpeg_path"] = self.ffmpeg_path_var.get()
         self.settings["mpv_fullscreen"] = self.mpv_fullscreen_var.get()
@@ -363,6 +386,8 @@ class SettingsWindow(tk.Toplevel):
         self.check_for_updates_var.set(self.settings.get("check_for_updates", True))
         self.auto_install_updates_var.set(self.settings.get("auto_install_updates", False))
         self.use_mpv_var.set(self.settings.get("use_mpv", False))
+        self.mpv_for_audio_var.set(self.settings.get("mpv_for_audio", False))
+        self.toggle_mpv_path_entry()
         self.mpv_path_var.set(self.settings.get("mpv_path", ""))
         self.mpv_fullscreen_var.set(self.settings.get("mpv_fullscreen", False))
         self.mpv_volume_var.set(self.settings.get("mpv_volume", 100))
