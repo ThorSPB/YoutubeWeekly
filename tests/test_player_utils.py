@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from app.frontend.player_utils import build_mpv_args, play_video
+from app.frontend.player_utils import AUDIO_WINDOW_ARGS, build_mpv_args, is_audio_file, play_video
 
 
 def test_build_mpv_args_basic():
@@ -68,3 +68,32 @@ def test_play_video_default_player_linux(mock_call):
     error = play_video(settings, "/tmp/video.mp4")
     assert error is None
     mock_call.assert_called_once()
+
+
+# An audio file used to play with no window at all: nothing to pause or close it
+# with, and closing the app did not stop it (church PC, 2026-11-20).
+CHURCH = {"mpv_path": "mpv.exe", "use_mpv": True, "mpv_fullscreen": True, "mpv_volume": 100,
+          "mpv_screen": "1", "mpv_custom_args": ""}
+
+
+@pytest.mark.parametrize("name", ["Karaoke Version.mp3", "NEGATIV.MP3", "x.m4a", "x.wav", "x.flac", "x.ogg", "x.opus"])
+def test_an_audio_file_gets_a_window_with_its_controls(name):
+    args = build_mpv_args(CHURCH, f"D:/videos/other/{name}", script_path="fs.lua")
+    assert is_audio_file(name)
+    for a in AUDIO_WINDOW_ARGS:
+        assert a in args
+
+
+def test_an_audio_window_stays_off_the_projector():
+    """No fullscreen script and no --screen: a backing track never covers the lyrics."""
+    args = build_mpv_args(CHURCH, "D:/videos/other/track.mp3", script_path="fs.lua")
+    assert not any(a.startswith("--script=") for a in args)
+    assert not any(a.startswith("--screen=") for a in args)
+    assert "--volume=100" in args
+
+
+def test_a_video_still_goes_fullscreen_on_its_screen_with_no_forced_window():
+    args = build_mpv_args(CHURCH, "D:/videos/colecta/22 august 2026.mp4", script_path="fs.lua")
+    assert "--script=fs.lua" in args and "--screen=1" in args
+    assert not any(a.startswith("--force-window") for a in args)
+    assert not is_audio_file("x.mp4")
